@@ -35,6 +35,10 @@ app.get('/dashboard.html', (req, res) => {
   res.sendFile(path.join(FRONTEND_DIR, 'pages/dashboard.html'));
 });
 
+app.get('/bauhof.html', (req, res) => {
+  res.sendFile(path.join(FRONTEND_DIR, 'pages/Bauhof.html'));
+});
+
 app.listen(PORT, () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);
 });

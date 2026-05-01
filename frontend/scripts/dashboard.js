@@ -12,12 +12,16 @@ const sidebar = document.getElementById('sidebar');
 
 const navLinks = [
   { label: 'Dashboard', href: '/dashboard.html' },
+  { label: 'Bauhof', href: '/bauhof.html' },
 ];
 
 navLinks.forEach(({ label, href }) => {
   const a = document.createElement('a');
   a.textContent = label;
   a.href = href;
+  if (window.location.pathname.toLowerCase() === href.toLowerCase()) {
+    a.classList.add('is-active');
+  }
   sidebar.appendChild(a);
 });
 

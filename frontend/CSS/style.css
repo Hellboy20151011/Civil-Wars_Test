@@ -76,6 +76,12 @@ body {
   color: #fff;
 }
 
+#sidebar .is-active {
+  background-color: #357a5d;
+  color: #fff;
+  font-weight: 700;
+}
+
 #main-content {
   flex: 1;
   padding: 20px;
@@ -105,6 +111,60 @@ body {
   font-size: 0.9rem;
   padding: 4px 0;
   border-bottom: 1px solid #2e2e2e;
+}
+
+.construction-card {
+  background-color: #255747;
+  border: 2px solid #1a3f33;
+  border-radius: 10px;
+  padding: 16px;
+  max-width: 560px;
+  color: #f2f2f2;
+}
+
+.construction-card h3 {
+  margin: 0 0 8px;
+}
+
+.construction-card p {
+  margin: 0 0 14px;
+}
+
+.primary-action {
+  border: none;
+  background-color: #e5c767;
+  color: #1c1c1c;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary-action:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.category-card {
+  border: 2px solid #2d3c37;
+  background-color: #f2dbc6;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.category-card h3 {
+  margin: 0 0 8px;
+}
+
+.category-card p {
+  margin: 0;
 }
 
 /* ── Login-Seite ───────────────────────────────────────── */
