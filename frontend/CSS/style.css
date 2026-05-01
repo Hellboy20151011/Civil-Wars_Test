@@ -145,6 +145,14 @@ body {
   cursor: not-allowed;
 }
 
+.countdown-timer {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #e5c767;
+  margin: 8px 0 0;
+  letter-spacing: 0.05em;
+}
+
 .category-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

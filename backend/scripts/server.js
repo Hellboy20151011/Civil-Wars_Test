@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import authRouter from './auth.js';
+import resourcesRouter from './resources.js';
+import buildingsRouter from './buildings.js';
 
 dotenv.config();
 
@@ -21,6 +23,8 @@ app.use(express.json());
 app.use(express.static(FRONTEND_DIR));
 
 app.use('/auth', authRouter);
+app.use('/resources', resourcesRouter);
+app.use('/buildings', buildingsRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

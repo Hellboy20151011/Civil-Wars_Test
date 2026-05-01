@@ -1,83 +1,19 @@
-const raw = sessionStorage.getItem('currentUser');
-const token = sessionStorage.getItem('authToken');
+import { initShell, getAuth } from '/scripts/shell.js';
 
-if (!raw || !token) {
-  window.location.href = '/';
-}
+const API_BASE_URL = 'http://localhost:3000';
 
-const currentUser = JSON.parse(raw);
+const auth = getAuth();
+if (!auth) throw new Error('Nicht eingeloggt');
 
-function renderShell() {
-  const sidebar = document.getElementById('sidebar');
-  const resourceBar = document.getElementById('resource-bar');
-  const productionPanel = document.getElementById('production-panel');
-
-  const navLinks = [
-    { label: 'Dashboard', href: '/dashboard.html' },
-    { label: 'Bauhof', href: '/bauhof.html' }
-  ];
-
-  navLinks.forEach(({ label, href }) => {
-    const link = document.createElement('a');
-    link.textContent = label;
-    link.href = href;
-    if (window.location.pathname.toLowerCase() === href.toLowerCase()) {
-      link.classList.add('is-active');
-    }
-    sidebar.appendChild(link);
-  });
-
-  const logoutBtn = document.createElement('button');
-  logoutBtn.textContent = 'Logout';
-  logoutBtn.style.marginTop = 'auto';
-  logoutBtn.addEventListener('click', () => {
-    sessionStorage.removeItem('currentUser');
-    sessionStorage.removeItem('authToken');
-    window.location.href = '/';
-  });
-  sidebar.appendChild(logoutBtn);
-
-  const resources = [
-    { name: 'Holz', amount: 0 },
-    { name: 'Stein', amount: 0 },
-    { name: 'Nahrung', amount: 0 },
-    { name: 'Gold', amount: 0 }
-  ];
-
-  resources.forEach((res) => {
-    const item = document.createElement('div');
-    item.className = 'resource-item';
-    item.textContent = `${res.name}: ${res.amount}`;
-    resourceBar.appendChild(item);
-  });
-
-  const prodHeading = document.createElement('h3');
-  prodHeading.textContent = 'Produktion / h';
-  productionPanel.appendChild(prodHeading);
-
-  resources.forEach((res) => {
-    const item = document.createElement('div');
-    item.className = 'production-item';
-
-    const name = document.createElement('span');
-    name.textContent = res.name;
-
-    const rate = document.createElement('span');
-    rate.textContent = '+0';
-
-    item.append(name, rate);
-    productionPanel.appendChild(item);
-  });
-}
-
-function renderTownHallBuild(container, onBuilt) {
+// ── Rathaus-Baukarte ──────────────────────────────────────
+function renderTownHallBuild(container, onStartBuild) {
   container.innerHTML = '';
 
   const title = document.createElement('h2');
   title.textContent = 'Bauhof';
 
   const intro = document.createElement('p');
-  intro.textContent = `Willkommen ${currentUser.username}. Zu Beginn steht nur das Rathaus zum Bau bereit.`;
+  intro.textContent = `Willkommen ${auth.user.username}. Zu Beginn steht nur das Rathaus zum Bau bereit.`;
 
   const card = document.createElement('section');
   card.className = 'construction-card';
@@ -86,84 +22,150 @@ function renderTownHallBuild(container, onBuilt) {
   cardTitle.textContent = 'Rathaus';
 
   const cardText = document.createElement('p');
-  cardText.textContent = 'Schaltet den Bauhof mit den Hauptkategorien frei.';
+  cardText.textContent = 'Schaltet den Bauhof mit den Hauptkategorien frei. Bauzeit: 1 Minute. Keine Kosten.';
 
   const button = document.createElement('button');
   button.className = 'primary-action';
   button.textContent = 'Rathaus bauen';
-  button.addEventListener('click', () => {
-    button.disabled = true;
-    button.textContent = 'Wird gebaut...';
-
-    window.setTimeout(() => {
-      onBuilt();
-    }, 1200);
-  });
+  button.addEventListener('click', onStartBuild);
 
   card.append(cardTitle, cardText, button);
   container.append(title, intro, card);
 }
 
+// ── Countdown während der Bauzeit ─────────────────────────
+function renderCountdown(container, endTime, onComplete) {
+  container.innerHTML = '';
+
+  const title = document.createElement('h2');
+  title.textContent = 'Bauhof';
+
+  const card = document.createElement('section');
+  card.className = 'construction-card';
+
+  const cardTitle = document.createElement('h3');
+  cardTitle.textContent = 'Rathaus wird gebaut…';
+
+  const countdown = document.createElement('p');
+  countdown.className = 'countdown-timer';
+  card.append(cardTitle, countdown);
+  container.append(title, card);
+
+  const end = new Date(endTime).getTime();
+
+  const interval = setInterval(() => {
+    const remaining = Math.max(0, end - Date.now());
+    const secs = Math.ceil(remaining / 1000);
+    countdown.textContent = `Fertig in: ${secs}s`;
+
+    if (remaining <= 0) {
+      clearInterval(interval);
+      onComplete();
+    }
+  }, 500);
+}
+
+// ── Kategorien nach Fertigstellung ────────────────────────
 function renderCategories(container) {
   container.innerHTML = '';
 
   const heading = document.createElement('h2');
-  heading.textContent = 'Bauhof - Kategorien';
+  heading.textContent = 'Bauhof – Kategorien';
 
   const info = document.createElement('p');
-  info.textContent = 'Das Rathaus ist fertiggestellt. Verfuegbare Bereiche:';
+  info.textContent = 'Das Rathaus ist fertiggestellt. Verfügbare Bereiche:';
 
   const grid = document.createElement('div');
   grid.className = 'category-grid';
 
   const categories = [
-    {
-      title: 'Unterkünfte',
-      description: 'Wohnhaeuser und Kapazitaet fuer Einwohner.'
-    },
-    {
-      title: 'Versorgung',
-      description: 'Nahrungs- und Rohstoffproduktion.'
-    },
-    {
-      title: 'Militär',
-      description: 'Ausbildung und Organisation deiner Truppen.'
-    },
-    {
-      title: 'Regierung',
-      description: 'Verwaltung, Gesetze und Reichsboni.'
-    }
+    { title: 'Unterkünfte', description: 'Wohnhäuser und Kapazität für Einwohner.' },
+    { title: 'Versorgung',  description: 'Nahrungs- und Rohstoffproduktion.' },
+    { title: 'Militär',     description: 'Ausbildung und Organisation deiner Truppen.' },
+    { title: 'Regierung',   description: 'Verwaltung, Gesetze und Reichsboni.' },
   ];
 
-  categories.forEach((category) => {
+  categories.forEach(({ title, description }) => {
     const card = document.createElement('article');
     card.className = 'category-card';
 
-    const title = document.createElement('h3');
-    title.textContent = category.title;
+    const h = document.createElement('h3');
+    h.textContent = title;
 
-    const text = document.createElement('p');
-    text.textContent = category.description;
+    const p = document.createElement('p');
+    p.textContent = description;
 
-    card.append(title, text);
+    card.append(h, p);
     grid.appendChild(card);
   });
 
   container.append(heading, info, grid);
 }
 
-function init() {
-  renderShell();
-
-  const container = document.getElementById('Bauhof');
-  renderTownHallBuild(container, () => {
-    sessionStorage.setItem('townHallBuilt', 'true');
-    renderCategories(container);
-  });
-
-  if (sessionStorage.getItem('townHallBuilt') === 'true') {
-    renderCategories(container);
+// ── Bau beim Server abschließen ───────────────────────────
+async function completeBuilding(buildingId) {
+  try {
+    await fetch(`${API_BASE_URL}/buildings/complete/${buildingId}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` }
+    });
+  } catch (err) {
+    console.error('Fehler beim Abschließen:', err);
   }
 }
 
+// ── Hauptlogik ────────────────────────────────────────────
+async function init() {
+  await initShell();
+
+  const container = document.getElementById('Bauhof');
+
+  // Gebäude des Users laden
+  const res = await fetch(`${API_BASE_URL}/buildings/me`, {
+    headers: { Authorization: `Bearer ${auth.token}` }
+  });
+  const { buildings } = await res.json();
+  const townHall = buildings.find(b => b.name === 'Rathaus');
+
+  // Rathaus fertig
+  if (townHall?.status === 'complete') {
+    renderCategories(container);
+    return;
+  }
+
+  // Rathaus im Bau
+  if (townHall?.status === 'in_progress') {
+    renderCountdown(container, townHall.construction_end_time, async () => {
+      await completeBuilding(townHall.id);
+      renderCategories(container);
+    });
+    return;
+  }
+
+  // Rathaus noch nicht gestartet
+  renderTownHallBuild(container, async () => {
+    const startRes = await fetch(`${API_BASE_URL}/buildings/build`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${auth.token}`
+      },
+      body: JSON.stringify({ building_type_id: 1 })
+    });
+
+    if (!startRes.ok) {
+      const err = await startRes.json();
+      alert(err.message);
+      return;
+    }
+
+    const { building } = await startRes.json();
+    renderCountdown(container, building.construction_end_time, async () => {
+      await completeBuilding(building.id);
+      renderCategories(container);
+    });
+  });
+}
+
 init();
+

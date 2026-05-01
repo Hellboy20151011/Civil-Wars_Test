@@ -41,7 +41,28 @@ router.post('/register', async (req, res) => {
             [email, username, hashedPassword]
         );
 
-        res.status(201).json({ message: 'User registered successfully', user: newUser.rows[0] });
+        const userId = newUser.rows[0].id;
+
+        // Startressourcen anlegen: Stein 500, Metall 300, Geld 100
+        await pool.query(
+            `INSERT INTO user_resources (user_id, resource_type_id, amount)
+             SELECT $1, id,
+                CASE name
+                    WHEN 'Stein'  THEN 500
+                    WHEN 'Metall' THEN 300
+                    WHEN 'Geld'   THEN 100
+                    ELSE 0
+                END
+             FROM resource_types
+             ON CONFLICT (user_id, resource_type_id) DO NOTHING`,
+            [userId]
+        );
+
+        const registeredUser = newUser.rows[0];
+        const payload = { id: registeredUser.id, username: registeredUser.username, role: registeredUser.role };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+        res.status(201).json({ message: 'User registered successfully', token, user: registeredUser });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
