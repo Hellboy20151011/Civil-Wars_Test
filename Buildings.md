@@ -194,73 +194,197 @@
 
 ### Kaserne
 
+Die Kaserne kann auf 4 Level aufgerüstet werden um unterschiedliche Einheitentypen freizuschalten.
+
+#### Level 1
+
 - Beschreibung:
+- Einheit:
 - Voraussetzungen:
   - Rathaus
 - Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Resourcen-Produktion:
+
+#### Level 2
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Kaserne Level 1
+- Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Energie-Bilanz:
-  - Strom-Verbrauch: Mwh
-  - Strom-Produktion: Mwh
+
+#### Level 3
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Kaserne Level 2
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
+
+#### Level 4
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Kaserne Level 3
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
 
 ### Fahrzeugfabrik
 
+Die Fahrzeugfabrik kann auf 4 Level aufgerüstet werden um unterschiedliche Einheitentypen freizuschalten.
+
+#### Level 1
+
 - Beschreibung:
+- Einheit:
 - Voraussetzungen:
   - Rathaus
 - Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Resourcen-Produktion:
+
+#### Level 2
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Fahrzeugfabrik Level 1
+- Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Energie-Bilanz:
-  - Strom-Verbrauch: Mwh
-  - Strom-Produktion: Mwh
+
+#### Level 3
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Fahrzeugfabrik Level 2
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
+
+#### Level 4
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Fahrzeugfabrik Level 3
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
 
 ### Schiffswerft
 
+Die Schiffswerft kann auf 4 Level aufgerüstet werden um unterschiedliche Einheitentypen freizuschalten.
+
+#### Level 1
+
 - Beschreibung:
+- Einheit:
 - Voraussetzungen:
   - Rathaus
 - Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Resourcen-Produktion:
+
+#### Level 2
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Schiffswerft Level 1
+- Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Energie-Bilanz:
-  - Strom-Verbrauch: Mwh
-  - Strom-Produktion: Mwh
+
+#### Level 3
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Schiffswerft Level 2
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
+
+#### Level 4
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Schiffswerft Level 3
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
 
 ### Flugplatz
 
+Der Flugplatz kann auf 4 Level aufgerüstet werden um unterschiedliche Einheitentypen freizuschalten.
+
+#### Level 1
+
 - Beschreibung:
+- Einheit:
 - Voraussetzungen:
   - Rathaus
 - Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Resourcen-Produktion:
+
+#### Level 2
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Flugplatz Level 1
+- Resourcen-Kosten:
   - Geld: €
   - Stein: t
   - Stahl: t
-- Energie-Bilanz:
-  - Strom-Verbrauch: Mwh
-  - Strom-Produktion: Mwh
 
-## Regierung
+#### Level 3
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Flugplatz Level 2
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
+
+#### Level 4
+
+- Beschreibung:
+- Einheit:
+- Voraussetzungen:
+  - Flugplatz Level 3
+- Resourcen-Kosten:
+  - Geld: €
+  - Stein: t
+  - Stahl: t
+
+## Regierungsgebäude
 
 ### Geheimdienstzentrum
 
