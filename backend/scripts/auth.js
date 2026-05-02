@@ -1,7 +1,14 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import pool from '../database/db.js';
+import { asyncWrapper } from '../middleware/asyncWrapper.js';
+import { validateBody } from '../middleware/validate.js';
+import { authLimiter } from '../middleware/rateLimiters.js';
+import * as playerRepo from '../repositories/player.repository.js';
+import * as resourcesRepo from '../repositories/resources.repository.js';
+import * as buildingRepo from '../repositories/building.repository.js';
 
 const router = express.Router();
 
@@ -12,112 +19,98 @@ if (!JWT_SECRET) {
     throw new Error('JWT_SECRET is not defined in environment variables');
 }
 
+const registerSchema = z.object({
+    username: z.string().min(3,  'Username muss mindestens 3 Zeichen lang sein'),
+    email:    z.string().email('Ungültige E-Mail-Adresse'),
+    password: z.string().min(8,  'Passwort muss mindestens 8 Zeichen lang sein'),
+});
+
+const loginSchema = z.object({
+    username: z.string().min(1, 'Username darf nicht leer sein'),
+    password: z.string().min(1, 'Passwort darf nicht leer sein'),
+});
+
 // Registrierung eines neuen Benutzers
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, validateBody(registerSchema), asyncWrapper(async (req, res) => {
     const { username, password, email } = req.body;
 
-    if (!username || !password || !email) {
-        return res.status(400).json({ message: 'Username, password and email are required' });
+    const existing = await playerRepo.findByUsernameOrEmail(username, email);
+    if (existing) {
+        return res.status(400).json({ message: 'Username or email already exists' });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Freie Koordinaten suchen (bis zu 50 Versuche)
+    let koordinateX, koordinateY, versuche = 0;
+    const client = await pool.connect();
     try {
-        // Überprüfen, ob Benutzername oder E-Mail bereits existiert
-        const userCheck = await pool.query(
-            'SELECT id FROM users WHERE username = $1 OR email = $2',
-            [username, email]
-        );
-        if (userCheck.rows.length > 0) {
-            return res.status(400).json({ message: 'Username or email already exists' });
+        await client.query('BEGIN');
+
+        do {
+            if (versuche >= 50) {
+                await client.query('ROLLBACK');
+                return res.status(503).json({ message: 'Kein freier Koordinatenplatz verfügbar' });
+            }
+            koordinateX = Math.floor(Math.random() * 999) + 1;
+            koordinateY = Math.floor(Math.random() * 999) + 1;
+            versuche++;
+        } while (await playerRepo.findByKoordinaten(koordinateX, koordinateY, client));
+
+        const newUser = await playerRepo.create(username, email, hashedPassword, koordinateX, koordinateY, client);
+
+        // Startressourcen: Geld 100, Stein 500, Eisen 300, Treibstoff 0
+        await resourcesRepo.initForUser(newUser.id, client);
+
+        // Rathaus als Startgebäude sofort einbuchen
+        const rathaus = await buildingRepo.findTypeByName('Rathaus', client);
+        if (rathaus) {
+            await buildingRepo.upsertBuilding(newUser.id, rathaus.id, 1, client);
         }
 
-        // Passwort hashen
-        const hashedPassword = await bcrypt.hash(password, 10);
+        await client.query('COMMIT');
 
-        // Neuen Benutzer in die Datenbank einfügen
-        const newUser = await pool.query(
-            `INSERT INTO users (email, username, password_hash)
-             VALUES ($1, $2, $3)
-             RETURNING id, email, username, role, is_active, is_email_verified, created_at`,
-            [email, username, hashedPassword]
-        );
-
-        const userId = newUser.rows[0].id;
-
-        // Startressourcen anlegen: Stein 500, Metall 300, Geld 100
-        await pool.query(
-            `INSERT INTO user_resources (user_id, resource_type_id, amount)
-             SELECT $1, id,
-                CASE name
-                    WHEN 'Stein'  THEN 500
-                    WHEN 'Metall' THEN 300
-                    WHEN 'Geld'   THEN 100
-                    ELSE 0
-                END
-             FROM resource_types
-             ON CONFLICT (user_id, resource_type_id) DO NOTHING`,
-            [userId]
-        );
-
-        const registeredUser = newUser.rows[0];
-        const payload = { id: registeredUser.id, username: registeredUser.username, role: registeredUser.role };
+        const payload = { id: newUser.id, username: newUser.username, role: newUser.role };
         const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
-        res.status(201).json({ message: 'User registered successfully', token, user: registeredUser });
+        res.status(201).json({ message: 'User registered successfully', token, user: newUser });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
     }
-});
+}));
 
 // Login eines bestehenden Benutzers
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, validateBody(loginSchema), asyncWrapper(async (req, res) => {
     const { username, password } = req.body;
 
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Username and password are required' });
+    const user = await playerRepo.findByUsername(username);
+    if (!user) {
+        return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    try {
-        const userResult = await pool.query(
-            'SELECT id, username, email, password_hash, role, is_active FROM users WHERE username = $1',
-            [username]
-        );
-
-        if (userResult.rows.length === 0) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        const user = userResult.rows[0];
-        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
-        if (!isPasswordValid) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        if (!user.is_active) {
-            return res.status(403).json({ message: 'User account is inactive' });
-        }
-
-        await pool.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
-
-        const payload = { id: user.id, username: user.username, role: user.role };
-        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-        res.status(200).json({
-            message: 'Login successful',
-            token,
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.email,
-                role: user.role
-            }
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error' });
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Invalid credentials' });
     }
-});
+
+    if (!user.is_active) {
+        return res.status(403).json({ message: 'User account is inactive' });
+    }
+
+    await playerRepo.updateLastLogin(user.id);
+
+    const payload = { id: user.id, username: user.username, role: user.role };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    res.status(200).json({
+        message: 'Login successful',
+        token,
+        user: { id: user.id, username: user.username, email: user.email, role: user.role },
+    });
+}));
 
 // Middleware: Token prüfen
 export function requireAuth(req, res, next) {
@@ -137,20 +130,12 @@ export function requireAuth(req, res, next) {
 }
 
 // Gibt den eingeloggten User anhand des Tokens zurück
-router.get('/me', requireAuth, async (req, res) => {
-    try {
-        const result = await pool.query(
-            'SELECT id, username, email, role, is_active, created_at FROM users WHERE id = $1',
-            [req.user.id]
-        );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-        res.json({ user: result.rows[0] });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error' });
+router.get('/me', requireAuth, asyncWrapper(async (req, res) => {
+    const user = await playerRepo.findById(req.user.id);
+    if (!user) {
+        return res.status(404).json({ message: 'User not found' });
     }
-});
+    res.json({ user });
+}));
 
 export default router;

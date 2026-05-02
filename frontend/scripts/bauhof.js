@@ -5,166 +5,232 @@ const API_BASE_URL = 'http://localhost:3000';
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
-// ── Rathaus-Baukarte ──────────────────────────────────────
-function renderTownHallBuild(container, onStartBuild) {
-  container.innerHTML = '';
-
-  const title = document.createElement('h2');
-  title.textContent = 'Bauhof';
-
-  const intro = document.createElement('p');
-  intro.textContent = `Willkommen ${auth.user.username}. Zu Beginn steht nur das Rathaus zum Bau bereit.`;
-
-  const card = document.createElement('section');
-  card.className = 'construction-card';
-
-  const cardTitle = document.createElement('h3');
-  cardTitle.textContent = 'Rathaus';
-
-  const cardText = document.createElement('p');
-  cardText.textContent = 'Schaltet den Bauhof mit den Hauptkategorien frei. Bauzeit: 1 Minute. Keine Kosten.';
-
-  const button = document.createElement('button');
-  button.className = 'primary-action';
-  button.textContent = 'Rathaus bauen';
-  button.addEventListener('click', onStartBuild);
-
-  card.append(cardTitle, cardText, button);
-  container.append(title, intro, card);
+// ── Hilfsfunktion: API-Call ───────────────────────────────
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${auth.token}`,
+      ...options.headers,
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.message || 'Fehler'), { status: res.status });
+  return data;
 }
 
-// ── Countdown während der Bauzeit ─────────────────────────
-function renderCountdown(container, endTime, onComplete) {
-  container.innerHTML = '';
+// ── Bauwarteschlange rendern ──────────────────────────────
+function renderQueue(container, queue) {
+  let queueSection = container.querySelector('.queue-section');
+  if (!queueSection) {
+    queueSection = document.createElement('section');
+    queueSection.className = 'queue-section';
+    const h = document.createElement('h3');
+    h.textContent = 'Bauwarteschlange';
+    queueSection.appendChild(h);
+    container.appendChild(queueSection);
+  }
+  // Alles außer dem Heading leeren
+  while (queueSection.children.length > 1) queueSection.removeChild(queueSection.lastChild);
 
-  const title = document.createElement('h2');
-  title.textContent = 'Bauhof';
+  if (queue.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-state';
+    empty.textContent = 'Keine Gebäude in der Bauwarteschlange.';
+    queueSection.appendChild(empty);
+    return;
+  }
 
-  const card = document.createElement('section');
-  card.className = 'construction-card';
+  queue.forEach(entry => {
+    const row = document.createElement('div');
+    row.className = 'queue-row';
 
-  const cardTitle = document.createElement('h3');
-  cardTitle.textContent = 'Rathaus wird gebaut…';
+    const name = document.createElement('span');
+    name.textContent = entry.anzahl > 1 ? `${entry.anzahl}x ${entry.name}` : entry.name;
 
-  const countdown = document.createElement('p');
-  countdown.className = 'countdown-timer';
-  card.append(cardTitle, countdown);
-  container.append(title, card);
+    const timer = document.createElement('span');
+    timer.className = 'countdown-timer';
+    row.append(name, timer);
+    queueSection.appendChild(row);
 
-  const end = new Date(endTime).getTime();
-
-  const interval = setInterval(() => {
-    const remaining = Math.max(0, end - Date.now());
-    const secs = Math.ceil(remaining / 1000);
-    countdown.textContent = `Fertig in: ${secs}s`;
-
-    if (remaining <= 0) {
-      clearInterval(interval);
-      onComplete();
-    }
-  }, 500);
+    // Countdown pro Eintrag
+    const endMs = new Date(entry.fertig_am).getTime();
+    const tick = setInterval(() => {
+      const remaining = Math.max(0, endMs - Date.now());
+      if (remaining <= 0) {
+        clearInterval(tick);
+        timer.textContent = '✓ Fertig';
+        // Seite nach kurzer Pause neu laden um Gebäude einzubuchen
+        setTimeout(() => init(), 1500);
+      } else {
+        const s = Math.ceil(remaining / 1000);
+        const m = Math.floor(s / 60);
+        timer.textContent = m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+      }
+    }, 500);
+  });
 }
 
-// ── Kategorien nach Fertigstellung ────────────────────────
-function renderCategories(container) {
+// ── Gebäudeliste rendern ──────────────────────────────────
+function renderMyBuildings(container, buildings) {
+  let section = container.querySelector('.my-buildings-section');
+  if (!section) {
+    section = document.createElement('section');
+    section.className = 'my-buildings-section';
+    const h = document.createElement('h3');
+    h.textContent = 'Meine Gebäude';
+    section.appendChild(h);
+    container.insertBefore(section, container.firstChild);
+  }
+  while (section.children.length > 1) section.removeChild(section.lastChild);
+
+  if (buildings.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-state';
+    empty.textContent = '- Noch keine Gebäude gebaut! -';
+    section.appendChild(empty);
+    return;
+  }
+
+  buildings.forEach(b => {
+    const row = document.createElement('div');
+    row.className = 'building-row';
+
+    const name = document.createElement('span');
+    name.textContent = b.anzahl > 1 ? `${b.name} (${b.anzahl}x)` : b.name;
+
+    const cat = document.createElement('span');
+    cat.className = 'building-category';
+    cat.textContent = b.kategorie;
+
+    row.append(name, cat);
+    section.appendChild(row);
+  });
+}
+
+// ── Kategorien + Gebäudetypen ─────────────────────────────
+async function renderCategories(container, myBuildings) {
   container.innerHTML = '';
 
   const heading = document.createElement('h2');
-  heading.textContent = 'Bauhof – Kategorien';
+  heading.textContent = 'Bauhof – Verfügbare Gebäude';
 
-  const info = document.createElement('p');
-  info.textContent = 'Das Rathaus ist fertiggestellt. Verfügbare Bereiche:';
+  const msgEl = document.createElement('p');
+  msgEl.id = 'build-message';
+  msgEl.style.color = '#7cc8ff';
+
+  container.append(heading, msgEl);
+
+  // Meine Gebäude und Queue laden
+  const { buildings, queue } = await apiFetch('/buildings/me');
+  renderMyBuildings(container, buildings);
+  renderQueue(container, queue);
+
+  // Gebäudetypen laden
+  const types = await apiFetch('/buildings/types');
+
+  const categories = [
+    { key: 'Unterkunft', title: 'Unterkünfte',  description: 'Wohnhäuser und Kapazität für Einwohner.' },
+    { key: 'Industrie',  title: 'Industrie',    description: 'Rohstoffproduktion: Stein, Eisen, Treibstoff.' },
+    { key: 'Versorgung', title: 'Versorgung',   description: 'Energie und Grundversorgung.' },
+    { key: 'Militär',    title: 'Militär',      description: 'Ausbildung und Organisation deiner Truppen.' },
+    { key: 'Regierung',  title: 'Regierung',    description: 'Verwaltung, Gesetze und Reichsboni.' },
+  ];
 
   const grid = document.createElement('div');
   grid.className = 'category-grid';
 
-  const categories = [
-    { title: 'Unterkünfte', description: 'Wohnhäuser und Kapazität für Einwohner.' },
-    { title: 'Versorgung',  description: 'Nahrungs- und Rohstoffproduktion.' },
-    { title: 'Militär',     description: 'Ausbildung und Organisation deiner Truppen.' },
-    { title: 'Regierung',   description: 'Verwaltung, Gesetze und Reichsboni.' },
-  ];
+  categories.forEach(({ key, title, description }) => {
+    const catBuildings = types.filter(t => t.kategorie === key && t.name !== 'Rathaus');
+    if (catBuildings.length === 0) return;
 
-  categories.forEach(({ title, description }) => {
     const card = document.createElement('article');
     card.className = 'category-card';
 
     const h = document.createElement('h3');
     h.textContent = title;
 
-    const p = document.createElement('p');
-    p.textContent = description;
+    const desc = document.createElement('p');
+    desc.textContent = description;
 
-    card.append(h, p);
+    card.append(h, desc);
+
+    catBuildings.forEach(bt => {
+      const owned = myBuildings.find(b => b.id === bt.id);
+      const inQueue = queue.find(q => q.building_type_id === bt.id);
+
+      const bRow = document.createElement('div');
+      bRow.className = 'building-type-row';
+
+      const bName = document.createElement('strong');
+      bName.textContent = bt.name;
+
+      const costs = [];
+      if (bt.money_cost > 0) costs.push(`💰 ${Number(bt.money_cost).toLocaleString('de-DE')}`);
+      if (bt.stone_cost  > 0) costs.push(`🪨 ${Number(bt.stone_cost).toLocaleString('de-DE')}`);
+      if (bt.iron_cost   > 0) costs.push(`⚙️ ${Number(bt.iron_cost).toLocaleString('de-DE')}`);
+      if (bt.fuel_cost   > 0) costs.push(`🛢️ ${Number(bt.fuel_cost).toLocaleString('de-DE')}`);
+
+      const costSpan = document.createElement('span');
+      costSpan.className = 'build-cost';
+      costSpan.textContent = costs.length > 0 ? costs.join('  ') : 'Kostenlos';
+
+      const btn = document.createElement('button');
+      btn.className = 'primary-action';
+      btn.dataset.buildId = bt.id;
+
+      if (inQueue) {
+        btn.textContent = 'In Warteschlange…';
+        btn.disabled = true;
+      } else {
+        btn.textContent = owned ? `Weiteren bauen (${owned.anzahl}x)` : 'Bauen';
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const msg = document.getElementById('build-message');
+          try {
+            const result = await apiFetch('/buildings/build', {
+              method: 'POST',
+              body: JSON.stringify({ building_type_id: bt.id }),
+            });
+            if (msg) msg.textContent = result.message ?? '';
+            await init(); // Seite neu laden
+          } catch (err) {
+            if (msg) msg.textContent = err.message;
+            btn.disabled = false;
+          }
+        });
+      }
+
+      bRow.append(bName, costSpan, btn);
+      card.appendChild(bRow);
+    });
+
     grid.appendChild(card);
   });
 
-  container.append(heading, info, grid);
-}
-
-// ── Bau beim Server abschließen ───────────────────────────
-async function completeBuilding(buildingId) {
-  try {
-    await fetch(`${API_BASE_URL}/buildings/complete/${buildingId}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${auth.token}` }
-    });
-  } catch (err) {
-    console.error('Fehler beim Abschließen:', err);
-  }
+  container.appendChild(grid);
 }
 
 // ── Hauptlogik ────────────────────────────────────────────
 async function init() {
+  const container = document.getElementById('Bauhof');
+  if (!container) return;
+
   await initShell();
 
-  const container = document.getElementById('Bauhof');
+  container.innerHTML = '';
 
-  // Gebäude des Users laden
-  const res = await fetch(`${API_BASE_URL}/buildings/me`, {
-    headers: { Authorization: `Bearer ${auth.token}` }
-  });
-  const { buildings } = await res.json();
-  const townHall = buildings.find(b => b.name === 'Rathaus');
-
-  // Rathaus fertig
-  if (townHall?.status === 'complete') {
-    renderCategories(container);
-    return;
+  try {
+    const { buildings, queue } = await apiFetch('/buildings/me');
+    await renderCategories(container, buildings);
+  } catch (err) {
+    console.error(err);
+    const errMsg = document.createElement('p');
+    errMsg.textContent = `Fehler beim Laden: ${err.message}`;
+    errMsg.style.color = '#f88';
+    container.appendChild(errMsg);
   }
-
-  // Rathaus im Bau
-  if (townHall?.status === 'in_progress') {
-    renderCountdown(container, townHall.construction_end_time, async () => {
-      await completeBuilding(townHall.id);
-      renderCategories(container);
-    });
-    return;
-  }
-
-  // Rathaus noch nicht gestartet
-  renderTownHallBuild(container, async () => {
-    const startRes = await fetch(`${API_BASE_URL}/buildings/build`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${auth.token}`
-      },
-      body: JSON.stringify({ building_type_id: 1 })
-    });
-
-    if (!startRes.ok) {
-      const err = await startRes.json();
-      alert(err.message);
-      return;
-    }
-
-    const { building } = await startRes.json();
-    renderCountdown(container, building.construction_end_time, async () => {
-      await completeBuilding(building.id);
-      renderCategories(container);
-    });
-  });
 }
 
 init();

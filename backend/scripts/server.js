@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import authRouter from './auth.js';
 import resourcesRouter from './resources.js';
 import buildingsRouter from './buildings.js';
+import meRouter from './me.js';
+import { errorHandler } from '../middleware/errorHandler.js';
 
 dotenv.config();
 
@@ -25,6 +27,7 @@ app.use(express.static(FRONTEND_DIR));
 app.use('/auth', authRouter);
 app.use('/resources', resourcesRouter);
 app.use('/buildings', buildingsRouter);
+app.use('/me', meRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -42,6 +45,9 @@ app.get('/dashboard.html', (req, res) => {
 app.get('/bauhof.html', (req, res) => {
   res.sendFile(path.join(FRONTEND_DIR, 'pages/Bauhof.html'));
 });
+
+// Zentraler Error-Handler (muss nach allen Routen stehen)
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);

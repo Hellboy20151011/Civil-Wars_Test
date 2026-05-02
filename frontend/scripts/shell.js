@@ -1,5 +1,5 @@
 // Gemeinsames Layout-Modul für alle Spielseiten (außer Login)
-// Exportiert: initShell()
+// Exportiert: initShell(), getAuth()
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -20,8 +20,26 @@ export async function initShell(navLinks = []) {
   if (!auth) return;
 
   renderSidebar(navLinks, auth);
-  await renderResourceBar(auth.token);
-  renderProductionPanel();
+
+  // /me lädt Ressourcen, Strom, Produktion und Gebäude in einem Request
+  try {
+    const res = await fetch(`${API_BASE_URL}/me`, {
+      headers: { Authorization: `Bearer ${auth.token}` }
+    });
+    if (!res.ok) throw new Error('Status-Abruf fehlgeschlagen');
+    const status = await res.json();
+    renderResourceBar(status);
+    renderProductionPanel(status);
+  } catch (err) {
+    console.error(err);
+    const bar = document.getElementById('resource-bar');
+    if (bar) {
+      const fallback = document.createElement('span');
+      fallback.textContent = 'Ressourcen nicht verfügbar';
+      fallback.style.color = '#f88';
+      bar.appendChild(fallback);
+    }
+  }
 }
 
 function renderSidebar(navLinks, auth) {
@@ -58,66 +76,73 @@ function renderSidebar(navLinks, auth) {
   sidebar.appendChild(logoutBtn);
 }
 
-async function renderResourceBar(token) {
+function renderResourceBar(status) {
   const bar = document.getElementById('resource-bar');
   if (!bar) return;
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/resources/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  const res = status.resources ?? {};
+  const strom = status.strom ?? { frei: 0 };
+  const bevoelkerung = status.bevoelkerung ?? 0;
 
-    if (!res.ok) throw new Error('Ressourcen konnten nicht geladen werden');
+  const items = [
+    { key: 'geld',       label: '💰', value: Number(res.geld       ?? 0) },
+    { key: 'stein',      label: '🪨', value: Number(res.stein      ?? 0) },
+    { key: 'eisen',      label: '⚙️', value: Number(res.eisen      ?? 0) },
+    { key: 'treibstoff', label: '🛢️', value: Number(res.treibstoff ?? 0) },
+    { key: 'strom',      label: '⚡', value: strom.frei },
+    { key: 'bevoelkerung', label: '👥', value: bevoelkerung },
+  ];
 
-    const { resources } = await res.json();
+  items.forEach(({ key, label, value }) => {
+    const item = document.createElement('div');
+    item.className = 'resource-item';
+    item.dataset.resource = key;
 
-    resources.forEach(({ name, amount }) => {
-      const item = document.createElement('div');
-      item.className = 'resource-item';
-      item.dataset.resource = name;
+    const icon = document.createElement('span');
+    icon.textContent = label;
+    icon.style.marginRight = '3px';
 
-      const label = document.createElement('span');
-      label.textContent = `${name}: `;
+    const val = document.createElement('span');
+    val.textContent = value.toLocaleString('de-DE');
+    val.dataset.resourceValue = key;
 
-      const value = document.createElement('span');
-      value.textContent = amount.toLocaleString('de-DE');
-      value.dataset.resourceValue = name;
-
-      item.append(label, value);
-      bar.appendChild(item);
-    });
-
-  } catch (err) {
-    console.error(err);
-    const fallback = document.createElement('span');
-    fallback.textContent = 'Ressourcen nicht verfügbar';
-    fallback.style.color = '#f88';
-    bar.appendChild(fallback);
-  }
+    item.append(icon, val);
+    bar.appendChild(item);
+  });
 }
 
-function renderProductionPanel() {
+function renderProductionPanel(status) {
   const panel = document.getElementById('production-panel');
   if (!panel) return;
 
+  const prod = status.production ?? {};
+
   const heading = document.createElement('h3');
-  heading.textContent = 'Produktion / h';
+  heading.textContent = 'Produktion / Tick';
   panel.appendChild(heading);
 
-  const resourceNames = ['Stein', 'Metall', 'Geld'];
+  const rows = [
+    { label: '💰 Geld',       key: 'geld'       },
+    { label: '🪨 Stein',      key: 'stein'      },
+    { label: '⚙️ Eisen',      key: 'eisen'      },
+    { label: '🛢️ Treibstoff', key: 'treibstoff' },
+  ];
 
-  resourceNames.forEach(name => {
+  rows.forEach(({ label, key }) => {
     const item = document.createElement('div');
     item.className = 'production-item';
 
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = name;
+    nameSpan.textContent = label;
 
     const rate = document.createElement('span');
-    rate.textContent = '+0';
-    rate.dataset.productionFor = name;
+    const val = Number(prod[key] ?? 0);
+    rate.textContent = val > 0 ? `+${val.toLocaleString('de-DE')}` : '+0';
+    rate.dataset.productionFor = key;
 
     item.append(nameSpan, rate);
     panel.appendChild(item);
   });
 }
+
+
