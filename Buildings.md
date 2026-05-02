@@ -506,3 +506,22 @@ Der Flugplatz kann auf 4 Level aufgerüstet werden um unterschiedliche Einheiten
 - Energie-Bilanz:
   - Strom-Verbrauch: Mwh
   - Strom-Produktion: Mwh
+
+##DB-Schema
+
+-ID
+-Name
+-Voraussetzung
+-Resourcen-Kosten
+  -Geld
+  -Stein
+  -Stahl
+-Resourcen-Produktion
+  -Geld
+  -Stein
+  -Stahl
+  -Treibstoff
+-Strom-Verbrauch
+-Strom-Produktion
+-Stufe
+-Beschreibung
