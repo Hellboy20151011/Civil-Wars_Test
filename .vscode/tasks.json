@@ -19,8 +19,8 @@
     },
     {
       "label": "Backend Stop (Port 3000)",
-      "type": "shell",
-      "command": "powershell",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-Command",
@@ -35,8 +35,8 @@
     },
     {
       "label": "Backend Health Check",
-      "type": "shell",
-      "command": "powershell",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-Command",
