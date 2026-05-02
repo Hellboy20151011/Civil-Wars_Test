@@ -4,7 +4,7 @@ import pool from '../database/db.js';
 export async function initForUser(userId, client = pool) {
     await client.query(
         `INSERT INTO user_resources (user_id, geld, stein, eisen, treibstoff)
-         VALUES ($1, 100, 500, 300, 0)
+         VALUES ($1, 500000, 5000, 2000, 500)
          ON CONFLICT (user_id) DO NOTHING`,
         [userId]
     );

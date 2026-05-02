@@ -7,7 +7,9 @@ import authRouter from './auth.js';
 import resourcesRouter from './resources.js';
 import buildingsRouter from './buildings.js';
 import meRouter from './me.js';
+import unitsRouter from './units.js';
 import { errorHandler } from '../middleware/errorHandler.js';
+import { startGameLoop } from './gameloop-scheduler.js';
 
 dotenv.config();
 
@@ -27,6 +29,7 @@ app.use(express.static(FRONTEND_DIR));
 app.use('/auth', authRouter);
 app.use('/resources', resourcesRouter);
 app.use('/buildings', buildingsRouter);
+app.use('/units', unitsRouter);
 app.use('/me', meRouter);
 
 app.get('/health', (req, res) => {
@@ -48,6 +51,9 @@ app.get('/bauhof.html', (req, res) => {
 
 // Zentraler Error-Handler (muss nach allen Routen stehen)
 app.use(errorHandler);
+
+// Game Loop starten
+startGameLoop();
 
 app.listen(PORT, () => {
   console.log(`Server läuft auf http://localhost:${PORT}`);
