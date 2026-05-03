@@ -1,0 +1,59 @@
+name: Bug Report
+description: Einen Fehler im Spiel oder in der API melden
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke, dass du einen Fehler meldest! Bitte fülle das Formular so vollständig wie möglich aus.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Fehlerbeschreibung
+      description: Was passiert? Was hast du erwartet?
+      placeholder: "z. B. Beim Klick auf 'Gebäude bauen' erscheint ein 500-Fehler."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte zum Reproduzieren
+      description: Wie kann der Fehler zuverlässig reproduziert werden?
+      placeholder: |
+        1. Einloggen als Testuser
+        2. Auf /buildings/me aufrufen
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+      placeholder: "Was sollte passieren?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Umgebung
+      placeholder: |
+        - Node.js Version:
+        - PostgreSQL Version:
+        - OS:
+        - Browser (falls Frontend-Bug):
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Fehlermeldung
+      description: Relevante Konsolenausgabe oder Stack-Trace einfügen
+      render: shell
+    validations:
+      required: false

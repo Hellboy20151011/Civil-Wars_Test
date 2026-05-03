@@ -1,6 +1,5 @@
 import { initShell, getAuth } from '/scripts/shell.js';
-
-const API_BASE_URL = 'http://localhost:3000';
+import { API_BASE_URL } from '/scripts/config.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');

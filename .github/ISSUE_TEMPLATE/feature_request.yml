@@ -1,0 +1,49 @@
+name: Feature Request
+description: Ein neues Feature oder eine Verbesserung vorschlagen
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für deinen Vorschlag! Bitte beschreibe das Feature so genau wie möglich.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: Welches Problem löst dieses Feature? Gibt es einen aktuellen Workaround?
+      placeholder: "z. B. Als Spieler möchte ich Ressourcen handeln können, weil..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Gewünschte Lösung
+      description: Wie soll das Feature funktionieren?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativen (optional)
+      description: Hast du andere Lösungsansätze überlegt?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Bereich
+      options:
+        - Backend / API
+        - Frontend / UI
+        - Datenbank / Schema
+        - Kampfsystem
+        - Wirtschaftssystem
+        - Infrastruktur / CI
+        - Sonstiges
+    validations:
+      required: true

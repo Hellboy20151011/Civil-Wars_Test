@@ -4,11 +4,10 @@
  */
 
 import pool from '../database/db.js';
+import { config } from '../config.js';
 import * as economyService from './economy.service.js';
 
-const TICK_INTERVAL =
-    Number(process.env.TICK_INTERVAL_MS) ||
-    (process.env.NODE_ENV === 'production' ? 600000 : 60000);
+const TICK_INTERVAL = config.gameloop.tickIntervalMs;
 
 let tickCounter = 0;
 let gameLoopActive = false;

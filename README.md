@@ -22,7 +22,20 @@ git clone https://github.com/Hellboy20151011/Civil-Wars_Test.git
 cd Civil-Wars_Test
 ```
 
-### 2. Abhängigkeiten installieren
+---
+
+## Quick Start mit Docker
+
+```bash
+cp backend/.env.example backend/.env  # .env anpassen (JWT_SECRET!)
+docker compose up
+```
+
+Server läuft auf `http://localhost:3000`.
+
+---
+
+## Manuelles Setup
 
 ```bash
 cd backend
@@ -156,4 +169,12 @@ Alle geschützten Endpunkte erfordern einen `Authorization: Bearer <token>` Head
 
 - [API_DOCUMENTATION.md](API_DOCUMENTATION.md) – Endpunkte, Beispiele, Statuscodes
 - [VARIABLES.md](VARIABLES.md) – Modulübersicht, Variablen, DB-Schema
+- [CONTRIBUTING.md](CONTRIBUTING.md) – Branch-Konvention, Commit-Style, PR-Prozess
+- [CHANGELOG.md](CHANGELOG.md) – Versionshistorie
 - [docs/](docs/) – Architektur-Reviews, Bewertungen, Notizen
+
+---
+
+## Lizenz
+
+Dieses Projekt steht unter der [MIT-Lizenz](LICENSE).

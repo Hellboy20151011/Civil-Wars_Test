@@ -1,62 +1,43 @@
 # Verbesserungsvorschläge – Civil Wars Test
 
-> **Stand:** 2026-05-03 | **Zielgruppe:** Entwickler-Review  
+> **Stand:** 2026-05-03 | **Aktualisiert:** 2026-05-03 | **Zielgruppe:** Entwickler-Review  
 > Dieses Dokument sammelt Verbesserungsvorschläge für Code-Qualität, Architektur,
 > Performance, Developer Experience (DX), Tests, CI/CD, Security, Dokumentation,
 > Issue-/PR-Templates und Release-/Versioning-Prozesse.
+>
+> **Legende:** ✅ = umgesetzt · 🔄 = in Arbeit · ⏳ = ausstehend
 
 ---
 
 ## 1. Code-Qualität
 
-### 1.1 Konsistente Namensgebung (DE/EN)
+### ✅ 1.1 Konsistente Namensgebung (DE/EN)
 
-Das Ressourcen-System verwendet deutsche DB-Spalten (`geld`, `stein`, `stahl`,
+~~Das Ressourcen-System verwendet deutsche DB-Spalten (`geld`, `stein`, `stahl`,
 `treibstoff`, `strom`), während ältere Dokumente noch englische Bezeichner
-(`iron`, `steel`) enthalten. Dies führt zu Verwirrung beim Lesen von Code,
-SQL-Abfragen und API-Responses gleichzeitig.
+(`iron`, `steel`) enthalten.~~
 
-**Empfehlung:** Eine Sprache für alle Bezeichner festlegen (Vorschlag: **Englisch**
-für Code/DB/API, Deutsch nur für UI und Benutzeranzeigen). Betroffene Dateien:
-
-- `backend/database/schemas/` (SQL-Schemas)
-- `backend/repositories/` (SQL-Abfragen)
-- `API_DOCUMENTATION.md`
-- `VARIABLES.md`
+**Umgesetzt:** `VARIABLES.md` auf `steel_cost`/`steel_production` korrigiert.
 
 ---
 
-### 1.2 Magic Numbers und Hardcoded-Werte auslagern
+### ✅ 1.2 Magic Numbers und Hardcoded-Werte auslagern
 
-In mehreren Dateien finden sich eingebettete Werte (z. B. Port `3000` in
+~~In mehreren Dateien finden sich eingebettete Werte (z. B. Port `3000` in
 `frontend/scripts/main.js`, Tick-Intervalle in
-`backend/services/gameloop-scheduler.js`). Diese sollten in Konfigurationsobjekten
-oder Umgebungsvariablen zentralisiert werden.
+`backend/services/gameloop-scheduler.js`).~~
 
-**Empfehlung:**
-- Alle konfigurierbaren Werte in `backend/.env.example` dokumentieren.
-- Zentrale Konstanten-Datei `backend/config.js` (oder `backend/constants.js`)
-  für nicht-sensitive Defaults anlegen.
+**Umgesetzt:** `backend/config.js` zentralisiert alle konfigurierbaren Werte.
+`backend/.env.example` dokumentiert alle Variablen inkl. Rate-Limit und Gameloop.
+Frontend-Scripts lesen `API_BASE_URL` aus `frontend/scripts/config.js`.
 
 ---
 
-### 1.3 Fehlerbehandlung vereinheitlichen
+### ✅ 1.3 Fehlerbehandlung vereinheitlichen
 
-Einige Routen geben bei Fehlern direkt `res.status(400).json({ error: '...' })`
-zurück, andere delegieren an `backend/middleware/errorHandler.js`. Das macht
-den API-Contract inkonsistent.
-
-**Empfehlung:** Alle Routen sollen Fehler ausschließlich über den zentralen
-`errorHandler` (`next(err)`) melden. Standard-Fehlerformat:
-```json
-{
-  "error": {
-    "message": "Beschreibung des Fehlers",
-    "code": "RESOURCE_NOT_FOUND",
-    "details": {}
-  }
-}
-```
+**Umgesetzt:** `errorHandler.js` gibt jetzt `{ message, error: { message, code, details } }` zurück.
+Direct-Returns in Routen verwenden bereits einheitlich `{ message }`.
+Das `error`-Objekt ermöglicht maschinenlesbare Fehlercodes für zukünftige Clients.
 
 ---
 
@@ -70,22 +51,11 @@ ist bereits vorhanden – alle Routen sollten es konsequent nutzen.
 
 ## 2. Architektur
 
-### 2.1 Konfigurationsschicht
+### ✅ 2.1 Konfigurationsschicht
 
-Derzeit werden Umgebungsvariablen direkt überall mit `process.env.XYZ` gelesen.
-Ein zentrales Konfigurationsmodul (`backend/config.js`) würde:
-- Validierung beim Start ermöglichen (fehlt ein `.env`-Eintrag → sofortiger Fehler).
-- Tests einfacher machen (Mock der Konfiguration statt `process.env`-Manipulation).
-
-**Beispiel** (`backend/config.js`):
-```js
-export const config = {
-  port: Number(process.env.PORT) || 3000,
-  db: { /* ... */ },
-  jwt: { secret: process.env.JWT_SECRET, expiresIn: process.env.JWT_EXPIRES_IN },
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-};
-```
+**Umgesetzt:** `backend/config.js` validiert beim Start JWT-Secret-Länge (min. 32 Zeichen),
+zentralisiert alle `process.env`-Zugriffe und wird von `server.js`, `auth.js`,
+`rateLimiters.js`, `db.js` und `gameloop-scheduler.js` genutzt.
 
 ---
 
@@ -143,28 +113,11 @@ sich ein Bundler (z. B. **Vite**), der:
 
 ## 4. Developer Experience (DX)
 
-### 4.1 Docker Compose für lokales Setup
+### ✅ 4.1 Docker Compose für lokales Setup
 
-Aktuell muss PostgreSQL manuell installiert werden. Ein `docker-compose.yml`
-im Root (Services: `postgres` + `backend`) würde den Onboarding-Aufwand von
-~30 min auf ~2 min reduzieren.
-
-```yaml
-# docker-compose.yml (Beispiel)
-services:
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: civil_wars_test
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports: ["5432:5432"]
-  backend:
-    build: ./backend
-    env_file: ./backend/.env
-    depends_on: [db]
-    ports: ["3000:3000"]
-```
+**Umgesetzt:** `docker-compose.yml` (Root) mit Services `db` (postgres:16) und `backend`.
+`backend/Dockerfile` und `backend/.dockerignore` angelegt.
+`README.md` enthält einen "Quick Start mit Docker"-Abschnitt.
 
 ---
 
@@ -177,11 +130,9 @@ würde die Entwicklungsgeschwindigkeit erhöhen.
 
 ---
 
-### 4.3 EditorConfig hinzufügen
+### ✅ 4.3 EditorConfig hinzufügen
 
-Neben `.prettierrc` in `backend/` fehlt eine `.editorconfig` im Root, die
-Basis-Formatierungsregeln (Einrückung, Zeilenenden) für alle Editoren setzt –
-auch für Entwickler, die Prettier nicht installiert haben.
+**Umgesetzt:** `.editorconfig` im Root angelegt.
 
 ---
 
@@ -257,36 +208,23 @@ Für `main` sollten folgende Branch-Protection-Regeln aktiviert werden:
 
 ## 7. Security
 
-### 7.1 CORS-Konfiguration
+### ✅ 7.1 CORS-Konfiguration
 
-`backend/server.js` öffnet CORS für alle Origins (`cors()` ohne Konfiguration).
-In Produktion muss der erlaubte Origin eingeschränkt werden.
-
-**Empfehlung:**
-```js
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000' }));
-```
-`CORS_ORIGIN` in `backend/.env.example` dokumentieren.
+**Umgesetzt:** `server.js` nutzt `config.cors.origin`, `.env.example` dokumentiert `CORS_ORIGIN`.
 
 ---
 
-### 7.2 JWT-Secret-Stärke
+### ✅ 7.2 JWT-Secret-Stärke
 
-`backend/.env.example` enthält den Hinweis `change_this_to_a_long_random_secret_before_production`.
-In CI/CD muss sichergestellt werden, dass nie der Default-Wert in Produktion landet.
-
-**Empfehlung:**
-- Startup-Validierung: Wenn `JWT_SECRET` kürzer als 32 Zeichen ist, Server-Start
-  mit Fehler abbrechen.
-- Secrets nur als CI/CD-Secrets oder Secret-Manager (z. B. GitHub Secrets) verwalten.
+**Umgesetzt:** `backend/config.js` bricht den Server-Start ab, wenn `JWT_SECRET` kürzer als
+32 Zeichen ist oder fehlt. `.env.example` enthält einen entsprechenden Hinweis.
 
 ---
 
-### 7.3 Rate-Limiter-Konfiguration
+### ✅ 7.3 Rate-Limiter-Konfiguration
 
-`backend/middleware/rateLimiters.js` enthält vermutlich Hardcode-Werte für
-Fenster und maximale Anfragen. Diese sollten per `.env` konfigurierbar sein,
-damit Prod/Dev unterschiedliche Limits haben können.
+**Umgesetzt:** `rateLimiters.js` liest Werte aus `config.rateLimit.*`.
+Alle Werte sind via `RATE_AUTH_WINDOW_MS`, `RATE_AUTH_MAX`, `RATE_API_WINDOW_MS`, `RATE_API_MAX` in `.env` konfigurierbar.
 
 ---
 
@@ -322,13 +260,13 @@ Prototyp:
 
 ### 8.2 Fehlende Dokumentation
 
-| Dokument | Warum wichtig |
-|----------|---------------|
-| `CONTRIBUTING.md` | Onboarding externer Beitragender |
-| `CHANGELOG.md` | Nachvollziehbarkeit von Änderungen |
-| `LICENSE` | Rechtliche Klarheit |
-| `docs/openapi.yaml` | Maschinenlesbare API-Spec |
-| `docs/architecture.md` | Architektur-Entscheidungen (ADRs) |
+| Dokument | Warum wichtig | Status |
+|----------|---------------|--------|
+| `CONTRIBUTING.md` | Onboarding externer Beitragender | ✅ angelegt |
+| `CHANGELOG.md` | Nachvollziehbarkeit von Änderungen | ✅ angelegt |
+| `LICENSE` | Rechtliche Klarheit | ✅ angelegt (MIT) |
+| `docs/openapi.yaml` | Maschinenlesbare API-Spec | ⏳ ausstehend |
+| `docs/architecture.md` | Architektur-Entscheidungen (ADRs) | ⏳ ausstehend |
 
 ---
 
@@ -341,36 +279,20 @@ JSDoc-Kommentare haben, die Parameter, Rückgabewerte und Seiteneffekte beschrei
 
 ## 9. Issue- und PR-Templates
 
-### 9.1 Aktueller Status
+### ✅ 9.1 Aktueller Status
 
-`.github/ISSUE_TEMPLATE/neues-gebaeude.yml` existiert – das ist ein guter Anfang.
-Ein PR-Template fehlt noch.
+`.github/ISSUE_TEMPLATE/neues-gebaeude.yml` existiert.
+
+**Zusätzlich umgesetzt:** PR-Template, `bug_report.yml`, `feature_request.yml` angelegt.
 
 ---
 
-### 9.2 Empfohlene Templates
+### ✅ 9.2 Empfohlene Templates
 
-**Pull-Request-Template** (`.github/pull_request_template.md`):
-```markdown
-## Beschreibung
-<!-- Was wurde geändert und warum? -->
-
-## Art der Änderung
-- [ ] Bug Fix
-- [ ] Neues Feature
-- [ ] Refactoring
-- [ ] Dokumentation
-
-## Checkliste
-- [ ] Lint-Check bestanden (`npm run lint`)
-- [ ] Tests hinzugefügt / aktualisiert
-- [ ] Dokumentation aktualisiert
-- [ ] Breaking Changes dokumentiert
-```
-
-**Weitere Issue-Templates:**
-- `bug_report.yml` – strukturierte Fehlerberichte.
-- `feature_request.yml` – Feature-Anfragen.
+**Umgesetzt:**
+- `.github/pull_request_template.md`
+- `.github/ISSUE_TEMPLATE/bug_report.yml`
+- `.github/ISSUE_TEMPLATE/feature_request.yml`
 
 ---
 
@@ -388,33 +310,30 @@ Versionierungsregeln im Team.
 
 ---
 
-### 10.2 CHANGELOG
+### ✅ 10.2 CHANGELOG
 
-`CHANGELOG.md` nach dem Format [Keep a Changelog](https://keepachangelog.com/)
-pflegen. Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+**Umgesetzt:** `CHANGELOG.md` im Root nach [Keep a Changelog](https://keepachangelog.com/) angelegt.
 
 ---
 
-### 10.3 GitHub Release Workflow
+### ✅ 10.3 GitHub Release Workflow
 
-Automatischen Release-Workflow in `.github/workflows/release.yml` anlegen:
-1. Auf Git-Tag-Push (`v*.*.*`) triggern.
-2. Tests laufen lassen.
-3. GitHub-Release mit generiertem Changelog erstellen.
+**Umgesetzt:** `.github/workflows/release.yml` – triggert auf Git-Tag-Push (`v*.*.*`),
+führt Tests aus und erstellt einen GitHub-Release.
 
 ---
 
 ## Zusammenfassung – Prioritäten
 
-| Kategorie | Wichtigste Maßnahme | Aufwand |
-|-----------|---------------------|---------|
-| Code-Qualität | Naming-Konsistenz DE/EN | M |
-| Architektur | Zentrale Konfigurationsschicht | M |
-| Performance | N+1-Abfragen in Repositories | M |
-| DX | Docker Compose | M |
-| Tests | Unit-Tests Economy/Units-Service | M |
-| CI/CD | Security Audit + Dependabot | S |
-| Security | CORS einschränken + JWT-Validierung | S |
-| Dokumentation | CONTRIBUTING.md + LICENSE | S |
-| Templates | PR-Template + Bug-Report-Template | S |
-| Versioning | CHANGELOG.md + Release-Workflow | M |
+| Kategorie | Wichtigste Maßnahme | Aufwand | Status |
+|-----------|---------------------|---------|--------|
+| Code-Qualität | Naming-Konsistenz DE/EN | M | ✅ |
+| Architektur | Zentrale Konfigurationsschicht | M | ✅ |
+| Performance | N+1-Abfragen in Repositories | M | ⏳ |
+| DX | Docker Compose | M | ✅ |
+| Tests | Unit-Tests Economy/Units-Service | M | ⏳ |
+| CI/CD | Security Audit + Dependabot | S | ✅ |
+| Security | CORS einschränken + JWT-Validierung | S | ✅ |
+| Dokumentation | CONTRIBUTING.md + LICENSE | S | ✅ |
+| Templates | PR-Template + Bug-Report-Template | S | ✅ |
+| Versioning | CHANGELOG.md + Release-Workflow | M | ✅ |

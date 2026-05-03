@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import pool from '../database/db.js';
+import { config } from '../config.js';
 import { asyncWrapper } from '../middleware/asyncWrapper.js';
 import { validateBody } from '../middleware/validate.js';
 import { authLimiter } from '../middleware/rateLimiters.js';
@@ -12,12 +13,8 @@ import * as buildingRepo from '../repositories/building.repository.js';
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-
-if (!JWT_SECRET) {
-    throw new Error('JWT_SECRET is not defined in environment variables');
-}
+const JWT_SECRET = config.jwt.secret;
+const JWT_EXPIRES_IN = config.jwt.expiresIn;
 
 const registerSchema = z.object({
     username: z.string().min(3, 'Username muss mindestens 3 Zeichen lang sein'),

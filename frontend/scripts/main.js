@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '/scripts/config.js';
+
 function renderHome() {
   document.getElementById("Auth").innerHTML = `
     Register/Login:
@@ -11,7 +13,6 @@ function renderHome() {
   document.getElementById("btn_Register").addEventListener("click", renderRegister);
 }
 
-const API_BASE_URL = 'http://localhost:3000';
 let pendingRegistration = null;
 
 function goToDashboard(user, token) {

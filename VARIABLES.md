@@ -330,12 +330,12 @@ Auflistung aller benannten Variablen, Konstanten und Module-Exports im Projekt, 
 | `description` | `TEXT` | Beschreibungstext |
 | `money_cost` | `INT DEFAULT 0` | Geldkosten |
 | `stone_cost` | `INT DEFAULT 0` | Steinkosten |
-| `iron_cost` | `INT DEFAULT 0` | Eisenkosten |
+| `steel_cost` | `INT DEFAULT 0` | Stahlkosten |
 | `fuel_cost` | `INT DEFAULT 0` | Treibstoffkosten |
 | `build_time` | `INT DEFAULT 1` | Bauzeit in Minuten |
 | `money_production` | `INT DEFAULT 0` | Geldproduktion pro Tick |
 | `stone_production` | `INT DEFAULT 0` | Steinproduktion pro Tick |
-| `iron_production` | `INT DEFAULT 0` | Eisenproduktion pro Tick |
+| `steel_production` | `INT DEFAULT 0` | Stahlproduktion pro Tick |
 | `fuel_production` | `INT DEFAULT 0` | Treibstoffproduktion pro Tick |
 | `power_production` | `INT DEFAULT 0` | Stromproduktion pro Tick |
 | `power_consumption` | `INT DEFAULT 0` | Stromverbrauch pro Tick |
@@ -369,5 +369,5 @@ Auflistung aller benannten Variablen, Konstanten und Module-Exports im Projekt, 
 | `stufe` | `INT PRIMARY KEY` | Kasernenstufe (1–4) |
 | `money_cost` | `INT` | Ausbaukosten (Geld) |
 | `stone_cost` | `INT` | Ausbaukosten (Stein) |
-| `iron_cost` | `INT` | Ausbaukosten (Eisen) |
+| `steel_cost` | `INT` | Ausbaukosten (Stahl) |
 | `max_einheiten` | `INT` | Maximale Einheiten bei dieser Stufe |

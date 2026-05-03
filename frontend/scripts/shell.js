@@ -1,7 +1,7 @@
 // Gemeinsames Layout-Modul für alle Spielseiten (außer Login)
 // Exportiert: initShell(), getAuth()
 
-const API_BASE_URL = 'http://localhost:3000';
+import { API_BASE_URL } from '/scripts/config.js';
 
 const BAUHOF_CATEGORIES = [
   { key: 'housing', label: 'Unterkünfte' },

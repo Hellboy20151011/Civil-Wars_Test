@@ -12,15 +12,16 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { startGameLoop } from './services/gameloop-scheduler.js';
 
 dotenv.config();
+import { config } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.port;
 const FRONTEND_DIR = path.join(__dirname, '../frontend');
 
-app.use(cors());
+app.use(cors({ origin: config.cors.origin }));
 app.use(express.json());
 
 // Frontend statisch ausliefern
