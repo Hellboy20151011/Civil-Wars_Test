@@ -11,6 +11,11 @@ const corsOrigins = corsOriginRaw
     .map((entry) => entry.trim())
     .filter(Boolean);
 
+const parseBoolean = (value, fallback = false) => {
+    if (value == null) return fallback;
+    return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+};
+
 // JWT-Secret-Länge prüfen
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -35,6 +40,7 @@ export const config = {
     jwt: {
         secret: jwtSecret,
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+        refreshExpiresInMs: Number(process.env.JWT_REFRESH_EXPIRES_IN_MS) || 30 * 24 * 60 * 60 * 1000,
     },
 
     cors: {
@@ -58,6 +64,24 @@ export const config = {
 
     performance: {
         referenceDataCacheTtlMs: Number(process.env.REFERENCE_DATA_CACHE_TTL_MS) || 300_000,
+    },
+
+    logging: {
+        level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
+    },
+
+    docs: {
+        enableSwaggerUi: parseBoolean(
+            process.env.ENABLE_SWAGGER_UI,
+            (process.env.NODE_ENV || 'development') !== 'production'
+        ),
+    },
+
+    map: {
+        // Koordinatenbereich: 1–MAP_GRID_SIZE (Standard: 999 → ~998 000 mögliche Positionen)
+        gridSize: Number(process.env.MAP_GRID_SIZE) || 999,
+        // Maximale sinnvolle Spielerzahl bei ~0,1 % Auslastung des Gitters
+        maxPlayers: Number(process.env.MAP_MAX_PLAYERS) || 1000,
     },
 
     nodeEnv: process.env.NODE_ENV || 'development',

@@ -171,11 +171,11 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 ### ✅ 5.1 Testabdeckung für Business-Logik
 
 **Umgesetzt:** Unit-Tests mit Vitest für alle kritischen Services:
-- `backend/tests/services/units.service.test.js` – 18 Tests: Getter, `startTraining`, `moveUnits`, `attackUnits`
+- `backend/tests/services/units.service.test.js` – 19 Tests: Getter, `startTraining`, `moveUnits`, `arriveAtDestination`, `attackUnits`
 - `backend/tests/services/gameloop-scheduler.test.js` – 7 Tests: `executeGameTick`, `getTickStats`, `startGameLoop`
 - Alle Abhängigkeiten (Repositories, DB-Pool, config) werden via `vi.mock()` ersetzt; Tests laufen ohne laufende DB.
 - `backend/tests/services/economy.service.test.js` war bereits vorhanden (11 Tests).
-- Gesamt: **36 Tests**, alle grün.
+- Gesamt: **37 Tests**, alle grün.
 
 ---
 

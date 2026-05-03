@@ -43,7 +43,7 @@ function freePortOnWindows(targetPort) {
 }
 
 function freePortOnUnix(targetPort) {
-    let output = '';
+    let output;
     try {
         output = run(`lsof -ti tcp:${targetPort}`);
     } catch {

@@ -8,9 +8,12 @@ import resourcesRouter from './routes/resources.js';
 import buildingsRouter from './routes/buildings.js';
 import meRouter from './routes/me.js';
 import unitsRouter from './routes/units.js';
+import mapRouter from './routes/map.js';
+import { createDocsRouter } from './routes/docs.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { startGameLoop } from './services/gameloop-scheduler.js';
 import { config } from './config.js';
+import { logger, requestLogger } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +26,7 @@ const ACTIVE_FRONTEND_DIR = fs.existsSync(FRONTEND_DIST_DIR) ? FRONTEND_DIST_DIR
 
 app.use(cors({ origin: config.cors.origin }));
 app.use(express.json());
+app.use(requestLogger);
 
 // Frontend statisch ausliefern
 app.use(express.static(ACTIVE_FRONTEND_DIR));
@@ -32,6 +36,11 @@ app.use('/resources', resourcesRouter);
 app.use('/buildings', buildingsRouter);
 app.use('/units', unitsRouter);
 app.use('/me', meRouter);
+app.use('/map', mapRouter);
+
+if (config.docs.enableSwaggerUi) {
+    app.use('/api-docs', createDocsRouter());
+}
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
@@ -54,6 +63,10 @@ app.get('/militaer.html', (req, res) => {
     res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/militaer.html'));
 });
 
+app.get('/karte.html', (req, res) => {
+    res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/karte.html'));
+});
+
 // Zentraler Error-Handler (muss nach allen Routen stehen)
 app.use(errorHandler);
 
@@ -61,5 +74,5 @@ app.use(errorHandler);
 startGameLoop();
 
 app.listen(PORT, () => {
-    console.log(`Server läuft auf http://localhost:${PORT}`);
+    logger.info({ port: PORT }, `Server laeuft auf http://localhost:${PORT}`);
 });

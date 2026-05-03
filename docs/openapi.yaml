@@ -51,6 +51,16 @@ paths:
                 $ref: '#/components/schemas/AuthSuccessResponse'
         '400':
           description: Validierungs- oder Konfliktfehler
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '503':
+          description: Kein freier Koordinatenplatz verfuegbar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
 
   /auth/login:
     post:
@@ -69,8 +79,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthSuccessResponse'
+        '400':
+          description: Validierungsfehler
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
         '401':
           description: Ungueltige Credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '403':
+          description: Account inaktiv
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Access-Token via Refresh-Token erneuern (Rotation)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token erfolgreich erneuert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshSuccessResponse'
+        '400':
+          description: Validierungsfehler
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Refresh-Token ungueltig oder abgelaufen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '403':
+          description: Account inaktiv
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
 
   /auth/me:
     get:
@@ -81,8 +143,25 @@ paths:
       responses:
         '200':
           description: Userdaten
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/AuthUser'
         '401':
           description: Kein oder ungueltiger Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: User nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
 
   /me:
     get:
@@ -99,6 +178,10 @@ paths:
                 $ref: '#/components/schemas/PlayerStatus'
         '401':
           description: Kein oder ungueltiger Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
 
   /me/stream:
     get:
@@ -119,6 +202,16 @@ paths:
                 type: string
         '401':
           description: Token fehlt oder ist ungueltig
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '500':
+          description: Fehler beim Initialisieren des Streams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
 
   /resources/me:
     get:
@@ -143,6 +236,12 @@ paths:
       responses:
         '200':
           description: Liste von Gebaeudetypen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BuildingType'
 
   /buildings/me:
     get:
@@ -189,10 +288,31 @@ paths:
       responses:
         '201':
           description: Bau gestartet oder sofort gebaut
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+                      auftrag:
+                        $ref: '#/components/schemas/QueueEntry'
+                  - $ref: '#/components/schemas/MessageResponse'
         '400':
           description: Validierung/Ressourcen/Strom
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/MessageResponse'
         '404':
           description: Gebaeudetyp oder Ressourcen nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
 
   /units/types:
     get:
@@ -203,6 +323,12 @@ paths:
       responses:
         '200':
           description: Einheitentypen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UnitType'
 
   /units/types/category/{category}:
     get:
@@ -219,6 +345,12 @@ paths:
       responses:
         '200':
           description: Gefilterte Einheitentypen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UnitType'
 
   /units/me:
     get:
@@ -229,6 +361,12 @@ paths:
       responses:
         '200':
           description: Einheitenliste
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserUnitDetailed'
 
   /units/train:
     post:
@@ -245,8 +383,18 @@ paths:
       responses:
         '200':
           description: Ausbildung gestartet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitsActionSuccessResponse'
         '400':
           description: Validierung oder fachlicher Fehler
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/UnitsActionErrorResponse'
 
   /units/move:
     post:
@@ -263,8 +411,18 @@ paths:
       responses:
         '200':
           description: Bewegung gestartet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitsActionSuccessResponse'
         '400':
           description: Validierung oder fachlicher Fehler
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/UnitsActionErrorResponse'
 
   /units/attack:
     post:
@@ -281,8 +439,18 @@ paths:
       responses:
         '200':
           description: Angriffsergebnis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnitsActionSuccessResponse'
         '400':
           description: Validierung oder fachlicher Fehler
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+                  - $ref: '#/components/schemas/UnitsActionErrorResponse'
 
 components:
   securitySchemes:
@@ -312,7 +480,22 @@ components:
       properties:
         username:
           type: string
+          minLength: 1
         password:
+          type: string
+          minLength: 1
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
           type: string
 
     AuthSuccessResponse:
@@ -322,9 +505,58 @@ components:
           type: string
         token:
           type: string
+        refresh_token:
+          type: string
         user:
-          type: object
-          additionalProperties: true
+          $ref: '#/components/schemas/AuthUser'
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 20
+
+    RefreshSuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        token:
+          type: string
+        refresh_token:
+          type: string
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ValidationErrorItem:
+      type: object
+      properties:
+        code:
+          type: string
+        path:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: integer
+        message:
+          type: string
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationErrorItem'
 
     ResourceValues:
       type: object
@@ -357,6 +589,32 @@ components:
           type: integer
         level:
           type: integer
+
+    BuildingType:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        level:
+          type: integer
+        money_cost:
+          type: number
+        stone_cost:
+          type: number
+        steel_cost:
+          type: number
+        fuel_cost:
+          type: number
+        build_time_ticks:
+          type: integer
+        money_production:
+          type: number
+        power_consumption:
+          type: number
 
     QueueEntry:
       type: object
@@ -399,9 +657,91 @@ components:
         strom:
           type: object
           additionalProperties: true
-        produktion:
+        production:
           type: object
           additionalProperties: true
+
+    UnitType:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          type: string
+        building_requirement:
+          type: string
+        money_cost:
+          type: number
+        steel_cost:
+          type: number
+        fuel_cost:
+          type: number
+        training_time_ticks:
+          type: integer
+        hitpoints:
+          type: number
+        attack_points:
+          type: number
+        defense_points:
+          type: number
+        movement_speed:
+          type: number
+        special_ability:
+          type: string
+          nullable: true
+
+    UserUnitDetailed:
+      type: object
+      properties:
+        id:
+          type: integer
+        quantity:
+          type: integer
+        health_percentage:
+          type: number
+        experience_points:
+          type: number
+        location_x:
+          type: number
+        location_y:
+          type: number
+        is_moving:
+          type: boolean
+        destination_x:
+          type: number
+          nullable: true
+        destination_y:
+          type: number
+          nullable: true
+        arrival_time:
+          type: string
+          format: date-time
+          nullable: true
+        name:
+          type: string
+        category:
+          type: string
+
+    UnitsActionSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    UnitsActionErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
 
     BuildRequest:
       type: object

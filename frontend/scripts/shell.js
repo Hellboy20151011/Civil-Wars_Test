@@ -122,6 +122,7 @@ function renderSidebar(navLinks) {
     { label: 'Dashboard', href: '/pages/dashboard.html' },
     { label: 'Bauhof', href: '/pages/bauhof.html' },
     { label: 'Militär', href: '/pages/militaer.html' },
+    { label: 'Karte', href: '/pages/karte.html' },
   ];
 
   const links = defaultLinks.concat(
@@ -197,7 +198,8 @@ function renderSidebar(navLinks) {
           currentPath === hrefLower ||
           (hrefLower === '/pages/dashboard.html' && currentPath === '/dashboard.html') ||
           (hrefLower === '/pages/bauhof.html' && currentPath === '/bauhof.html') ||
-          (hrefLower === '/pages/militaer.html' && currentPath === '/militaer.html')
+          (hrefLower === '/pages/militaer.html' && currentPath === '/militaer.html') ||
+          (hrefLower === '/pages/karte.html' && currentPath === '/karte.html')
             ? 'is-active'
             : '',
       })

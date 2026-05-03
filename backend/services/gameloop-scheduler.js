@@ -8,6 +8,7 @@ import * as economyService from './economy.service.js';
 import * as playerRepo from '../repositories/player.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastUserStatusUpdate } from './live-updates.service.js';
+import { logger } from '../logger.js';
 
 const TICK_INTERVAL = config.gameloop.tickIntervalMs;
 
@@ -22,16 +23,17 @@ let gameLoopActive = false;
  */
 export async function executeGameTick() {
     if (gameLoopActive) {
-        console.log('[GAMELOOP] Tick lï¿½uft bereits, ï¿½berspringe...');
+        logger.warn('[GAMELOOP] Tick already running, skipping current execution');
         return;
     }
 
     gameLoopActive = true;
     tickCounter++;
     const tickTime = new Date();
+    const tickLogger = logger.child({ tickCounter, tickTime: tickTime.toISOString() });
 
     try {
-        console.log(`\n[TICK #${tickCounter}] Beginn um ${tickTime.toLocaleString('de-DE')}`);
+        tickLogger.info('Tick started');
 
         const users = await playerRepo.findActiveIds();
 
@@ -48,14 +50,19 @@ export async function executeGameTick() {
                 broadcastUserStatusUpdate(user.id, status);
                 processedCount++;
             } catch (err) {
-                console.error(`[TICK] Fehler fï¿½r User ${user.id}:`, err.message);
+                tickLogger.error(
+                    {
+                        userId: user.id,
+                        err,
+                    },
+                    'Tick processing failed for user'
+                );
             }
         }
 
-        console.log(`  ? Spieler verarbeitet: ${processedCount}/${users.length}`);
-        console.log(`[TICK #${tickCounter}] ? Abgeschlossen\n`);
+        tickLogger.info({ processedCount, totalUsers: users.length }, 'Tick completed');
     } catch (error) {
-        console.error(`[TICK #${tickCounter}] ? Kritischer Fehler:`, error.message);
+        tickLogger.error({ err: error }, 'Critical tick failure');
     } finally {
         gameLoopActive = false;
     }
@@ -65,19 +72,23 @@ async function runTickSafely(errorPrefix) {
     try {
         await executeGameTick();
     } catch (err) {
-        console.error(`${errorPrefix}:`, err);
+        logger.error({ err }, errorPrefix);
     }
 }
 
 export function startGameLoop() {
-    console.log(
-        `\n?? [GAMELOOP] Starte mit ${TICK_INTERVAL}ms Intervall (${(TICK_INTERVAL / 1000 / 60).toFixed(1)} min)`
+    logger.info(
+        {
+            tickIntervalMs: TICK_INTERVAL,
+            tickIntervalMinutes: (TICK_INTERVAL / 1000 / 60).toFixed(1),
+        },
+        'Game loop started'
     );
     void runTickSafely('Initiales Tick fehlgeschlagen');
     setInterval(async () => {
         await runTickSafely('Tick fehlgeschlagen');
     }, TICK_INTERVAL);
-    console.log('?? [GAMELOOP] ? Aktiv\n');
+    logger.info('Game loop active');
 }
 
 export function getTickStats() {

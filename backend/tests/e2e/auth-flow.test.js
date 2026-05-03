@@ -18,9 +18,10 @@ async function registerAndLogin(request, suffix = Date.now()) {
         data: { username, password },
     });
     expect(login.status()).toBe(200);
-    const { token } = await login.json();
+    const { token, refresh_token } = await login.json();
     expect(typeof token).toBe('string');
-    return { token, username };
+    expect(typeof refresh_token).toBe('string');
+    return { token, refreshToken: refresh_token, username };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ test.describe('POST /auth/login', () => {
         expect(res.status()).toBe(200);
         const body = await res.json();
         expect(body).toHaveProperty('token');
+        expect(body).toHaveProperty('refresh_token');
     });
 
     test('lehnt falsches Passwort ab', async ({ request }) => {
@@ -116,6 +118,60 @@ test.describe('POST /auth/login', () => {
         const res = await request.post('/auth/login', {
             data: { username: 'gibts_nicht_xyz', password: 'TestPass123!' },
         });
+        expect(res.status()).toBe(401);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Refresh Token
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe('POST /auth/refresh', () => {
+    test('erneuert Token und rotiert Refresh-Token', async ({ request }) => {
+        const suffix = Date.now();
+        const username = `refresh_ok_${suffix}`;
+        const password = 'TestPass123!';
+
+        await request.post('/auth/register', {
+            data: {
+                username,
+                email: `refresh_${suffix}@test.local`,
+                password,
+            },
+        });
+
+        const login = await request.post('/auth/login', {
+            data: { username, password },
+        });
+        expect(login.status()).toBe(200);
+        const loginBody = await login.json();
+        const oldRefreshToken = loginBody.refresh_token;
+
+        const refresh = await request.post('/auth/refresh', {
+            data: { refresh_token: oldRefreshToken },
+        });
+
+        expect(refresh.status()).toBe(200);
+        const refreshBody = await refresh.json();
+        expect(refreshBody).toHaveProperty('token');
+        expect(refreshBody).toHaveProperty('refresh_token');
+        expect(refreshBody.refresh_token).not.toBe(oldRefreshToken);
+
+        const me = await request.get('/me', {
+            headers: { Authorization: `Bearer ${refreshBody.token}` },
+        });
+        expect(me.status()).toBe(200);
+
+        const reuseOldRefresh = await request.post('/auth/refresh', {
+            data: { refresh_token: oldRefreshToken },
+        });
+        expect(reuseOldRefresh.status()).toBe(401);
+    });
+
+    test('lehnt ungültigen Refresh-Token ab', async ({ request }) => {
+        const res = await request.post('/auth/refresh', {
+            data: { refresh_token: 'invalid-refresh-token' },
+        });
+
         expect(res.status()).toBe(401);
     });
 });

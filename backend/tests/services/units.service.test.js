@@ -13,6 +13,7 @@ import {
     getUnitById,
     startTraining,
     moveUnits,
+    arriveAtDestination,
     attackUnits,
     getAllUnitTypes,
     getUnitsByCategory,
@@ -175,6 +176,20 @@ describe('moveUnits', () => {
         expect(result.distance).toBeCloseTo(50);
         expect(result.travelTime).toBeCloseTo(5); // 50 / 10
         expect(unitsRepo.setUnitMovement).toHaveBeenCalled();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// ARRIVAL
+// ---------------------------------------------------------------------------
+describe('arriveAtDestination', () => {
+    it('delegiert an unitsRepo.arriveAtDestination', async () => {
+        unitsRepo.arriveAtDestination.mockResolvedValue({ id: 9, is_moving: false });
+
+        const result = await arriveAtDestination(9);
+
+        expect(unitsRepo.arriveAtDestination).toHaveBeenCalledWith(9);
+        expect(result).toEqual({ id: 9, is_moving: false });
     });
 });
 

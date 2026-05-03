@@ -8,6 +8,7 @@ import * as buildingRepo from '../repositories/building.repository.js';
 import * as unitsRepo from '../repositories/units.repository.js';
 import * as economyService from './economy.service.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
+import { logger } from '../logger.js';
 
 export async function initializeNewPlayer(userId, username) {
     return withTransaction(async (client) => {
@@ -41,10 +42,10 @@ export async function executeTick() {
             });
         }
 
-        console.log(`[TICK] Ausgeführt für ${users.length} Spieler`);
+        logger.info({ playersProcessed: users.length }, 'Tick executed successfully');
         return { success: true, playersProcessed: users.length };
     } catch (error) {
-        console.error('[TICK] Fehler:', error);
+        logger.error({ err: error }, 'Tick execution failed');
         throw error;
     }
 }

@@ -62,3 +62,16 @@ export async function findByKoordinaten(x, y, client = pool) {
 export async function updateLastLogin(id, client = pool) {
     await client.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [id]);
 }
+
+/**
+ * Liefert alle aktiven Spieler mit ihren Kartenkoordinaten fuer das Karten-Rendering.
+ *
+ * @param {import('pg').PoolClient|import('pg').Pool} [client=pool]
+ * @returns {Promise<Array<{ id: number, username: string, koordinate_x: number, koordinate_y: number }>>}
+ */
+export async function findAllForMap(client = pool) {
+    const result = await client.query(
+        'SELECT id, username, koordinate_x, koordinate_y FROM users WHERE is_active = TRUE AND koordinate_x IS NOT NULL AND koordinate_y IS NOT NULL ORDER BY id'
+    );
+    return result.rows;
+}

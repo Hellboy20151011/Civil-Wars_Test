@@ -23,6 +23,7 @@ export default defineConfig({
                 dashboard: path.resolve(rootDir, 'pages/dashboard.html'),
                 bauhof: path.resolve(rootDir, 'pages/Bauhof.html'),
                 militaer: path.resolve(rootDir, 'pages/militaer.html'),
+                karte: path.resolve(rootDir, 'pages/karte.html'),
             },
             output: {
                 entryFileNames: 'assets/[name]-[hash].js',

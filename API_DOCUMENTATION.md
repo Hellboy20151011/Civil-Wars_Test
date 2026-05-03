@@ -255,7 +255,8 @@ Response:
 {
   "success": true,
   "message": "Registrierung erfolgreich",
-  "token": "eyJhbGc..."
+  "token": "eyJhbGc...",
+  "refresh_token": "long_random_refresh_token"
 }
 ```
 
@@ -271,7 +272,24 @@ Request:
 Response:
 {
   "success": true,
-  "token": "eyJhbGc..."
+  "token": "eyJhbGc...",
+  "refresh_token": "long_random_refresh_token"
+}
+```
+
+### POST `/auth/refresh`
+Access-Token mit Refresh-Token erneuern (Token-Rotation)
+```json
+Request:
+{
+  "refresh_token": "long_random_refresh_token"
+}
+
+Response:
+{
+  "message": "Token refreshed successfully",
+  "token": "eyJhbGc...",
+  "refresh_token": "new_long_random_refresh_token"
 }
 ```
 

@@ -19,6 +19,7 @@ vi.mock('../../config.js', () => ({
         cors: { origin: ['http://localhost:3000'] },
         rateLimit: { authWindowMs: 900000, authMax: 20, apiWindowMs: 60000, apiMax: 200 },
         performance: { referenceDataCacheTtlMs: 300000 },
+        logging: { level: 'silent' },
         nodeEnv: 'test',
     },
 }));

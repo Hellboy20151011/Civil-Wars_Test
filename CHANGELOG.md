@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 ## [Unreleased]
 
 ### Added
+- `backend/routes/map.js` – neue Route `GET /map/players` und `GET /map/config` für das Karten-/Territorien-System
+- `frontend/pages/karte.html` + `frontend/scripts/karte.js` – interaktive Canvas-Gitterkarte mit Zoom/Pan, Hover-Tooltip und eigener Positionsmarkierung
+- `backend/database/schemas/users.sql` – Koordinatenspalten `koordinate_x`/`koordinate_y` (1–999, bereits bei Registrierung vorhanden) dienen als Spielerpositionen auf der Karte
 - `backend/tests/services/units.service.test.js` – 18 Unit-Tests für `units.service.js` (Getter, startTraining, moveUnits, attackUnits)
 - `backend/tests/services/gameloop-scheduler.test.js` – 7 Unit-Tests für `gameloop-scheduler.js` (executeGameTick, getTickStats, startGameLoop)
 - `backend/tests/e2e/auth-flow.test.js` – Playwright API-E2E-Tests: Register, Login, Authentifizierungsschutz, Startressourcen
@@ -34,9 +37,24 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `frontend/package.json` und `frontend/vite.config.js` – Vite Multi-Page-Build für `index`, `dashboard`, `bauhof`, `militaer`
 - `backend/repositories/reference-data.repository.js` – TTL-Cache für häufig gelesene Stammdaten (`building_types`, `unit_types`, `resource_types`)
 - `frontend/eslint.config.js` – ESLint-Konfiguration für Frontend-Skripte
+- `backend/routes/docs.js` – Swagger-UI-Route fuer `GET /api-docs` auf Basis von `docs/openapi.yaml`
+- `backend/database/schemas/refresh_tokens.sql` – Persistenz fuer Refresh-Tokens (inkl. Ablauf/Revoke/Rotation)
+- `backend/repositories/refresh-token.repository.js` – DB-Zugriffe fuer Refresh-Token-Flow
 
 ### Changed
+- `backend/config.js` – `map.gridSize` (Standard: 999) und `map.maxPlayers` (Standard: 1000) als konfigurierbare Werte ergänzt
+- `backend/repositories/player.repository.js` – `findAllForMap()` für Karten-Endpunkt ergänzt
+- `backend/server.js` – Map-Route registriert, `GET /karte.html` Servierungs-Route ergänzt
+- `frontend/vite.config.js` – `karte`-Seite in Multi-Page-Build aufgenommen
+- `frontend/scripts/shell.js` – "Karte" in Standard-Navigationsliste und Active-Link-Detection ergänzt
 - `backend/services/economy.service.js`, `backend/services/units.service.js`, `backend/services/gameloop-scheduler.js` und `backend/routes/auth.js` – JSDoc für kritische Tick-/Kampf-/Auth-Funktionen ergänzt (inkl. Parametern, Rückgaben und Seiteneffekten)
+- `backend/tests/services/units.service.test.js` – Testfall für `arriveAtDestination` ergänzt; `docs/next-steps.md` markiert Testabdeckungs-Punkt (P1) als erledigt; `docs/Verbesserungs.md` Testzahlen auf 37 aktualisiert
+- `backend/logger.js`, `backend/server.js`, `backend/middleware/errorHandler.js`, `backend/services/gameloop-scheduler.js` und `docs/next-steps.md` – strukturiertes Logging mit `pino`/`pino-http` eingeführt und Logging-Punkt als erledigt markiert
+- `backend/services/gameloop.js` – verbleibende `console.log`/`console.error` durch zentralen Logger ersetzt (Service-Layer konsistent)
+- `backend/scripts/free-port.js` – ESLint-Fehler (`no-useless-assignment`) durch Entfernen einer nutzlosen Initialzuweisung behoben
+- `backend/server.js`, `backend/config.js`, `backend/.env.example`, `docs/openapi.yaml` und `docs/next-steps.md` – OpenAPI/Swagger-Punkt abgeschlossen (`/api-docs` optional aktiviert, Schemas mit Zod-Constraints abgeglichen)
+- `backend/routes/auth.js`, `backend/config.js`, `backend/.env.example`, `backend/scripts/resetdb.js`, `API_DOCUMENTATION.md`, `docs/openapi.yaml` und `docs/next-steps.md` – Refresh-Token-Mechanismus mit Rotation (`POST /auth/refresh`) implementiert und dokumentiert
+- `backend/tests/e2e/auth-flow.test.js` – E2E-Abdeckung für Refresh-Token-Flow ergänzt (Token-Rotation, Invalidierung alter Refresh-Tokens)
 
 ### Security
 - `.github/copilot-instructions.md`: Regel für parametrierte SQL-Queries ergänzt (kein String-Concatenation in DB-Abfragen)

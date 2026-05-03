@@ -48,17 +48,23 @@
 
 ---
 
-### P1 – Testabdeckung für kritische Services ausbauen (Aufwand: M | Risiko: 🔴 hoch)
+### ✅ P1 – Testabdeckung für kritische Services ausbauen (Aufwand: M | Risiko: 🔴 hoch)
 
 `backend/tests/services/` ist vorhanden, aber Tick-Logik in
 `backend/services/economy.service.js` und `backend/services/units.service.js`
 ist bisher kaum durch Unit-Tests abgesichert.
 
+**Erledigt:**
+- Unit-Tests für `economy.service.js` vorhanden (Tick-Produktion, Queue-Verarbeitung).
+- Unit-Tests für `units.service.js` erweitert (u. a. `arriveAtDestination`, Bewegungszeit-Berechnung).
+- Tests laufen mit Mocks ohne echte DB (`vi.mock` auf Repositories/Transaktionsschicht).
+- Coverage-Report ist in CI aktiv (`npm run test:coverage` in `.github/workflows/ci.yml`).
+
 **Aufgaben:**
-- [ ] Unit-Tests für `economy.service.js` (Ressourcenproduktion pro Tick).
-- [ ] Unit-Tests für `units.service.js` (Einheitenankünfte, Ankunftszeit-Berechnung).
-- [ ] Mocks für `pg`-Pool einrichten, damit Tests ohne echte DB laufen.
-- [ ] Coverage-Report in CI aktivieren (`vitest --coverage`).
+- [x] Unit-Tests für `economy.service.js` (Ressourcenproduktion pro Tick).
+- [x] Unit-Tests für `units.service.js` (Einheitenankünfte, Ankunftszeit-Berechnung).
+- [x] Mocks für `pg`-Pool einrichten, damit Tests ohne echte DB laufen.
+- [x] Coverage-Report in CI aktivieren (`vitest --coverage`).
 
 ---
 
@@ -116,26 +122,36 @@ Stammdaten (`building_types`, `unit_types`, `resource_types`) mit TTL gecacht.
 
 ---
 
-### P1 – Logging einführen (Aufwand: M | Impact: 🟡 mittel)
+### ✅ P1 – Logging einführen (Aufwand: M | Impact: 🟡 mittel)
 
 Es gibt kein strukturiertes Request-/Error-Logging (nur `console.log`).
 
+**Erledigt:**
+- `pino` als Logger-Bibliothek integriert (konfigurierbar über `LOG_LEVEL` in `backend/config.js`).
+- Request-Logging-Middleware (`pino-http`) in `backend/server.js` aktiviert (Dev lesbar, Prod JSON).
+- Runtime-Logs in zentralen Stellen auf Logger umgestellt (`gameloop-scheduler`, `errorHandler`, Server-Startup).
+
 **Aufgaben:**
-- [ ] Logger-Bibliothek wählen (z. B. `pino` oder `winston`).
-- [ ] Request-Logging-Middleware hinzufügen (dev: verbose, prod: JSON).
-- [ ] `console.log`/`console.error` in Services und Routes ersetzen.
+- [x] Logger-Bibliothek wählen (z. B. `pino` oder `winston`).
+- [x] Request-Logging-Middleware hinzufügen (dev: verbose, prod: JSON).
+- [x] `console.log`/`console.error` in Services und Routes ersetzen.
 
 ---
 
-### P2 – OpenAPI / Swagger Spec (Aufwand: L | Impact: 🟢 hoch)
+### ✅ P2 – OpenAPI / Swagger Spec (Aufwand: L | Impact: 🟢 hoch)
 
 `API_DOCUMENTATION.md` ist gut gepflegt; eine maschinenlesbare OpenAPI-Spec
 würde Client-Generierung und Testautomatisierung ermöglichen.
 
+**Erledigt:**
+- `docs/openapi.yaml` erweitert und an Zod-Validierung aus den Routen angeglichen.
+- Swagger UI als optionale Dev-Route unter `/api-docs` eingebunden.
+- Request/Response-Schemas (u. a. Auth/Buildings/Units) präzisiert.
+
 **Aufgaben:**
 - [x] `docs/openapi.yaml` aus `API_DOCUMENTATION.md` ableiten.
-- [ ] Swagger UI als optionale Dev-Route einbinden (`/api-docs`).
-- [ ] Request/Response-Schemas mit Zod-Definitionen abgleichen.
+- [x] Swagger UI als optionale Dev-Route einbinden (`/api-docs`).
+- [x] Request/Response-Schemas mit Zod-Definitionen abgleichen.
 
 ---
 
@@ -206,14 +222,20 @@ gepusht und im Frontend ohne Polling aktualisiert.
 
 ---
 
-### P2 – Refresh-Token-Mechanismus (Aufwand: L | Risiko: 🔴 hoch)
+### ✅ P2 – Refresh-Token-Mechanismus (Aufwand: L | Risiko: 🔴 hoch)
 
 Aktuell wird nur ein kurzlebiges JWT ohne Refresh-Token verwendet.
 
+**Erledigt:**
+- Refresh-Token-Tabelle (`backend/database/schemas/refresh_tokens.sql`) eingeführt.
+- Endpunkt `POST /auth/refresh` mit Token-Rotation implementiert.
+- `register`/`login` geben zusätzlich `refresh_token` zurück.
+- API-Dokumentation und OpenAPI-Spec um Refresh-Flow ergänzt.
+
 **Aufgaben:**
-- [ ] Refresh-Token-Tabelle in der Datenbank (Schema in `backend/database/schemas/`).
-- [ ] Neuen Endpunkt `POST /auth/refresh` implementieren.
-- [ ] Dokumentation in `API_DOCUMENTATION.md` aktualisieren.
+- [x] Refresh-Token-Tabelle in der Datenbank (Schema in `backend/database/schemas/`).
+- [x] Neuen Endpunkt `POST /auth/refresh` implementieren.
+- [x] Dokumentation in `API_DOCUMENTATION.md` aktualisieren.
 
 ---
 
@@ -232,14 +254,23 @@ Das Spiel hat Einheiten, aber kein Kampfsystem. Laut `docs/Issues.md` und
 
 ---
 
-### P2 – Karten- / Territorien-System (Aufwand: XL | Impact: 🟢 sehr hoch)
+### ✅ P2 – Karten- / Territorien-System (Aufwand: XL | Impact: 🟢 sehr hoch)
 
-Für ein vollständiges Strategiespiel fehlt eine Karte mit Territorien.
+Für ein vollständiges Strategiespiel fehlt einer Karte mit Territorien.
+
+**Erledigt:**
+- Koordinatenspalten `koordinate_x`/`koordinate_y` (1–999) in `users`-Tabelle genutzt; werden bereits bei Registrierung zufällig und kollisionsfrei vergeben.
+- `GET /map/players` und `GET /map/config` Endpunkte implementiert (`backend/routes/map.js`).
+- Interaktive Canvas-Karte (`frontend/pages/karte.html` + `frontend/scripts/karte.js`) mit Zoom/Pan, Hover-Tooltip und Hervorhebung der eigenen Position.
+- Karte als Grid (999×999 Zellen, alle 10 Zellen dickere Linie) mit Spieler-Dots gerendert.
+- Karteseite in Vite Multi-Page-Build und Sidebar-Navigation aufgenommen.
 
 **Aufgaben:**
-- [ ] Datenbankschema für Karte/Territorien entwerfen.
-- [ ] Backend-Service und Routen für Kartenbewegungen.
-- [ ] Frontend-Karten-Rendering (z. B. Canvas oder SVG).
+- [x] Datenbankschema für Karte/Territorien entwerfen. andere sql prüfen ob schon koordinaten vorgegeben sind
+- [x] Backend-Service und Routen für Kartenbewegungen.
+- [x] Frontend-Karten-Rendering (z. B. Canvas oder SVG).
+- [x] Koordinaten mit x und y (Begrenzen auf maximale sinnvolle spieleranzahl auf Server)
+- [x] Karte in Gittermusterart erstellen
 
 ---
 
@@ -275,11 +306,11 @@ Für ein vollständiges Strategiespiel fehlt eine Karte mit Territorien.
 | P1 | Docker Compose | M | 🟢 Impact hoch | ✅ |
 | P1 | Fehlerresponses | M | 🟡 mittel | ✅ |
 | P1 | CONTRIBUTING.md | S | 🟢 Impact hoch | ✅ |
-| P1 | Tests Economy/Units | M | 🔴 Risiko hoch | ⏳ |
-| P1 | Logging | M | 🟡 mittel | ⏳ |
-| P2 | OpenAPI Spec | L | 🟢 Impact hoch | ⏳ |
+| P1 | Tests Economy/Units | M | 🔴 Risiko hoch | ✅ |
+| P1 | Logging | M | 🟡 mittel | ✅ |
+| P2 | OpenAPI Spec | L | 🟢 Impact hoch | ✅ |
 | P2 | Release-Prozess | M | 🟡 mittel | ✅ |
-| P2 | Refresh Token | L | 🔴 Risiko hoch | ⏳ |
+| P2 | Refresh Token | L | 🔴 Risiko hoch | ✅ |
 | P2 | Kampfsystem | XL | 🟢 Impact sehr hoch | ⏳ |
-| P2 | Karten-System | XL | 🟢 Impact sehr hoch | ⏳ |
+| P2 | Karten-System | XL | 🟢 Impact sehr hoch | ✅ |
 | P2 | Multi-Player-Security | L | 🔴 Risiko hoch | ⏳ (Rate-Limit ✅) |

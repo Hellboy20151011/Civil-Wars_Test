@@ -42,6 +42,7 @@ const appPool = new Pool({
 const schemaDir = path.join(__dirname, '../database/schemas');
 const schemaFilesInOrder = [
     'users.sql',
+    'refresh_tokens.sql',
     'resource_types.sql',
     'building_types.sql',
     'units.sql',

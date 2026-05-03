@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/CSS/style.css" />
+    <title>Civil-Wars – Karte</title>
+    <style>
+      #map-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0d1117;
+        cursor: grab;
+      }
+      #map-container:active {
+        cursor: grabbing;
+      }
+      #map-canvas {
+        display: block;
+      }
+      #map-tooltip {
+        position: absolute;
+        background: rgba(20, 30, 48, 0.95);
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 6px 10px;
+        color: #e2e8f0;
+        font-size: 13px;
+        pointer-events: none;
+        display: none;
+        z-index: 10;
+        white-space: nowrap;
+      }
+      #map-legend {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        background: rgba(20, 30, 48, 0.9);
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 8px 12px;
+        color: #94a3b8;
+        font-size: 12px;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #map-legend span {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+      #map-legend .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      #map-controls {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        z-index: 10;
+      }
+      #map-controls button {
+        width: 32px;
+        height: 32px;
+        background: rgba(20, 30, 48, 0.9);
+        border: 1px solid #334155;
+        border-radius: 6px;
+        color: #e2e8f0;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      #map-controls button:hover {
+        background: rgba(51, 65, 85, 0.95);
+      }
+      #map-info {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        background: rgba(20, 30, 48, 0.9);
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 8px 12px;
+        color: #94a3b8;
+        font-size: 12px;
+        pointer-events: none;
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body>
+    <header id="top-bar">
+      <span class="game-title">Civil-Wars</span>
+      <div id="resource-bar"></div>
+    </header>
+
+    <div id="app-layout">
+      <nav id="sidebar"></nav>
+
+      <main id="main-content">
+        <div id="map-container">
+          <canvas id="map-canvas"></canvas>
+          <div id="map-tooltip"></div>
+          <div id="map-controls">
+            <button id="btn-zoom-in" title="Vergrößern">+</button>
+            <button id="btn-zoom-out" title="Verkleinern">−</button>
+            <button id="btn-reset-view" title="Ansicht zurücksetzen">⊙</button>
+          </div>
+          <div id="map-info">Lade Karte…</div>
+          <div id="map-legend">
+            <span><span class="dot" style="background:#f97316"></span>Eigene Position</span>
+            <span><span class="dot" style="background:#3b82f6"></span>Andere Spieler</span>
+          </div>
+        </div>
+      </main>
+
+      <aside id="production-panel"></aside>
+    </div>
+
+    <script type="module" src="/scripts/karte.js"></script>
+  </body>
+</html>
