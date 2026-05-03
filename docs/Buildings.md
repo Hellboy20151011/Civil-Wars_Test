@@ -528,7 +528,7 @@ Die Bank ermöglicht Zinsen auf das eigene Depot und kann auf 3 Stufen ausgebaut
   - Stahl: 500t
 - Bauzeit: 6 Ticks
 
-## Verteidigun
+## Verteidigung
 
 ### Gegenspionage
 

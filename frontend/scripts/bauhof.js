@@ -174,6 +174,23 @@ async function renderCategories(container, myBuildings, queue) {
       costSpan.className = 'build-cost';
       costSpan.textContent = costs.length > 0 ? costs.join('  ') : 'Kostenlos';
 
+      const btnContainer = document.createElement('div');
+      btnContainer.style.display = 'flex';
+      btnContainer.style.gap = '8px';
+      btnContainer.style.alignItems = 'center';
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '1';
+      input.max = '999';
+      input.value = '1';
+      input.className = 'build-quantity-input';
+      input.placeholder = 'Anzahl';
+      input.style.width = '60px';
+      input.style.padding = '4px 6px';
+      input.style.borderRadius = '3px';
+      input.style.border = '1px solid #aaa';
+
       const btn = document.createElement('button');
       btn.className = 'primary-action';
       btn.dataset.buildId = bt.id;
@@ -181,28 +198,34 @@ async function renderCategories(container, myBuildings, queue) {
       if (inQueue) {
         btn.textContent = 'In Warteschlange…';
         btn.disabled = true;
+        input.disabled = true;
       } else {
-        btn.textContent = owned ? `Weiteren bauen (${owned.anzahl}x)` : 'Bauen';
+        btn.textContent = owned ? `Weiteren bauen` : 'Bauen';
         btn.addEventListener('click', async () => {
           btn.disabled = true;
+          input.disabled = true;
           const msg = document.getElementById('build-message');
           try {
+            const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
             const result = await apiFetch('/buildings/build', {
               method: 'POST',
-              body: JSON.stringify({ building_type_id: bt.id, anzahl: 1 }),
+              body: JSON.stringify({ building_type_id: bt.id, anzahl: quantity }),
             });
             const successMsg = result.message ?? '';
+            input.value = '1';
             await init();
             const newMsg = document.getElementById('build-message');
             if (newMsg) newMsg.textContent = successMsg;
           } catch (err) {
             if (msg) msg.textContent = err.message;
             btn.disabled = false;
+            input.disabled = false;
           }
         });
       }
 
-      bRow.append(bName, costSpan, btn);
+      btnContainer.append(input, btn);
+      bRow.append(bName, costSpan, btnContainer);
       card.appendChild(bRow);
     });
 

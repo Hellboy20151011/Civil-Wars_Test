@@ -244,6 +244,21 @@ body {
   margin-top: 8px;
 }
 
+.build-quantity-input {
+  background-color: #f5f5f5;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  font-family: monospace;
+}
+
+.build-quantity-input:focus {
+  outline: none;
+  border-color: #e5c767;
+  box-shadow: 0 0 4px rgba(229, 199, 103, 0.4);
+}
+
 .build-cost {
   font-size: 12px;
   color: #555;
