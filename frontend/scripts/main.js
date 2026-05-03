@@ -1,16 +1,31 @@
 import { API_BASE_URL } from '/scripts/config.js';
+import { el, render } from '/scripts/ui/component.js';
+
+const authRoot = document.getElementById('Auth');
+
+function labeledInput(id, type, placeholder) {
+  return el('input', {
+    attrs: { id, type, placeholder },
+  });
+}
+
+function actionButton(id, label, onClick) {
+  return el('button', {
+    className: 'btn_Auth',
+    attrs: { id },
+    text: label,
+    on: { click: onClick },
+  });
+}
 
 function renderHome() {
-  document.getElementById("Auth").innerHTML = `
-    Register/Login:
-     <input id="Input_Username" type="text" placeholder="Username">
-     <input id="Input_Password" type="password" placeholder="Password">
-     <button class="btn_Auth" id="btn_Register">Register</button>
-     <button class="btn_Auth" id="btn_Login">Login</button>
-  `;
-
-  document.getElementById("btn_Login").addEventListener("click", renderLogin);
-  document.getElementById("btn_Register").addEventListener("click", renderRegister);
+  render(authRoot, [
+    'Register/Login:',
+    labeledInput('Input_Username', 'text', 'Username'),
+    labeledInput('Input_Password', 'password', 'Password'),
+    actionButton('btn_Register', 'Register', renderRegister),
+    actionButton('btn_Login', 'Login', renderLogin),
+  ]);
 }
 
 let pendingRegistration = null;
@@ -25,8 +40,8 @@ function goToDashboard(user, token) {
 //Überprüfen ob Namen vorhanden ist und Passwort mindestens 8 Zeichen hat.
 //Nach klick auf Registrieren wechsel in neues Feld Abfrage nach E-Mail Adresse und Überprüfen ob diese gültig ist.
 async function renderRegister() {
-  const Name = document.getElementById("Input_Username").value.trim();
-  const Passwort = document.getElementById("Input_Password").value;
+  const Name = document.getElementById('Input_Username').value.trim();
+  const Passwort = document.getElementById('Input_Password').value;
 
   if (!Name) {
     alert("Bitte Username eingeben");
@@ -40,15 +55,12 @@ async function renderRegister() {
 
   pendingRegistration = { username: Name, password: Passwort };
 
-  document.getElementById("Auth").innerHTML = `
-    Registrierung Schritt 2:
-    <input id="Input_Email" type="email" placeholder="Email">
-    <button class="btn_Auth" id="btn_Register_Email">Registrierung abschliessen</button>
-    <button class="btn_Auth" id="btn_back_register">Zurueck</button>
-  `;
-
-  document.getElementById("btn_Register_Email").addEventListener("click", submitRegisterEmail);
-  document.getElementById("btn_back_register").addEventListener("click", renderHome);
+  render(authRoot, [
+    'Registrierung Schritt 2:',
+    labeledInput('Input_Email', 'email', 'Email'),
+    actionButton('btn_Register_Email', 'Registrierung abschliessen', submitRegisterEmail),
+    actionButton('btn_back_register', 'Zurueck', renderHome),
+  ]);
 }
 
 async function submitRegisterEmail() {
@@ -88,22 +100,19 @@ async function submitRegisterEmail() {
     } else {
       alert(data.message);
     }
-  } catch (error) {
+  } catch (_error) {
     alert("Fehler bei der Registrierung. Bitte spaeter erneut versuchen.");
   }
 }
 
 async function renderLogin() {
-  document.getElementById("Auth").innerHTML = `
-    Login:
-    <input id="Input_Username" type="text" placeholder="Username">
-    <input id="Input_Password" type="password" placeholder="Password">
-    <button class="btn_Auth" id="btn_Login">Login</button>
-    <button class="btn_Auth" id="btn_back">Zurück</button>
-  `;
-
-  document.getElementById("btn_back").addEventListener("click", renderHome);
-  document.getElementById("btn_Login").addEventListener("click", submitLogin);
+  render(authRoot, [
+    'Login:',
+    labeledInput('Input_Username', 'text', 'Username'),
+    labeledInput('Input_Password', 'password', 'Password'),
+    actionButton('btn_Login', 'Login', submitLogin),
+    actionButton('btn_back', 'Zurück', renderHome),
+  ]);
 }
 
 async function submitLogin() {
@@ -137,7 +146,7 @@ async function submitLogin() {
     }
 
     alert(data.message || "Login fehlgeschlagen");
-  } catch (error) {
+  } catch (_error) {
     alert("Fehler beim Login. Bitte spaeter erneut versuchen.");
   }
 }

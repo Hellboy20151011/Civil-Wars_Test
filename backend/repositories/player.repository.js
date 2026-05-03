@@ -8,6 +8,16 @@ export async function findById(id, client = pool) {
     return result.rows[0] ?? null;
 }
 
+export async function findAllIds(client = pool) {
+    const result = await client.query('SELECT id FROM users');
+    return result.rows;
+}
+
+export async function findActiveIds(client = pool) {
+    const result = await client.query('SELECT id FROM users WHERE is_active = TRUE');
+    return result.rows;
+}
+
 export async function findByUsernameOrEmail(username, email, client = pool) {
     const result = await client.query('SELECT id FROM users WHERE username = $1 OR email = $2', [
         username,

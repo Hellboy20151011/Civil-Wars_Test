@@ -41,11 +41,15 @@ Das `error`-Objekt ermöglicht maschinenlesbare Fehlercodes für zukünftige Cli
 
 ---
 
-### 1.4 Async/Await statt `.then()`-Ketten
+### ✅ 1.4 Async/Await statt `.then()`-Ketten
 
-Wo noch Promise-Chains verwendet werden, sollte auf `async/await` umgestellt
+~~Wo noch Promise-Chains verwendet werden, sollte auf `async/await` umgestellt
 werden, um Lesbarkeit und Fehlerbehandlung zu verbessern. `backend/middleware/asyncWrapper.js`
-ist bereits vorhanden – alle Routen sollten es konsequent nutzen.
+ist bereits vorhanden – alle Routen sollten es konsequent nutzen.~~
+
+**Umgesetzt:** Alle Routen nutzen `asyncWrapper` konsistent. Verbleibende
+`.catch(...)`-Ketten in `backend/services/gameloop-scheduler.js` wurden durch
+`async/await` mit `try/catch` ersetzt.
 
 ---
 
@@ -59,15 +63,20 @@ zentralisiert alle `process.env`-Zugriffe und wird von `server.js`, `auth.js`,
 
 ---
 
-### 2.2 Repository-Pattern konsequent anwenden
+### ✅ 2.2 Repository-Pattern konsequent anwenden
 
-`backend/repositories/` enthält DB-Abfragen, aber einige Services importieren
+~~`backend/repositories/` enthält DB-Abfragen, aber einige Services importieren
 den Pool (`backend/database/db.js`) direkt. Dies sollte vollständig in die
-Repository-Schicht verlagert werden, damit Services datenbankagnostisch bleiben.
+Repository-Schicht verlagert werden, damit Services datenbankagnostisch bleiben.~~
+
+**Umgesetzt:** Services importieren den Pool nicht mehr direkt. DB-Zugriffe
+liegen in Repositories (u. a. `building.repository.js`, `units.repository.js`,
+`player.repository.js`) und Transaktionen laufen zentral über
+`transaction.repository.js`.
 
 ---
 
-### 2.3 Frontend-Architektur modernisieren (mittelfristig)
+### ✅ 2.3 Frontend-Architektur modernisieren (mittelfristig)
 
 Das Frontend besteht aus reinem Vanilla-JS mit DOM-Manipulation.
 Für wachsende Komplexität (Kampf, Karte, Echtzeit-Updates) wird das schwer
@@ -78,36 +87,56 @@ wartbar.
 2. Leichtgewichtiger Reaktivitätslayer wie **Preact** oder **Solid.js**.
 3. Vollständiges Framework wie **Vue 3** oder **React** (mit Vite Build).
 
+**Umgesetzt:** Komponentenbasis (`frontend/scripts/ui/component.js`) eingeführt
+und alle zentralen Frontend-Views (`main.js`, `dashboard.js`, `bauhof.js`,
+`militaer.js`, `shell.js`) auf deklarative UI-Bausteine migriert.
+
 ---
 
-### 2.4 WebSocket für Echtzeit-Updates
+### ✅ 2.4 WebSocket für Echtzeit-Updates
 
-Aktuell pollt das Frontend Ressourcen/Einheiten-Daten. Mit WebSockets oder
+~~Aktuell pollt das Frontend Ressourcen/Einheiten-Daten. Mit WebSockets oder
 Server-Sent Events (SSE) könnten Tick-Updates sofort an alle verbundenen
-Clients gepusht werden – ohne Polling-Overhead.
+Clients gepusht werden – ohne Polling-Overhead.~~
+
+**Umgesetzt:** SSE-Stream unter `GET /me/stream` implementiert. Der Gameloop
+pusht pro Tick den aktualisierten Spielerstatus; das Frontend (`shell.js`) abonniert
+den Stream via `EventSource` und aktualisiert Ressourcen/Produktion live.
 
 ---
 
 ## 3. Performance
 
-### 3.1 Datenbankabfragen optimieren
+### ✅ 3.1 Datenbankabfragen optimieren
 
-- N+1-Abfragen in Repositories vermeiden: statt mehrerer einzelner `SELECT`-
+~~- N+1-Abfragen in Repositories vermeiden: statt mehrerer einzelner `SELECT`-
   Statements pro Einheit/Gebäude besser JOINs oder Batch-Abfragen nutzen.
 - DB-Verbindungspool-Größe (`backend/database/db.js`) konfigurierbar machen
   (via `POOL_MAX` in `.env`).
 - Häufig gelesene Stammdaten (z. B. `building_types`, `resource_types`) im
-  Application-Memory cachen (einfaches In-Memory-Cache für wenige Minuten TTL).
+  Application-Memory cachen (einfaches In-Memory-Cache für wenige Minuten TTL).~~
+
+**Umgesetzt:**
+- Batch-Inserts für Gebäude/Queue statt Query-Schleifen (`building.repository.js`).
+- Stammdaten-Cache mit TTL für `building_types`, `unit_types`, `resource_types`
+  (`reference-data.repository.js`, TTL via `REFERENCE_DATA_CACHE_TTL_MS`).
+- Resource-Type-Lookups optimiert und Startressourcen als Batch-Upsert umgesetzt
+  (`resources.repository.js`).
+- Pool-Größe war bereits über `POOL_MAX` konfigurierbar und dokumentiert.
 
 ---
 
-### 3.2 Frontend-Bundle-Größe
+### ✅ 3.2 Frontend-Bundle-Größe
 
-Das Frontend lädt aktuell kein Build-Tool (reines ESM). Für Produktion empfiehlt
+~~Das Frontend lädt aktuell kein Build-Tool (reines ESM). Für Produktion empfiehlt
 sich ein Bundler (z. B. **Vite**), der:
 - Dateien minifiziert und komprimiert.
 - Tree-Shaking für ungenutzte Module durchführt.
-- Lange Cache-Hashes für Assets erzeugt.
+- Lange Cache-Hashes für Assets erzeugt.~~
+
+**Umgesetzt:** Vite als Multi-Page-Bundler eingerichtet (`frontend/vite.config.js`,
+`frontend/package.json`). Production-Build erzeugt minifizierte, gehashte Assets
+in `frontend/dist`; Backend liefert automatisch `frontend/dist` aus, falls vorhanden.
 
 ---
 
@@ -121,12 +150,13 @@ sich ein Bundler (z. B. **Vite**), der:
 
 ---
 
-### 4.2 Hot Reload Frontend
+### ✅ 4.2 Hot Reload Frontend
 
-Das Backend nutzt `node --watch` (`npm run dev` in `backend/package.json`),
-aber Frontend-Änderungen erfordern manuelles Neuladen des Browsers. Ein
-einfacher Dev-Server mit Live-Reload (z. B. `browser-sync` oder Vite Dev-Server)
-würde die Entwicklungsgeschwindigkeit erhöhen.
+**Umgesetzt:** `backend/package.json` enthält jetzt `npm run dev:full`, das
+Backend-Watch (`node --watch`) und den Vite-Dev-Server parallel startet.
+`frontend/vite.config.js` setzt den Dev-Server auf Port `5173` und öffnet
+automatisch `pages/index.html`. `backend/config.js` und `.env.example`
+unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 
 ---
 
@@ -190,7 +220,7 @@ Das ist eine solide Basis.
 | Fehlend | Empfehlung |
 |---------|-----------|
 | Code Coverage | `vitest --coverage` + Upload zu Codecov o. Ä. |
-| Frontend-Lint | ESLint/Prettier-Check für `frontend/scripts/` |
+| Frontend-Lint | ✅ ESLint-Check für `frontend/` in CI ergänzt |
 | Security Audit | `npm audit --audit-level=high` als CI-Schritt |
 | Dependency Updates | Dependabot in `.github/dependabot.yml` aktivieren |
 | Release-Workflow | Tag-basierter Workflow für GitHub-Releases |
@@ -328,8 +358,8 @@ führt Tests aus und erstellt einen GitHub-Release.
 | Kategorie | Wichtigste Maßnahme | Aufwand | Status |
 |-----------|---------------------|---------|--------|
 | Code-Qualität | Naming-Konsistenz DE/EN | M | ✅ |
-| Architektur | Zentrale Konfigurationsschicht | M | ✅ |
-| Performance | N+1-Abfragen in Repositories | M | ⏳ |
+| Architektur | Repository-Pattern + Frontend-Komponentenbasis | M | ✅ |
+| Performance | N+1 + Cache + Frontend-Bundling (Vite) | M | ✅ |
 | DX | Docker Compose | M | ✅ |
 | Tests | Unit-Tests Economy/Units-Service | M | ⏳ |
 | CI/CD | Security Audit + Dependabot | S | ✅ |

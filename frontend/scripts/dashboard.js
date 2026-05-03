@@ -1,5 +1,6 @@
 import { initShell, getAuth } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
+import { el, render } from '/scripts/ui/component.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
@@ -23,75 +24,80 @@ async function apiFetch(path, options = {}) {
 }
 
 function createStatCard(title, value) {
-	const card = document.createElement('article');
-	card.className = 'dash-card';
-
-	const h = document.createElement('h3');
-	h.textContent = title;
-
-	const v = document.createElement('p');
-	v.textContent = value;
-
-	card.append(h, v);
-	return card;
+	return el('article', {
+		className: 'dash-card',
+		children: [el('h3', { text: title }), el('p', { text: value })],
+	});
 }
 
 function createMessageBox() {
-	const msg = document.createElement('p');
-	msg.id = 'dashboard-message';
-	msg.className = 'dash-message';
-	return msg;
+	return el('p', {
+		className: 'dash-message',
+		attrs: { id: 'dashboard-message' },
+	});
+}
+
+function createUnitList(units) {
+	const unitTitle = el('h3', { text: 'Deine Einheiten' });
+
+	if (!units.length) {
+		return el('section', {
+			className: 'dash-units',
+			children: [unitTitle, el('p', { text: 'Noch keine Einheiten vorhanden.' })],
+		});
+	}
+
+	const rows = units.map((u) =>
+		el('div', {
+			className: 'dash-row',
+			text: `${u.name} - Menge: ${u.quantity} - HP: ${u.health_percentage}%`,
+		})
+	);
+
+	return el('section', {
+		className: 'dash-units',
+		children: [unitTitle, ...rows],
+	});
+}
+
+function DashboardView({ auth, status, units }) {
+	return [
+		el('h2', { text: `Willkommen, ${auth.user.username}!` }),
+		el('section', {
+			className: 'dash-grid',
+			children: [
+				createStatCard('Gebäude', String(status.buildings?.length ?? 0)),
+				createStatCard('Bauwarteschlange', String(status.queue?.length ?? 0)),
+				createStatCard('Eigene Einheiten', String(units.length ?? 0)),
+			],
+		}),
+		createUnitList(units),
+		createMessageBox(),
+	];
 }
 
 async function renderDashboard() {
 	await initShell();
 
 	const container = document.getElementById('Dashboard');
-	container.innerHTML = '';
 
 	const [status, units] = await Promise.all([
 		apiFetch('/me'),
 		apiFetch('/units/me'),
 	]);
 
-	const heading = document.createElement('h2');
-	heading.textContent = `Willkommen, ${auth.user.username}!`;
-
-	const cards = document.createElement('section');
-	cards.className = 'dash-grid';
-
-	cards.append(
-		createStatCard('Gebäude', String(status.buildings?.length ?? 0)),
-		createStatCard('Bauwarteschlange', String(status.queue?.length ?? 0)),
-		createStatCard('Eigene Einheiten', String(units.length ?? 0)),
-	);
-
-	const unitList = document.createElement('section');
-	unitList.className = 'dash-units';
-	const unitTitle = document.createElement('h3');
-	unitTitle.textContent = 'Deine Einheiten';
-	unitList.appendChild(unitTitle);
-
-	if (!units.length) {
-		const empty = document.createElement('p');
-		empty.textContent = 'Noch keine Einheiten vorhanden.';
-		unitList.appendChild(empty);
-	} else {
-		units.forEach((u) => {
-			const row = document.createElement('div');
-			row.className = 'dash-row';
-			row.textContent = `${u.name} - Menge: ${u.quantity} - HP: ${u.health_percentage}%`;
-			unitList.appendChild(row);
-		});
-	}
-
-	container.append(heading, cards, unitList);
+	render(container, DashboardView({ auth, status, units }));
 }
 
 try {
 	await renderDashboard();
 } catch (err) {
 	const container = document.getElementById('Dashboard');
-	container.innerHTML = `<p style="color:#f88">Fehler beim Laden des Dashboards: ${err.message}</p>`;
+	render(container, [
+		el('p', {
+			text: `Fehler beim Laden des Dashboards: ${err.message}`,
+			attrs: { style: 'color:#f88' },
+		}),
+	]);
 }
 

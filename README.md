@@ -40,6 +40,11 @@ Server läuft auf `http://localhost:3000`.
 ```bash
 cd backend
 npm install
+
+cd ../frontend
+npm install
+
+cd ../backend
 ```
 
 ### 3. Umgebungsvariablen konfigurieren
@@ -86,9 +91,25 @@ npm start
 
 # Entwicklung (Auto-Restart bei Dateiänderungen)
 npm run dev
+
+# Entwicklung Fullstack (Backend + Frontend Hot Reload)
+npm run dev:full
 ```
 
 Server läuft auf `http://localhost:3000`.
+
+Bei `npm run dev:full` startet zusätzlich der Vite-Dev-Server mit HMR unter
+`http://localhost:5173/pages/index.html`.
+
+### Frontend-Build (Produktion)
+
+```bash
+cd frontend
+npm run build
+```
+
+Der Build wird in `frontend/dist` geschrieben (minifiziert, gehashte Asset-Dateinamen, Tree-Shaking via Vite).
+Beim Backend-Start wird automatisch `frontend/dist` ausgeliefert, falls vorhanden; sonst `frontend/`.
 
 ### Health Check
 

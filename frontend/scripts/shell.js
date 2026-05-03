@@ -2,6 +2,10 @@
 // Exportiert: initShell(), getAuth()
 
 import { API_BASE_URL } from '/scripts/config.js';
+import { el, render } from '/scripts/ui/component.js';
+
+let liveEventSource = null;
+let liveEventSourceToken = null;
 
 const BAUHOF_CATEGORIES = [
   { key: 'housing', label: 'Unterkünfte' },
@@ -24,6 +28,7 @@ export function getAuth() {
   const raw = sessionStorage.getItem('currentUser');
   const token = sessionStorage.getItem('authToken');
   if (!raw || !token || token === 'undefined' || token === 'null') {
+    stopLiveUpdates();
     sessionStorage.removeItem('currentUser');
     sessionStorage.removeItem('authToken');
     window.location.href = '/';
@@ -36,7 +41,7 @@ export async function initShell(navLinks = []) {
   const auth = getAuth();
   if (!auth) return;
 
-  renderSidebar(navLinks, auth);
+  renderSidebar(navLinks);
 
   // /me lädt Ressourcen, Strom, Produktion und Gebäude in einem Request
   try {
@@ -47,23 +52,67 @@ export async function initShell(navLinks = []) {
     const status = await res.json();
     renderResourceBar(status);
     renderProductionPanel(status);
+    startLiveUpdates(auth.token);
   } catch (err) {
     console.error(err);
     const bar = document.getElementById('resource-bar');
     if (bar) {
-      const fallback = document.createElement('span');
-      fallback.textContent = 'Ressourcen nicht verfügbar';
-      fallback.style.color = '#f88';
-      bar.appendChild(fallback);
+      render(bar, [
+        el('span', {
+          text: 'Ressourcen nicht verfügbar',
+          attrs: { style: 'color:#f88' },
+        }),
+      ]);
     }
   }
 }
 
-function renderSidebar(navLinks, auth) {
+function startLiveUpdates(token) {
+  if (!token) return;
+
+  if (liveEventSource && liveEventSourceToken === token) {
+    return;
+  }
+
+  if (liveEventSource) {
+    liveEventSource.close();
+    liveEventSource = null;
+  }
+
+  const streamUrl = `${API_BASE_URL}/me/stream?token=${encodeURIComponent(token)}`;
+  const source = new EventSource(streamUrl);
+
+  source.addEventListener('status', (event) => {
+    try {
+      const payload = JSON.parse(event.data || '{}');
+      if (!payload.status) return;
+      renderResourceBar(payload.status);
+      renderProductionPanel(payload.status);
+    } catch (err) {
+      console.error('SSE status parse error:', err);
+    }
+  });
+
+  source.addEventListener('error', () => {
+    // EventSource reconnectet automatisch.
+  });
+
+  liveEventSource = source;
+  liveEventSourceToken = token;
+}
+
+function stopLiveUpdates() {
+  if (liveEventSource) {
+    liveEventSource.close();
+    liveEventSource = null;
+  }
+  liveEventSourceToken = null;
+}
+
+function renderSidebar(navLinks) {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
 
-  sidebar.innerHTML = '';
   const isBauhofPage   = window.location.pathname.toLowerCase() === '/bauhof.html';
   const isMilitaerPage = window.location.pathname.toLowerCase() === '/militaer.html';
   const currentCategory = new URLSearchParams(window.location.search).get('category');
@@ -78,90 +127,97 @@ function renderSidebar(navLinks, auth) {
     navLinks.filter(nl => !defaultLinks.some(dl => dl.href === nl.href))
   );
 
+  const nodes = [];
+
   links.forEach(({ label, href }) => {
     const hrefLower = href.toLowerCase();
 
     if (hrefLower === '/bauhof.html') {
-      const group = document.createElement('div');
-      group.className = 'nav-group';
-
-      const bauhofLink = document.createElement('a');
-      bauhofLink.textContent = label;
-      bauhofLink.href = href;
-      if (isBauhofPage) bauhofLink.classList.add('is-active');
-      group.appendChild(bauhofLink);
+      const groupChildren = [
+        el('a', {
+          text: label,
+          attrs: { href },
+          className: isBauhofPage ? 'is-active' : '',
+        }),
+      ];
 
       if (isBauhofPage) {
-        const submenu = document.createElement('div');
-        submenu.className = 'nav-submenu';
-        BAUHOF_CATEGORIES.forEach(({ key, label: categoryLabel }) => {
-          const subLink = document.createElement('a');
-          subLink.className = 'submenu-link';
-          subLink.textContent = categoryLabel;
-          subLink.href = `/bauhof.html?category=${key}`;
-          if (currentCategory === key) subLink.classList.add('is-active');
-          submenu.appendChild(subLink);
-        });
-        group.appendChild(submenu);
+        groupChildren.push(
+          el('div', {
+            className: 'nav-submenu',
+            children: BAUHOF_CATEGORIES.map(({ key, label: categoryLabel }) =>
+              el('a', {
+                className: `submenu-link${currentCategory === key ? ' is-active' : ''}`,
+                text: categoryLabel,
+                attrs: { href: `/bauhof.html?category=${key}` },
+              })
+            ),
+          })
+        );
       }
 
-      sidebar.appendChild(group);
+      nodes.push(el('div', { className: 'nav-group', children: groupChildren }));
       return;
     }
 
     if (hrefLower === '/militaer.html') {
-      const group = document.createElement('div');
-      group.className = 'nav-group';
-
-      const militaerLink = document.createElement('a');
-      militaerLink.textContent = label;
-      militaerLink.href = href;
-      if (isMilitaerPage) militaerLink.classList.add('is-active');
-      group.appendChild(militaerLink);
+      const groupChildren = [
+        el('a', {
+          text: label,
+          attrs: { href },
+          className: isMilitaerPage ? 'is-active' : '',
+        }),
+      ];
 
       if (isMilitaerPage) {
-        const submenu = document.createElement('div');
-        submenu.className = 'nav-submenu';
-        MILITAER_CATEGORIES.forEach(({ key, label: categoryLabel }) => {
-          const subLink = document.createElement('a');
-          subLink.className = 'submenu-link';
-          subLink.textContent = categoryLabel;
-          subLink.href = `/militaer.html?category=${key}`;
-          if (currentCategory === key) subLink.classList.add('is-active');
-          submenu.appendChild(subLink);
-        });
-        group.appendChild(submenu);
+        groupChildren.push(
+          el('div', {
+            className: 'nav-submenu',
+            children: MILITAER_CATEGORIES.map(({ key, label: categoryLabel }) =>
+              el('a', {
+                className: `submenu-link${currentCategory === key ? ' is-active' : ''}`,
+                text: categoryLabel,
+                attrs: { href: `/militaer.html?category=${key}` },
+              })
+            ),
+          })
+        );
       }
 
-      sidebar.appendChild(group);
+      nodes.push(el('div', { className: 'nav-group', children: groupChildren }));
       return;
     }
 
-    const a = document.createElement('a');
-    a.textContent = label;
-    a.href = href;
-    if (window.location.pathname.toLowerCase() === hrefLower) {
-      a.classList.add('is-active');
-    }
-    sidebar.appendChild(a);
+    nodes.push(
+      el('a', {
+        text: label,
+        attrs: { href },
+        className: window.location.pathname.toLowerCase() === hrefLower ? 'is-active' : '',
+      })
+    );
   });
 
-  const logoutBtn = document.createElement('button');
-  logoutBtn.textContent = 'Logout';
-  logoutBtn.style.marginTop = 'auto';
-  logoutBtn.addEventListener('click', () => {
-    sessionStorage.removeItem('currentUser');
-    sessionStorage.removeItem('authToken');
-    window.location.href = '/';
-  });
-  sidebar.appendChild(logoutBtn);
+  nodes.push(
+    el('button', {
+      text: 'Logout',
+      attrs: { style: 'margin-top:auto' },
+      on: {
+        click: () => {
+          stopLiveUpdates();
+          sessionStorage.removeItem('currentUser');
+          sessionStorage.removeItem('authToken');
+          window.location.href = '/';
+        },
+      },
+    })
+  );
+
+  render(sidebar, nodes);
 }
 
 function renderResourceBar(status) {
   const bar = document.getElementById('resource-bar');
   if (!bar) return;
-
-  bar.innerHTML = '';
 
   const res = status.resources ?? {};
   const strom = status.strom ?? { frei: 0 };
@@ -176,35 +232,28 @@ function renderResourceBar(status) {
     { key: 'bevoelkerung', label: '👥', value: bevoelkerung },
   ];
 
-  items.forEach(({ key, label, value }) => {
-    const item = document.createElement('div');
-    item.className = 'resource-item';
-    item.dataset.resource = key;
+  const nodes = items.map(({ key, label, value }) =>
+    el('div', {
+      className: 'resource-item',
+      dataset: { resource: key },
+      children: [
+        el('span', { text: label, attrs: { style: 'margin-right:3px' } }),
+        el('span', {
+          text: value.toLocaleString('de-DE'),
+          dataset: { resourceValue: key },
+        }),
+      ],
+    })
+  );
 
-    const icon = document.createElement('span');
-    icon.textContent = label;
-    icon.style.marginRight = '3px';
-
-    const val = document.createElement('span');
-    val.textContent = value.toLocaleString('de-DE');
-    val.dataset.resourceValue = key;
-
-    item.append(icon, val);
-    bar.appendChild(item);
-  });
+  render(bar, nodes);
 }
 
 function renderProductionPanel(status) {
   const panel = document.getElementById('production-panel');
   if (!panel) return;
 
-  panel.innerHTML = '';
-
   const prod = status.production ?? {};
-
-  const heading = document.createElement('h3');
-  heading.textContent = 'Produktion / Tick';
-  panel.appendChild(heading);
 
   const rows = [
     { label: '💰 Geld',       key: 'geld'       },
@@ -213,21 +262,21 @@ function renderProductionPanel(status) {
     { label: '🛢️ Treibstoff', key: 'treibstoff' },
   ];
 
-  rows.forEach(({ label, key }) => {
-    const item = document.createElement('div');
-    item.className = 'production-item';
-
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = label;
-
-    const rate = document.createElement('span');
+  const rowNodes = rows.map(({ label, key }) => {
     const val = Number(prod[key] ?? 0);
-    rate.textContent = val > 0 ? `+${val.toLocaleString('de-DE')}` : '+0';
-    rate.dataset.productionFor = key;
-
-    item.append(nameSpan, rate);
-    panel.appendChild(item);
+    return el('div', {
+      className: 'production-item',
+      children: [
+        el('span', { text: label }),
+        el('span', {
+          text: val > 0 ? `+${val.toLocaleString('de-DE')}` : '+0',
+          dataset: { productionFor: key },
+        }),
+      ],
+    });
   });
+
+  render(panel, [el('h3', { text: 'Produktion / Tick' }), ...rowNodes]);
 }
 
 

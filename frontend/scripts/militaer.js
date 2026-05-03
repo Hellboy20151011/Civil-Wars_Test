@@ -1,5 +1,6 @@
 import { initShell, getAuth } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
+import { el, render } from '/scripts/ui/component.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
@@ -93,160 +94,173 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-function renderMilitaer(container) {
-  if (!container) return;
-  container.innerHTML = '';
+function getUnitCostsText(unitType) {
+  const costs = [];
+  if (unitType.money_cost > 0) costs.push(`💰 ${Number(unitType.money_cost).toLocaleString('de-DE')}`);
+  if (unitType.steel_cost > 0) costs.push(`⚙️ ${Number(unitType.steel_cost).toLocaleString('de-DE')}`);
+  if (unitType.fuel_cost > 0) costs.push(`🛢️ ${Number(unitType.fuel_cost).toLocaleString('de-DE')}`);
+  return costs.length > 0 ? costs.join('  ') : 'Kostenlos';
+}
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Militär – Einheiten ausbilden';
+function buildOverviewCategoryCard(category, unitCount) {
+  return el('article', {
+    className: 'category-card',
+    children: [
+      el('h3', { text: category.title }),
+      el('p', { text: category.description }),
+      el('p', {
+        className: 'category-count',
+        text: `${unitCount} Einheitentypen verfügbar`,
+      }),
+      el('button', {
+        className: 'primary-action',
+        text: 'Kategorie öffnen',
+        on: {
+          click: () => changeCategory(category.key),
+        },
+      }),
+    ],
+  });
+}
 
-  const msgEl = document.createElement('p');
-  msgEl.id = 'mil-message';
-  msgEl.className = 'dash-message';
-  msgEl.textContent = militaerState.message;
+function buildUnitRow(unitType, container) {
+  const owned = militaerState.myUnits.find(
+    (u) => u.unit_type_id === unitType.id || u.name === unitType.name
+  );
 
-  container.append(heading, msgEl);
-
-  const { unitTypes, myUnits, selectedCategory } = militaerState;
-
-  const grid = document.createElement('div');
-  grid.className = 'category-grid';
-
-  const sectionTitle = document.createElement('h3');
-
-  if (!selectedCategory) {
-    sectionTitle.textContent = 'Einheitenkategorien';
-    container.appendChild(sectionTitle);
-
-    UNIT_CATEGORIES.forEach(({ key, title, description }) => {
-      const catUnits = unitTypes.filter(u => u.category === key);
-      if (catUnits.length === 0) return;
-
-      const card = document.createElement('article');
-      card.className = 'category-card';
-
-      const h = document.createElement('h3');
-      h.textContent = title;
-
-      const desc = document.createElement('p');
-      desc.textContent = description;
-
-      const count = document.createElement('p');
-      count.className = 'category-count';
-      count.textContent = `${catUnits.length} Einheitentypen verfügbar`;
-
-      const openBtn = document.createElement('button');
-      openBtn.className = 'primary-action';
-      openBtn.textContent = 'Kategorie öffnen';
-      openBtn.addEventListener('click', () => changeCategory(key));
-
-      card.append(h, desc, count, openBtn);
-      grid.appendChild(card);
-    });
-
-    container.appendChild(grid);
-    return;
-  }
-
-  const selectedDef = UNIT_CATEGORIES.find(c => c.key === selectedCategory);
-  sectionTitle.textContent = selectedDef ? `Kategorie: ${selectedDef.title}` : 'Kategorie';
-  container.appendChild(sectionTitle);
-
-  const backBtn = document.createElement('button');
-  backBtn.className = 'secondary-action';
-  backBtn.textContent = 'Zurück zur Übersicht';
-  backBtn.addEventListener('click', () => changeCategory(null));
-  container.appendChild(backBtn);
-
-  const catUnits = unitTypes.filter(u => u.category === selectedCategory);
-
-  if (catUnits.length === 0) {
-    const empty = document.createElement('p');
-    empty.textContent = 'Keine Einheiten in dieser Kategorie verfügbar.';
-    container.appendChild(empty);
-    return;
-  }
-
-  const card = document.createElement('article');
-  card.className = 'category-card';
-
-  const cardTitle = document.createElement('h3');
-  cardTitle.textContent = selectedDef?.title ?? selectedCategory;
-  card.appendChild(cardTitle);
-
-  catUnits.forEach((ut) => {
-    const owned = myUnits.find(u => u.unit_type_id === ut.id || u.name === ut.name);
-
-    const row = document.createElement('div');
-    row.className = 'building-type-row';
-
-    const name = document.createElement('strong');
-    name.textContent = ut.name;
-
-    const req = document.createElement('span');
-    req.className = 'build-cost';
-    req.textContent = `Benötigt: ${ut.building_requirement}`;
-
-    const costs = [];
-    if (ut.money_cost > 0) costs.push(`💰 ${Number(ut.money_cost).toLocaleString('de-DE')}`);
-    if (ut.steel_cost > 0) costs.push(`⚙️ ${Number(ut.steel_cost).toLocaleString('de-DE')}`);
-    if (ut.fuel_cost  > 0) costs.push(`🛢️ ${Number(ut.fuel_cost).toLocaleString('de-DE')}`);
-
-    const costSpan = document.createElement('span');
-    costSpan.className = 'build-cost';
-    costSpan.textContent = costs.length > 0 ? costs.join('  ') : 'Kostenlos';
-
-    const stats = document.createElement('span');
-    stats.className = 'build-cost';
-    stats.textContent = `HP: ${ut.hitpoints}  ⚔️ ${ut.attack_points}  🛡️ ${ut.defense_points}`;
-
-    const btnContainer = document.createElement('div');
-    btnContainer.style.display = 'flex';
-    btnContainer.style.gap = '8px';
-    btnContainer.style.alignItems = 'center';
-
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = '1';
-    input.max = '999';
-    input.value = '1';
-    input.className = 'build-quantity-input';
-    input.style.width = '60px';
-
-    const btn = document.createElement('button');
-    btn.className = 'primary-action';
-    btn.textContent = owned ? 'Weitere ausbilden' : 'Ausbilden';
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      input.disabled = true;
-      const msg = document.getElementById('mil-message');
-      try {
-        const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
-        const result = await apiFetch('/units/train', {
-          method: 'POST',
-          body: JSON.stringify({ unit_type_id: ut.id, quantity }),
-        });
-        militaerState.message = result.message ?? '';
-        input.value = '1';
-        const updatedUnits = await apiFetch('/units/me');
-        militaerState.myUnits = updatedUnits;
-        await initShell();
-        renderMilitaer(container);
-        syncSidebarCategorySelection();
-      } catch (err) {
-        if (msg) msg.textContent = err.message;
-        btn.disabled = false;
-        input.disabled = false;
-      }
-    });
-
-    btnContainer.append(input, btn);
-    row.append(name, req, costSpan, stats, btnContainer);
-    card.appendChild(row);
+  const input = el('input', {
+    className: 'build-quantity-input',
+    attrs: {
+      type: 'number',
+      min: '1',
+      max: '999',
+      value: '1',
+      style: 'width:60px',
+    },
   });
 
-  grid.appendChild(card);
-  container.appendChild(grid);
+  const button = el('button', {
+    className: 'primary-action',
+    text: owned ? 'Weitere ausbilden' : 'Ausbilden',
+    on: {
+      click: async () => {
+        button.disabled = true;
+        input.disabled = true;
+
+        try {
+          const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
+          const result = await apiFetch('/units/train', {
+            method: 'POST',
+            body: JSON.stringify({ unit_type_id: unitType.id, quantity }),
+          });
+
+          militaerState.message = result.message ?? '';
+          militaerState.myUnits = await apiFetch('/units/me');
+          await initShell();
+
+          renderMilitaer(container);
+          syncSidebarCategorySelection();
+        } catch (err) {
+          militaerState.message = err.message;
+          renderMilitaer(container);
+          syncSidebarCategorySelection();
+        }
+      },
+    },
+  });
+
+  return el('div', {
+    className: 'building-type-row',
+    children: [
+      el('strong', { text: unitType.name }),
+      el('span', {
+        className: 'build-cost',
+        text: `Benötigt: ${unitType.building_requirement}`,
+      }),
+      el('span', {
+        className: 'build-cost',
+        text: getUnitCostsText(unitType),
+      }),
+      el('span', {
+        className: 'build-cost',
+        text: `HP: ${unitType.hitpoints}  ⚔️ ${unitType.attack_points}  🛡️ ${unitType.defense_points}`,
+      }),
+      el('div', {
+        attrs: { style: 'display:flex;gap:8px;align-items:center' },
+        children: [input, button],
+      }),
+    ],
+  });
+}
+
+function renderMilitaer(container) {
+  if (!container) return;
+
+  const nodes = [
+    el('h2', { text: 'Militär – Einheiten ausbilden' }),
+    el('p', {
+      attrs: { id: 'mil-message' },
+      className: 'dash-message',
+      text: militaerState.message,
+    }),
+  ];
+
+  const { unitTypes, selectedCategory } = militaerState;
+  const gridChildren = [];
+
+  if (!selectedCategory) {
+    nodes.push(el('h3', { text: 'Einheitenkategorien' }));
+
+    UNIT_CATEGORIES.forEach(({ key, title, description }) => {
+      const catUnits = unitTypes.filter((u) => u.category === key);
+      if (catUnits.length === 0) return;
+
+      gridChildren.push(
+        buildOverviewCategoryCard({ key, title, description }, catUnits.length)
+      );
+    });
+
+    nodes.push(el('div', { className: 'category-grid', children: gridChildren }));
+    render(container, nodes);
+    return;
+  }
+
+  const selectedDef = UNIT_CATEGORIES.find((c) => c.key === selectedCategory);
+  nodes.push(
+    el('h3', {
+      text: selectedDef ? `Kategorie: ${selectedDef.title}` : 'Kategorie',
+    }),
+    el('button', {
+      className: 'secondary-action',
+      text: 'Zurück zur Übersicht',
+      on: {
+        click: () => changeCategory(null),
+      },
+    })
+  );
+
+  const catUnits = unitTypes.filter((u) => u.category === selectedCategory);
+
+  if (catUnits.length === 0) {
+    nodes.push(el('p', { text: 'Keine Einheiten in dieser Kategorie verfügbar.' }));
+    render(container, nodes);
+    return;
+  }
+
+  const cardChildren = [el('h3', { text: selectedDef?.title ?? selectedCategory })];
+  catUnits.forEach((ut) => {
+    cardChildren.push(buildUnitRow(ut, container));
+  });
+
+  gridChildren.push(
+    el('article', {
+      className: 'category-card',
+      children: cardChildren,
+    })
+  );
+
+  nodes.push(el('div', { className: 'category-grid', children: gridChildren }));
+  render(container, nodes);
 }
 
 function attachSidebarInterception() {
@@ -273,8 +287,6 @@ async function init() {
   await initShell();
   attachSidebarInterception();
 
-  container.innerHTML = '';
-
   try {
     const [unitTypes, myUnits] = await Promise.all([
       apiFetch('/units/types'),
@@ -289,7 +301,12 @@ async function init() {
     syncSidebarCategorySelection();
   } catch (err) {
     console.error(err);
-    container.innerHTML = `<p style="color:#f88">Fehler beim Laden: ${err.message}</p>`;
+    render(container, [
+      el('p', {
+        text: `Fehler beim Laden: ${err.message}`,
+        attrs: { style: 'color:#f88' },
+      }),
+    ]);
   }
 }
 

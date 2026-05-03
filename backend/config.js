@@ -3,6 +3,14 @@
  * und validiert kritische Werte beim Server-Start.
  */
 
+import 'dotenv/config';
+
+const corsOriginRaw = process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:5173';
+const corsOrigins = corsOriginRaw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
 // JWT-Secret-Länge prüfen
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -30,7 +38,7 @@ export const config = {
     },
 
     cors: {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+        origin: corsOrigins.length <= 1 ? (corsOrigins[0] ?? 'http://localhost:3000') : corsOrigins,
     },
 
     rateLimit: {
@@ -46,6 +54,10 @@ export const config = {
         tickIntervalMs:
             Number(process.env.TICK_INTERVAL_MS) ||
             (process.env.NODE_ENV === 'production' ? 600_000 : 60_000),
+    },
+
+    performance: {
+        referenceDataCacheTtlMs: Number(process.env.REFERENCE_DATA_CACHE_TTL_MS) || 300_000,
     },
 
     nodeEnv: process.env.NODE_ENV || 'development',

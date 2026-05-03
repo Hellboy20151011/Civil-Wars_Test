@@ -1,4 +1,5 @@
 import pool from '../database/db.js';
+import * as referenceDataRepo from './reference-data.repository.js';
 
 const RESOURCE_NAMES = ['Geld', 'Stein', 'Stahl', 'Treibstoff', 'Strom'];
 
@@ -24,15 +25,16 @@ function toFlatResources(rows, userId) {
 async function changeResourceByName(userId, resourceName, delta, newTimestamp, client = pool) {
     if (!delta) return;
 
+    const resourceTypeId = await referenceDataRepo.getResourceTypeIdByName(resourceName, client);
+    if (!resourceTypeId) return;
+
     await client.query(
-        `UPDATE user_resources ur
-         SET amount = ur.amount + $1,
-             last_updated = COALESCE($4, ur.last_updated)
-         FROM resource_types rt
-         WHERE ur.user_id = $2
-           AND ur.resource_type_id = rt.id
-           AND rt.name = $3`,
-        [delta, userId, resourceName, newTimestamp ?? null]
+        `UPDATE user_resources
+         SET amount = amount + $1,
+             last_updated = COALESCE($4, last_updated)
+         WHERE user_id = $2
+           AND resource_type_id = $3`,
+        [delta, userId, resourceTypeId, newTimestamp ?? null]
     );
 }
 
@@ -46,20 +48,29 @@ export async function initForUser(userId, client = pool) {
         Strom: 0,
     };
 
+    const resourceTypes = await referenceDataRepo.getResourceTypes(client);
+    const typeByName = new Map(resourceTypes.map((entry) => [entry.name, entry.id]));
+
+    const ids = [];
+    const amounts = [];
+
     for (const resourceName of RESOURCE_NAMES) {
-        await client.query(
-            `INSERT INTO user_resources (user_id, resource_type_id, amount, last_updated)
-             VALUES (
-                $1,
-                (SELECT id FROM resource_types WHERE name = $2),
-                $3,
-                NOW()
-             )
-             ON CONFLICT (user_id, resource_type_id)
-             DO UPDATE SET amount = EXCLUDED.amount, last_updated = NOW()`,
-            [userId, resourceName, initial[resourceName] ?? 0]
-        );
+        const id = typeByName.get(resourceName);
+        if (!id) continue;
+        ids.push(Number(id));
+        amounts.push(Math.trunc(Number(initial[resourceName] ?? 0)));
     }
+
+    if (ids.length === 0) return;
+
+    await client.query(
+        `INSERT INTO user_resources (user_id, resource_type_id, amount, last_updated)
+         SELECT $1, entry.resource_type_id, entry.amount, NOW()
+         FROM UNNEST($2::INT[], $3::BIGINT[]) AS entry(resource_type_id, amount)
+         ON CONFLICT (user_id, resource_type_id)
+         DO UPDATE SET amount = EXCLUDED.amount, last_updated = NOW()`,
+        [userId, ids, amounts]
+    );
 }
 
 // Ressourcen lesen (mit FOR UPDATE für transaktionssichere Buchungen)

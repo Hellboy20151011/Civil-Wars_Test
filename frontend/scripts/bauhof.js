@@ -1,5 +1,6 @@
 import { initShell, getAuth } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
+import { el, render } from '/scripts/ui/component.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
@@ -94,193 +95,203 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+function getBuildCostsText(bt) {
+  const costs = [];
+  if (bt.money_cost > 0) costs.push(`💰 ${Number(bt.money_cost).toLocaleString('de-DE')}`);
+  if (bt.stone_cost > 0) costs.push(`🪨 ${Number(bt.stone_cost).toLocaleString('de-DE')}`);
+  if (bt.steel_cost > 0) costs.push(`⚙️ ${Number(bt.steel_cost).toLocaleString('de-DE')}`);
+  if (bt.fuel_cost > 0) costs.push(`🛢️ ${Number(bt.fuel_cost).toLocaleString('de-DE')}`);
+  return costs.length > 0 ? costs.join('  ') : 'Kostenlos';
+}
+
+function buildCategoryOverviewCard(category, typesForCategory) {
+  const { key, title, description, image } = category;
+  const children = [];
+
+  if (image) {
+    children.push(
+      el('img', {
+        className: 'category-image',
+        attrs: { src: image, alt: `${title} Vorschau` },
+      })
+    );
+  }
+
+  children.push(
+    el('h3', { text: title }),
+    el('p', { text: description }),
+    el('p', {
+      className: 'category-count',
+      text: `${typesForCategory.length} Gebäude verfügbar`,
+    }),
+    el('button', {
+      className: 'primary-action',
+      text: 'Rubrik öffnen',
+      on: {
+        click: () => changeCategory(key),
+      },
+    })
+  );
+
+  return el('article', {
+    className: 'category-card',
+    children,
+  });
+}
+
+function buildBuildingRow(bt, container) {
+  const owned = bauhofState.buildings.find((b) => Number(b.id) === Number(bt.id));
+  const inQueue = bauhofState.queue.find((q) => q.building_type_id === bt.id);
+
+  const input = el('input', {
+    className: 'build-quantity-input',
+    attrs: {
+      type: 'number',
+      min: '1',
+      max: '999',
+      value: '1',
+      placeholder: 'Anzahl',
+      style: 'width:60px;padding:4px 6px;border-radius:3px;border:1px solid #aaa',
+    },
+  });
+
+  const button = el('button', {
+    className: 'primary-action',
+    text: inQueue ? 'In Warteschlange…' : owned ? 'Weiteren bauen' : 'Bauen',
+    dataset: { buildId: bt.id },
+    attrs: { disabled: inQueue ? 'true' : null },
+    on: {
+      click: async () => {
+        button.disabled = true;
+        input.disabled = true;
+
+        try {
+          const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
+          const result = await apiFetch('/buildings/build', {
+            method: 'POST',
+            body: JSON.stringify({ building_type_id: bt.id, anzahl: quantity }),
+          });
+
+          bauhofState.message = result.message ?? '';
+          const updated = await apiFetch('/buildings/me');
+          bauhofState.buildings = updated.buildings ?? [];
+          bauhofState.queue = updated.queue ?? [];
+
+          await initShell();
+          renderCategories(container);
+          syncSidebarCategorySelection();
+        } catch (err) {
+          bauhofState.message = err.message;
+          renderCategories(container);
+          syncSidebarCategorySelection();
+        }
+      },
+    },
+  });
+
+  if (inQueue) {
+    input.disabled = true;
+  }
+
+  return el('div', {
+    className: 'building-type-row',
+    children: [
+      el('strong', { text: bt.name }),
+      el('span', {
+        className: 'build-cost',
+        text: getBuildCostsText(bt),
+      }),
+      el('div', {
+        attrs: { style: 'display:flex;gap:8px;align-items:center' },
+        children: [input, button],
+      }),
+    ],
+  });
+}
+
+function buildSelectedCategoryCard(category, catBuildings, container) {
+  const children = [];
+
+  if (category.image) {
+    children.push(
+      el('img', {
+        className: 'category-image',
+        attrs: { src: category.image, alt: `${category.title} Vorschau` },
+      })
+    );
+  }
+
+  children.push(el('h3', { text: category.title }), el('p', { text: category.description }));
+
+  catBuildings.forEach((bt) => {
+    children.push(buildBuildingRow(bt, container));
+  });
+
+  return el('article', {
+    className: 'category-card',
+    children,
+  });
+}
+
 // ── Kategorien + Gebäudetypen ─────────────────────────────
 function renderCategories(container) {
   if (!container) return;
-  container.innerHTML = '';
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Bauhof – Verfügbare Gebäude';
+  const nodes = [
+    el('h2', { text: 'Bauhof – Verfügbare Gebäude' }),
+    el('p', {
+      attrs: { id: 'build-message', style: 'color:#7cc8ff' },
+      text: bauhofState.message,
+    }),
+  ];
 
-  const msgEl = document.createElement('p');
-  msgEl.id = 'build-message';
-  msgEl.style.color = '#7cc8ff';
-  msgEl.textContent = bauhofState.message;
+  const { types, selectedCategory } = bauhofState;
 
-  container.append(heading, msgEl);
-
-  const { types, buildings, queue, selectedCategory } = bauhofState;
-
-  const grid = document.createElement('div');
-  grid.className = 'category-grid';
-
-  const sectionTitle = document.createElement('h3');
+  const gridChildren = [];
 
   if (!selectedCategory) {
-    sectionTitle.textContent = 'Rubriken';
-    container.appendChild(sectionTitle);
+    nodes.push(el('h3', { text: 'Rubriken' }));
 
     CATEGORIES.forEach(({ key, title, description, image }) => {
-      const catBuildings = types.filter(t => t.category === key && t.name !== 'Rathaus');
+      const catBuildings = types.filter((t) => t.category === key && t.name !== 'Rathaus');
       if (catBuildings.length === 0) return;
 
-      const card = document.createElement('article');
-      card.className = 'category-card';
-
-      if (image) {
-        const img = document.createElement('img');
-        img.src = image;
-        img.alt = `${title} Vorschau`;
-        img.className = 'category-image';
-        card.appendChild(img);
-      }
-
-      const h = document.createElement('h3');
-      h.textContent = title;
-
-      const desc = document.createElement('p');
-      desc.textContent = description;
-
-      const count = document.createElement('p');
-      count.className = 'category-count';
-      count.textContent = `${catBuildings.length} Gebäude verfügbar`;
-
-      const openBtn = document.createElement('button');
-      openBtn.className = 'primary-action';
-      openBtn.textContent = 'Rubrik öffnen';
-      openBtn.addEventListener('click', () => {
-        changeCategory(key);
-      });
-
-      card.append(h, desc, count, openBtn);
-      grid.appendChild(card);
+      gridChildren.push(
+        buildCategoryOverviewCard({ key, title, description, image }, catBuildings)
+      );
     });
 
-    container.appendChild(grid);
+    nodes.push(el('div', { className: 'category-grid', children: gridChildren }));
+    render(container, nodes);
     return;
   }
 
-  const selectedDefinition = CATEGORIES.find(c => c.key === selectedCategory);
-  sectionTitle.textContent = selectedDefinition
-    ? `Rubrik: ${selectedDefinition.title}`
-    : 'Rubrik';
-  container.appendChild(sectionTitle);
+  const selectedDefinition = CATEGORIES.find((c) => c.key === selectedCategory);
+  nodes.push(
+    el('h3', {
+      text: selectedDefinition ? `Rubrik: ${selectedDefinition.title}` : 'Rubrik',
+    }),
+    el('button', {
+      className: 'secondary-action',
+      text: 'Zurück zu Rubriken',
+      on: {
+        click: () => changeCategory(null),
+      },
+    })
+  );
 
-  const backBtn = document.createElement('button');
-  backBtn.className = 'secondary-action';
-  backBtn.textContent = 'Zurück zu Rubriken';
-  backBtn.addEventListener('click', () => {
-    changeCategory(null);
-  });
-  container.appendChild(backBtn);
-
-  CATEGORIES.forEach(({ key, title, description, image }) => {
+  CATEGORIES.forEach((category) => {
+    const { key } = category;
     if (key !== selectedCategory) return;
 
-    const catBuildings = types.filter(t => t.category === key && t.name !== 'Rathaus');
+    const catBuildings = types.filter((t) => t.category === key && t.name !== 'Rathaus');
     if (catBuildings.length === 0) return;
 
-    const card = document.createElement('article');
-    card.className = 'category-card';
-
-    if (image) {
-      const img = document.createElement('img');
-      img.src = image;
-      img.alt = `${title} Vorschau`;
-      img.className = 'category-image';
-      card.appendChild(img);
-    }
-
-    const h = document.createElement('h3');
-    h.textContent = title;
-
-    const desc = document.createElement('p');
-    desc.textContent = description;
-
-    card.append(h, desc);
-
-    catBuildings.forEach(bt => {
-      const owned = buildings.find(b => Number(b.id) === Number(bt.id));
-      const inQueue = queue.find(q => q.building_type_id === bt.id);
-
-      const bRow = document.createElement('div');
-      bRow.className = 'building-type-row';
-
-      const bName = document.createElement('strong');
-      bName.textContent = bt.name;
-
-      const costs = [];
-      if (bt.money_cost > 0) costs.push(`💰 ${Number(bt.money_cost).toLocaleString('de-DE')}`);
-      if (bt.stone_cost  > 0) costs.push(`🪨 ${Number(bt.stone_cost).toLocaleString('de-DE')}`);
-      if (bt.steel_cost  > 0) costs.push(`⚙️ ${Number(bt.steel_cost).toLocaleString('de-DE')}`);
-      if (bt.fuel_cost   > 0) costs.push(`🛢️ ${Number(bt.fuel_cost).toLocaleString('de-DE')}`);
-
-      const costSpan = document.createElement('span');
-      costSpan.className = 'build-cost';
-      costSpan.textContent = costs.length > 0 ? costs.join('  ') : 'Kostenlos';
-
-      const btnContainer = document.createElement('div');
-      btnContainer.style.display = 'flex';
-      btnContainer.style.gap = '8px';
-      btnContainer.style.alignItems = 'center';
-
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.min = '1';
-      input.max = '999';
-      input.value = '1';
-      input.className = 'build-quantity-input';
-      input.placeholder = 'Anzahl';
-      input.style.width = '60px';
-      input.style.padding = '4px 6px';
-      input.style.borderRadius = '3px';
-      input.style.border = '1px solid #aaa';
-
-      const btn = document.createElement('button');
-      btn.className = 'primary-action';
-      btn.dataset.buildId = bt.id;
-
-      if (inQueue) {
-        btn.textContent = 'In Warteschlange…';
-        btn.disabled = true;
-        input.disabled = true;
-      } else {
-        btn.textContent = owned ? `Weiteren bauen` : 'Bauen';
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          input.disabled = true;
-          const msg = document.getElementById('build-message');
-          try {
-            const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
-            const result = await apiFetch('/buildings/build', {
-              method: 'POST',
-              body: JSON.stringify({ building_type_id: bt.id, anzahl: quantity }),
-            });
-            bauhofState.message = result.message ?? '';
-            input.value = '1';
-            const updated = await apiFetch('/buildings/me');
-            bauhofState.buildings = updated.buildings ?? [];
-            bauhofState.queue = updated.queue ?? [];
-            await initShell();
-            renderCategories(container);
-            syncSidebarCategorySelection();
-          } catch (err) {
-            if (msg) msg.textContent = err.message;
-            btn.disabled = false;
-            input.disabled = false;
-          }
-        });
-      }
-
-      btnContainer.append(input, btn);
-      bRow.append(bName, costSpan, btnContainer);
-      card.appendChild(bRow);
-    });
-
-    grid.appendChild(card);
+    gridChildren.push(buildSelectedCategoryCard(category, catBuildings, container));
   });
 
-  container.appendChild(grid);
+  nodes.push(el('div', { className: 'category-grid', children: gridChildren }));
+  render(container, nodes);
 }
 
 function attachSidebarCategoryInterception() {
@@ -309,8 +320,6 @@ async function init() {
   await initShell();
   attachSidebarCategoryInterception();
 
-  container.innerHTML = '';
-
   try {
     const [buildData, types] = await Promise.all([
       apiFetch('/buildings/me'),
@@ -326,10 +335,12 @@ async function init() {
     syncSidebarCategorySelection();
   } catch (err) {
     console.error(err);
-    const errMsg = document.createElement('p');
-    errMsg.textContent = `Fehler beim Laden: ${err.message}`;
-    errMsg.style.color = '#f88';
-    container.appendChild(errMsg);
+    render(container, [
+      el('p', {
+        text: `Fehler beim Laden: ${err.message}`,
+        attrs: { style: 'color:#f88' },
+      }),
+    ]);
   }
 }
 

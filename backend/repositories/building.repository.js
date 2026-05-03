@@ -1,22 +1,55 @@
 import pool from '../database/db.js';
+import * as referenceDataRepo from './reference-data.repository.js';
 
 const TICK_MS = process.env.NODE_ENV === 'production' ? 10 * 60 * 1000 : 60 * 1000;
 
 // ── Gebäudetypen ──────────────────────────────────────────────────────────────
 
 export async function findAllTypes(client = pool) {
-    const result = await client.query('SELECT * FROM building_types ORDER BY id');
-    return result.rows;
+    return referenceDataRepo.getBuildingTypes(client);
 }
 
 export async function findTypeById(id, client = pool) {
-    const result = await client.query('SELECT * FROM building_types WHERE id = $1', [id]);
-    return result.rows[0] ?? null;
+    const types = await referenceDataRepo.getBuildingTypes(client);
+    return types.find((entry) => Number(entry.id) === Number(id)) ?? null;
 }
 
 export async function findTypeByName(name, client = pool) {
-    const result = await client.query('SELECT * FROM building_types WHERE name = $1', [name]);
-    return result.rows[0] ?? null;
+    const types = await referenceDataRepo.getBuildingTypes(client);
+    return types.find((entry) => entry.name === name) ?? null;
+}
+
+export async function findDetailedByUser(userId, client = pool) {
+    const result = await client.query(
+        `SELECT ub.id,
+                ub.level,
+                ub.is_constructing,
+                ub.construction_start_time,
+                ub.construction_end_time,
+                ub.location_x,
+                ub.location_y,
+                bt.name,
+                bt.category,
+                bt.description,
+                bt.money_cost,
+                bt.stone_cost,
+                bt.steel_cost,
+                bt.fuel_cost,
+                bt.money_production,
+                bt.stone_production,
+                bt.steel_production,
+                bt.fuel_production,
+                bt.power_consumption,
+                bt.power_production,
+                bt.population,
+                bt.build_time_ticks
+         FROM user_buildings ub
+         JOIN building_types bt ON ub.building_type_id = bt.id
+         WHERE ub.user_id = $1
+         ORDER BY bt.category, bt.name`,
+        [userId]
+    );
+    return result.rows;
 }
 
 // ── Gebäude des Spielers ──────────────────────────────────────────────────────
@@ -66,13 +99,27 @@ export async function findBuildingCountByName(userId, name, client = pool) {
 // Gebäude hinzufügen oder Anzahl erhöhen
 export async function upsertBuilding(userId, buildingTypeId, anzahl = 1, client = pool) {
     const count = Math.max(1, Number(anzahl || 1));
-    for (let i = 0; i < count; i += 1) {
-        await client.query(
-            `INSERT INTO user_buildings (user_id, building_type_id, level, is_constructing)
-             VALUES ($1, $2, 1, FALSE)`,
-            [userId, buildingTypeId]
-        );
-    }
+    await client.query(
+        `INSERT INTO user_buildings (user_id, building_type_id, level, is_constructing)
+         SELECT $1, $2, 1, FALSE
+         FROM generate_series(1, $3)`,
+        [userId, buildingTypeId, count]
+    );
+}
+
+export async function createReadyBuildingAtLocation(
+    userId,
+    buildingTypeId,
+    locationX,
+    locationY,
+    client = pool
+) {
+    await client.query(
+        `INSERT INTO user_buildings
+         (user_id, building_type_id, level, is_constructing, location_x, location_y)
+         VALUES ($1, $2, 1, FALSE, $3, $4)`,
+        [userId, buildingTypeId, locationX, locationY]
+    );
 }
 
 // ── Bauwarteschlange ──────────────────────────────────────────────────────────
@@ -110,6 +157,62 @@ export async function findExistingQueueEntry(userId, buildingTypeId, client = po
     return result.rows[0] ?? null;
 }
 
+export async function createConstructingBuilding(
+    userId,
+    buildingTypeId,
+    constructionStartTime,
+    constructionEndTime,
+    locationX,
+    locationY,
+    client = pool
+) {
+    const result = await client.query(
+        `INSERT INTO user_buildings
+            (user_id, building_type_id, level, is_constructing, construction_start_time, construction_end_time, location_x, location_y)
+         VALUES ($1, $2, 1, TRUE, $3, $4, $5, $6)
+         RETURNING *`,
+        [userId, buildingTypeId, constructionStartTime, constructionEndTime, locationX, locationY]
+    );
+
+    return result.rows[0] ?? null;
+}
+
+export async function findUserBuildingWithType(userBuildingId, userId, client = pool) {
+    const result = await client.query(
+        `SELECT ub.*, bt.*
+         FROM user_buildings ub
+         JOIN building_types bt ON ub.building_type_id = bt.id
+         WHERE ub.id = $1 AND ub.user_id = $2`,
+        [userBuildingId, userId]
+    );
+    return result.rows[0] ?? null;
+}
+
+export async function markUpgradeStarted(userBuildingId, constructionStartTime, constructionEndTime, client = pool) {
+    await client.query(
+        `UPDATE user_buildings
+         SET level = level + 1,
+             is_constructing = TRUE,
+             construction_start_time = $1,
+             construction_end_time = $2
+         WHERE id = $3`,
+        [constructionStartTime, constructionEndTime, userBuildingId]
+    );
+}
+
+export async function findPowerSummaryByUser(userId, client = pool) {
+    const result = await client.query(
+        `SELECT COALESCE(SUM(CASE WHEN bt.power_production > 0 THEN bt.power_production ELSE 0 END), 0) AS production,
+                COALESCE(SUM(CASE WHEN bt.power_consumption > 0 THEN bt.power_consumption ELSE 0 END), 0) AS consumption
+         FROM user_buildings ub
+         JOIN building_types bt ON ub.building_type_id = bt.id
+         WHERE ub.user_id = $1 AND ub.is_constructing = FALSE`,
+        [userId]
+    );
+
+    return result.rows[0] ?? { production: 0, consumption: 0 };
+}
+
 export async function createQueueEntry(
     userId,
     buildingTypeId,
@@ -121,23 +224,22 @@ export async function createQueueEntry(
     const ticks = Number(bauzeit_ticks || 0);
     const buildMs = Math.max(0, Math.round(ticks * TICK_MS));
 
-    let first = null;
-    for (let i = 0; i < quantity; i += 1) {
-        const result = await client.query(
-            `INSERT INTO user_buildings (
-                user_id,
-                building_type_id,
-                level,
-                is_constructing,
-                construction_start_time,
-                construction_end_time
-            )
-             VALUES ($1, $2, 1, TRUE, NOW(), NOW() + ($3 * INTERVAL '1 millisecond'))
-             RETURNING id, user_id, building_type_id, construction_start_time AS erstellt_am, construction_end_time AS fertig_am`,
-            [userId, buildingTypeId, buildMs]
-        );
-        if (!first) first = result.rows[0];
-    }
+    const result = await client.query(
+        `INSERT INTO user_buildings (
+            user_id,
+            building_type_id,
+            level,
+            is_constructing,
+            construction_start_time,
+            construction_end_time
+        )
+         SELECT $1, $2, 1, TRUE, NOW(), NOW() + ($3 * INTERVAL '1 millisecond')
+         FROM generate_series(1, $4)
+         RETURNING id, user_id, building_type_id, construction_start_time AS erstellt_am, construction_end_time AS fertig_am`,
+        [userId, buildingTypeId, buildMs, quantity]
+    );
+
+    const first = result.rows[0] ?? null;
 
     return {
         ...first,
