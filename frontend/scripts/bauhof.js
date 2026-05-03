@@ -304,7 +304,8 @@ function attachSidebarCategoryInterception() {
     if (!anchor) return;
 
     const url = new URL(anchor.href, window.location.origin);
-    if (url.pathname.toLowerCase() !== '/bauhof.html') return;
+    const targetPath = url.pathname.toLowerCase();
+    if (targetPath !== '/bauhof.html' && targetPath !== '/pages/bauhof.html') return;
 
     event.preventDefault();
     const nextCategory = url.searchParams.get('category');

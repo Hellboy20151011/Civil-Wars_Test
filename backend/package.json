@@ -6,6 +6,7 @@
     "scripts": {
         "start": "node server.js",
         "dev": "node --watch server.js",
+        "predev:full": "node scripts/free-port.js 3000 5173",
         "dev:full": "concurrently -n backend,frontend -c blue,green \"npm run dev\" \"npm --prefix ../frontend run dev\"",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",

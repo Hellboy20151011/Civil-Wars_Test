@@ -113,14 +113,15 @@ function renderSidebar(navLinks) {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
 
-  const isBauhofPage   = window.location.pathname.toLowerCase() === '/bauhof.html';
-  const isMilitaerPage = window.location.pathname.toLowerCase() === '/militaer.html';
+  const currentPath = window.location.pathname.toLowerCase();
+  const isBauhofPage = currentPath === '/bauhof.html' || currentPath === '/pages/bauhof.html';
+  const isMilitaerPage = currentPath === '/militaer.html' || currentPath === '/pages/militaer.html';
   const currentCategory = new URLSearchParams(window.location.search).get('category');
 
   const defaultLinks = [
-    { label: 'Dashboard', href: '/dashboard.html' },
-    { label: 'Bauhof',    href: '/bauhof.html'   },
-    { label: 'Militär',   href: '/militaer.html' },
+    { label: 'Dashboard', href: '/pages/dashboard.html' },
+    { label: 'Bauhof', href: '/pages/bauhof.html' },
+    { label: 'Militär', href: '/pages/militaer.html' },
   ];
 
   const links = defaultLinks.concat(
@@ -132,7 +133,7 @@ function renderSidebar(navLinks) {
   links.forEach(({ label, href }) => {
     const hrefLower = href.toLowerCase();
 
-    if (hrefLower === '/bauhof.html') {
+    if (hrefLower === '/bauhof.html' || hrefLower === '/pages/bauhof.html') {
       const groupChildren = [
         el('a', {
           text: label,
@@ -149,7 +150,7 @@ function renderSidebar(navLinks) {
               el('a', {
                 className: `submenu-link${currentCategory === key ? ' is-active' : ''}`,
                 text: categoryLabel,
-                attrs: { href: `/bauhof.html?category=${key}` },
+                attrs: { href: `/pages/bauhof.html?category=${key}` },
               })
             ),
           })
@@ -160,7 +161,7 @@ function renderSidebar(navLinks) {
       return;
     }
 
-    if (hrefLower === '/militaer.html') {
+    if (hrefLower === '/militaer.html' || hrefLower === '/pages/militaer.html') {
       const groupChildren = [
         el('a', {
           text: label,
@@ -177,7 +178,7 @@ function renderSidebar(navLinks) {
               el('a', {
                 className: `submenu-link${currentCategory === key ? ' is-active' : ''}`,
                 text: categoryLabel,
-                attrs: { href: `/militaer.html?category=${key}` },
+                attrs: { href: `/pages/militaer.html?category=${key}` },
               })
             ),
           })
@@ -192,7 +193,13 @@ function renderSidebar(navLinks) {
       el('a', {
         text: label,
         attrs: { href },
-        className: window.location.pathname.toLowerCase() === hrefLower ? 'is-active' : '',
+        className:
+          currentPath === hrefLower ||
+          (hrefLower === '/pages/dashboard.html' && currentPath === '/dashboard.html') ||
+          (hrefLower === '/pages/bauhof.html' && currentPath === '/bauhof.html') ||
+          (hrefLower === '/pages/militaer.html' && currentPath === '/militaer.html')
+            ? 'is-active'
+            : '',
       })
     );
   });

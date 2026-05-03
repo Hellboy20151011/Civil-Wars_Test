@@ -65,7 +65,8 @@ function syncSidebarCategorySelection() {
   const links = document.querySelectorAll('#sidebar .submenu-link');
   links.forEach((link) => {
     const url = new URL(link.href, window.location.origin);
-    if (url.pathname.toLowerCase() !== '/militaer.html') return;
+    const currentPath = url.pathname.toLowerCase();
+    if (currentPath !== '/militaer.html' && currentPath !== '/pages/militaer.html') return;
     const category = url.searchParams.get('category');
     link.classList.toggle('is-active', selected === category);
   });
@@ -273,7 +274,8 @@ function attachSidebarInterception() {
     if (!anchor) return;
 
     const url = new URL(anchor.href, window.location.origin);
-    if (url.pathname.toLowerCase() !== '/militaer.html') return;
+    const targetPath = url.pathname.toLowerCase();
+    if (targetPath !== '/militaer.html' && targetPath !== '/pages/militaer.html') return;
 
     event.preventDefault();
     changeCategory(url.searchParams.get('category'));

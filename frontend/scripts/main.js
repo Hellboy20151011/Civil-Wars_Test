@@ -33,7 +33,7 @@ let pendingRegistration = null;
 function goToDashboard(user, token) {
   sessionStorage.setItem('currentUser', JSON.stringify(user));
   sessionStorage.setItem('authToken', token);
-  window.location.href = '/dashboard.html';
+  window.location.href = '/pages/dashboard.html';
 }
 
 //Registrierungsfunktion: Erst Abfrage nach Namen und Passwort,

@@ -28,6 +28,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `frontend/eslint.config.js` – ESLint-Konfiguration für Frontend-Skripte
 
 ### Changed
+- `backend/scripts/free-port.js` und `backend/package.json` – `dev:full` räumt die Dev-Ports `3000` und `5173` automatisch vor dem Start auf, um `EADDRINUSE` im Dev-Workflow zu vermeiden
+- `frontend/scripts/main.js`, `frontend/scripts/shell.js`, `frontend/scripts/bauhof.js`, `frontend/scripts/militaer.js` – Navigation/Sidebar auf Vite-Multi-Page-Routen (`/pages/*.html`) angepasst und Legacy-Pfade weiterhin unterstützt
 - `backend/package.json` – neuer `dev:full`-Workflow startet Backend-Watch und Vite-Dev-Server parallel (Hot Reload)
 - `frontend/vite.config.js` – Dev-Server auf Port `5173` mit Auto-Open von `pages/index.html` für schnelleren Frontend-Loop
 - `backend/config.js` und `backend/.env.example` – `CORS_ORIGIN` unterstützt mehrere komma-separierte Origins (u. a. `http://localhost:5173`)
