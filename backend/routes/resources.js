@@ -9,7 +9,7 @@ const router = express.Router();
 // GET /resources/me  – Ressourcen des eingeloggten Users
 router.get('/me', requireAuth, apiLimiter, asyncWrapper(async (req, res) => {
     const resources = await resourcesRepo.findByUserId(req.user.id);
-    res.json({ resources: resources ?? { geld: 0, stein: 0, stahl: 0, eisen: 0, treibstoff: 0, strom: 0 } });
+    res.json({ resources: resources ?? { geld: 0, stein: 0, stahl: 0, treibstoff: 0, strom: 0 } });
 }));
 
 export default router;

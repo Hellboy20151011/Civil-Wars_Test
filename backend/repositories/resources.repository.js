@@ -10,17 +10,14 @@ function toFlatResources(rows, userId) {
     const treibstoff = Number(byName.get('Treibstoff')?.amount ?? 0);
     const strom = Number(byName.get('Strom')?.amount ?? 0);
 
-    // Für Rückwärtskompatibilität wird eisen als Alias für stahl mitgegeben.
     return {
         user_id: String(userId),
         geld,
         stein,
         stahl,
-        eisen: stahl,
         treibstoff,
         strom,
         last_updated: rows[0]?.last_updated ?? null,
-        letzte_aktualisierung: rows[0]?.last_updated ?? null,
     };
 }
 

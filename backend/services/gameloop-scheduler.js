@@ -1,10 +1,10 @@
-/**
+﻿/**
  * Game Loop Scheduler - Zentrale Verwaltung des Tick-Systems
  * Delegiert an economy.service.js das eigentliche Handling.
  */
 
 import pool from '../database/db.js';
-import * as economyService from '../services/economy.service.js';
+import * as economyService from './economy.service.js';
 
 const TICK_INTERVAL = Number(process.env.TICK_INTERVAL_MS) ||
     (process.env.NODE_ENV === 'production' ? 600000 : 60000);
@@ -14,7 +14,7 @@ let gameLoopActive = false;
 
 export async function executeGameTick() {
     if (gameLoopActive) {
-        console.log('[GAMELOOP] Tick l�uft bereits, �berspringe...');
+        console.log('[GAMELOOP] Tick lï¿½uft bereits, ï¿½berspringe...');
         return;
     }
 
@@ -40,7 +40,7 @@ export async function executeGameTick() {
                 processedCount++;
             } catch (err) {
                 await client.query('ROLLBACK');
-                console.error(`[TICK] Fehler f�r User ${user.id}:`, err.message);
+                console.error(`[TICK] Fehler fï¿½r User ${user.id}:`, err.message);
             } finally {
                 client.release();
             }
@@ -73,3 +73,4 @@ export function getTickStats() {
         tickIntervalMinutes: (TICK_INTERVAL / 1000 / 60).toFixed(1)
     };
 }
+

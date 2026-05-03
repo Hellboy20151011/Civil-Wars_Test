@@ -3,13 +3,13 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import authRouter from './auth.js';
-import resourcesRouter from './resources.js';
-import buildingsRouter from './buildings.js';
-import meRouter from './me.js';
-import unitsRouter from './units.js';
-import { errorHandler } from '../middleware/errorHandler.js';
-import { startGameLoop } from './gameloop-scheduler.js';
+import authRouter from './routes/auth.js';
+import resourcesRouter from './routes/resources.js';
+import buildingsRouter from './routes/buildings.js';
+import meRouter from './routes/me.js';
+import unitsRouter from './routes/units.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { startGameLoop } from './services/gameloop-scheduler.js';
 
 dotenv.config();
 
@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const FRONTEND_DIR = path.join(__dirname, '../../frontend');
+const FRONTEND_DIR = path.join(__dirname, '../frontend');
 
 app.use(cors());
 app.use(express.json());

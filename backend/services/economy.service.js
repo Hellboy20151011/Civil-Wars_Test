@@ -33,7 +33,7 @@ export async function getProductionPerTick(userId, client) {
         treibstoff += Number(b.fuel_production)  * n;
         bevoelkerung += Number(b.population)     * n;
     }
-    return { geld, stein, stahl, eisen: stahl, treibstoff, bevoelkerung };
+    return { geld, stein, stahl, treibstoff, bevoelkerung };
 }
 
 /**
@@ -45,7 +45,7 @@ export async function applyProductionTicks(userId, client) {
     if (!resources) return 0;
 
     const now = new Date();
-    const lastUpdated = resources.last_updated ?? resources.letzte_aktualisierung;
+    const lastUpdated = resources.last_updated;
     const elapsed = now.getTime() - new Date(lastUpdated).getTime();
     const ticks = Math.floor(elapsed / TICK_MS);
     if (ticks <= 0) return 0;
@@ -92,7 +92,7 @@ export async function getSpielerStatus(userId, client) {
     }
 
     return {
-        resources: resources ?? { geld: 0, stein: 0, stahl: 0, eisen: 0, treibstoff: 0, strom: 0 },
+        resources: resources ?? { geld: 0, stein: 0, stahl: 0, treibstoff: 0, strom: 0 },
         buildings,
         queue,
         strom,

@@ -91,7 +91,7 @@ function renderResourceBar(status) {
   const items = [
     { key: 'geld',       label: '💰', value: Number(res.geld       ?? 0) },
     { key: 'stein',      label: '🪨', value: Number(res.stein      ?? 0) },
-    { key: 'stahl',      label: '⚙️', value: Number(res.stahl      ?? res.eisen ?? 0) },
+    { key: 'stahl',      label: '⚙️', value: Number(res.stahl      ?? 0) },
     { key: 'treibstoff', label: '🛢️', value: Number(res.treibstoff ?? 0) },
     { key: 'strom',      label: '⚡', value: Number(strom.frei ?? 0) },
     { key: 'bevoelkerung', label: '👥', value: bevoelkerung },
@@ -142,7 +142,7 @@ function renderProductionPanel(status) {
     nameSpan.textContent = label;
 
     const rate = document.createElement('span');
-    const val = Number(prod[key] ?? (key === 'stahl' ? prod.eisen : 0) ?? 0);
+    const val = Number(prod[key] ?? 0);
     rate.textContent = val > 0 ? `+${val.toLocaleString('de-DE')}` : '+0';
     rate.dataset.productionFor = key;
 
