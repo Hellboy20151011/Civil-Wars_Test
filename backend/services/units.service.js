@@ -37,7 +37,9 @@ export async function getUserUnits(userId) {
         FROM user_units uu
         JOIN unit_types ut ON uu.unit_type_id = ut.id
         WHERE uu.user_id = $1
-        ORDER BY ut.category, ut.name
+        ORDER BY ut.category,
+                 (REGEXP_REPLACE(ut.building_requirement, '[^0-9]', '', 'g'))::INTEGER NULLS LAST,
+                 ut.name
     `;
     const result = await pool.query(query, [userId]);
     return result.rows;
@@ -283,13 +285,13 @@ export async function attackUnits(attackingUnitId, targetUnitId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function getAllUnitTypes() {
-    const query = `SELECT * FROM unit_types ORDER BY category, name`;
+    const query = `SELECT * FROM unit_types ORDER BY category, (REGEXP_REPLACE(building_requirement, '[^0-9]', '', 'g'))::INTEGER NULLS LAST, name`;
     const result = await pool.query(query);
     return result.rows;
 }
 
 export async function getUnitsByCategory(category) {
-    const query = `SELECT * FROM unit_types WHERE category = $1 ORDER BY name`;
+    const query = `SELECT * FROM unit_types WHERE category = $1 ORDER BY (REGEXP_REPLACE(building_requirement, '[^0-9]', '', 'g'))::INTEGER NULLS LAST, name`;
     const result = await pool.query(query, [category]);
     return result.rows;
 }

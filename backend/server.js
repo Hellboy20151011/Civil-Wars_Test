@@ -49,6 +49,10 @@ app.get('/bauhof.html', (req, res) => {
     res.sendFile(path.join(FRONTEND_DIR, 'pages/Bauhof.html'));
 });
 
+app.get('/militaer.html', (req, res) => {
+    res.sendFile(path.join(FRONTEND_DIR, 'pages/militaer.html'));
+});
+
 // Zentraler Error-Handler (muss nach allen Routen stehen)
 app.use(errorHandler);
 

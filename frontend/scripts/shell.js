@@ -3,6 +3,23 @@
 
 const API_BASE_URL = 'http://localhost:3000';
 
+const BAUHOF_CATEGORIES = [
+  { key: 'housing', label: 'Unterkünfte' },
+  { key: 'infrastructure', label: 'Industrie' },
+  { key: 'military', label: 'Militär' },
+  { key: 'government', label: 'Regierung' },
+  { key: 'defense', label: 'Verteidigung' },
+];
+
+const MILITAER_CATEGORIES = [
+  { key: 'infantry',  label: 'Infanterie'  },
+  { key: 'vehicle',   label: 'Fahrzeuge'   },
+  { key: 'ship',      label: 'Marine'      },
+  { key: 'air',       label: 'Luftwaffe'   },
+  { key: 'spionage',  label: 'Spionage'    },
+  { key: 'defense',   label: 'Verteidigung' },
+];
+
 export function getAuth() {
   const raw = sessionStorage.getItem('currentUser');
   const token = sessionStorage.getItem('authToken');
@@ -47,10 +64,14 @@ function renderSidebar(navLinks, auth) {
   if (!sidebar) return;
 
   sidebar.innerHTML = '';
+  const isBauhofPage   = window.location.pathname.toLowerCase() === '/bauhof.html';
+  const isMilitaerPage = window.location.pathname.toLowerCase() === '/militaer.html';
+  const currentCategory = new URLSearchParams(window.location.search).get('category');
 
   const defaultLinks = [
     { label: 'Dashboard', href: '/dashboard.html' },
     { label: 'Bauhof',    href: '/bauhof.html'   },
+    { label: 'Militär',   href: '/militaer.html' },
   ];
 
   const links = defaultLinks.concat(
@@ -58,10 +79,68 @@ function renderSidebar(navLinks, auth) {
   );
 
   links.forEach(({ label, href }) => {
+    const hrefLower = href.toLowerCase();
+
+    if (hrefLower === '/bauhof.html') {
+      const group = document.createElement('div');
+      group.className = 'nav-group';
+
+      const bauhofLink = document.createElement('a');
+      bauhofLink.textContent = label;
+      bauhofLink.href = href;
+      if (isBauhofPage) bauhofLink.classList.add('is-active');
+      group.appendChild(bauhofLink);
+
+      if (isBauhofPage) {
+        const submenu = document.createElement('div');
+        submenu.className = 'nav-submenu';
+        BAUHOF_CATEGORIES.forEach(({ key, label: categoryLabel }) => {
+          const subLink = document.createElement('a');
+          subLink.className = 'submenu-link';
+          subLink.textContent = categoryLabel;
+          subLink.href = `/bauhof.html?category=${key}`;
+          if (currentCategory === key) subLink.classList.add('is-active');
+          submenu.appendChild(subLink);
+        });
+        group.appendChild(submenu);
+      }
+
+      sidebar.appendChild(group);
+      return;
+    }
+
+    if (hrefLower === '/militaer.html') {
+      const group = document.createElement('div');
+      group.className = 'nav-group';
+
+      const militaerLink = document.createElement('a');
+      militaerLink.textContent = label;
+      militaerLink.href = href;
+      if (isMilitaerPage) militaerLink.classList.add('is-active');
+      group.appendChild(militaerLink);
+
+      if (isMilitaerPage) {
+        const submenu = document.createElement('div');
+        submenu.className = 'nav-submenu';
+        MILITAER_CATEGORIES.forEach(({ key, label: categoryLabel }) => {
+          const subLink = document.createElement('a');
+          subLink.className = 'submenu-link';
+          subLink.textContent = categoryLabel;
+          subLink.href = `/militaer.html?category=${key}`;
+          if (currentCategory === key) subLink.classList.add('is-active');
+          submenu.appendChild(subLink);
+        });
+        group.appendChild(submenu);
+      }
+
+      sidebar.appendChild(group);
+      return;
+    }
+
     const a = document.createElement('a');
     a.textContent = label;
     a.href = href;
-    if (window.location.pathname.toLowerCase() === href.toLowerCase()) {
+    if (window.location.pathname.toLowerCase() === hrefLower) {
       a.classList.add('is-active');
     }
     sidebar.appendChild(a);

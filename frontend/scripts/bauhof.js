@@ -5,6 +5,81 @@ const API_BASE_URL = 'http://localhost:3000';
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
+const CATEGORIES = [
+  {
+    key: 'infrastructure',
+    title: 'Industrie',
+    description: 'Grundversorgung, Energie und Rohstoffe.',
+    image: '/assets/images/categories/industrie.jpg',
+  },
+  {
+    key: 'housing',
+    title: 'Unterkünfte',
+    description: 'Wohngebäude und Einkommen.',
+    image: '/assets/images/categories/unterkünfte.jpg',
+  },
+  {
+    key: 'military',
+    title: 'Militär',
+    description: 'Kasernen und Produktionsanlagen für Einheiten.',
+    image: '/assets/images/categories/militär.jpg',
+  },
+  {
+    key: 'government',
+    title: 'Regierung',
+    description: 'Verwaltung, Forschung und Wirtschaft.',
+    image: '/assets/images/categories/regierung.jpg',
+  },
+  {
+    key: 'defense',
+    title: 'Verteidigung',
+    description: 'Schutzanlagen für Land, See und Luft.',
+    image: '/assets/images/categories/verteidigung.jpg',
+  },
+];
+
+const bauhofState = {
+  selectedCategory: null,
+  types: [],
+  buildings: [],
+  queue: [],
+  message: '',
+};
+
+function getSelectedCategory() {
+  const selected = new URLSearchParams(window.location.search).get('category');
+  return CATEGORIES.some(c => c.key === selected) ? selected : null;
+}
+
+function setSelectedCategory(categoryKey) {
+  const url = new URL(window.location.href);
+  if (!categoryKey) {
+    url.searchParams.delete('category');
+  } else {
+    url.searchParams.set('category', categoryKey);
+  }
+  window.history.pushState({}, '', url);
+}
+
+function syncSidebarCategorySelection() {
+  const selected = bauhofState.selectedCategory;
+  const links = document.querySelectorAll('#sidebar .submenu-link');
+  links.forEach((link) => {
+    const url = new URL(link.href, window.location.origin);
+    const category = url.searchParams.get('category');
+    link.classList.toggle('is-active', selected === category);
+  });
+}
+
+function changeCategory(categoryKey, pushHistory = true) {
+  bauhofState.selectedCategory = CATEGORIES.some(c => c.key === categoryKey) ? categoryKey : null;
+  if (pushHistory) {
+    setSelectedCategory(bauhofState.selectedCategory);
+  }
+  renderCategories(document.getElementById('Bauhof'));
+  syncSidebarCategorySelection();
+}
+
 // ── Hilfsfunktion: API-Call ───────────────────────────────
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -20,97 +95,9 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-// ── Bauwarteschlange rendern ──────────────────────────────
-function renderQueue(container, queue) {
-  let queueSection = container.querySelector('.queue-section');
-  if (!queueSection) {
-    queueSection = document.createElement('section');
-    queueSection.className = 'queue-section';
-    const h = document.createElement('h3');
-    h.textContent = 'Bauwarteschlange';
-    queueSection.appendChild(h);
-    container.appendChild(queueSection);
-  }
-  // Alles außer dem Heading leeren
-  while (queueSection.children.length > 1) queueSection.removeChild(queueSection.lastChild);
-
-  if (queue.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = 'Keine Gebäude in der Bauwarteschlange.';
-    queueSection.appendChild(empty);
-    return;
-  }
-
-  queue.forEach(entry => {
-    const row = document.createElement('div');
-    row.className = 'queue-row';
-
-    const name = document.createElement('span');
-    name.textContent = entry.anzahl > 1 ? `${entry.anzahl}x ${entry.name}` : entry.name;
-
-    const timer = document.createElement('span');
-    timer.className = 'countdown-timer';
-    row.append(name, timer);
-    queueSection.appendChild(row);
-
-    // Countdown pro Eintrag
-    const endMs = new Date(entry.fertig_am).getTime();
-    const tick = setInterval(() => {
-      const remaining = Math.max(0, endMs - Date.now());
-      if (remaining <= 0) {
-        clearInterval(tick);
-        timer.textContent = '✓ Fertig';
-        // Seite nach kurzer Pause neu laden um Gebäude einzubuchen
-        setTimeout(() => init(), 1500);
-      } else {
-        const s = Math.ceil(remaining / 1000);
-        const m = Math.floor(s / 60);
-        timer.textContent = m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
-      }
-    }, 500);
-  });
-}
-
-// ── Gebäudeliste rendern ──────────────────────────────────
-function renderMyBuildings(container, buildings) {
-  let section = container.querySelector('.my-buildings-section');
-  if (!section) {
-    section = document.createElement('section');
-    section.className = 'my-buildings-section';
-    const h = document.createElement('h3');
-    h.textContent = 'Meine Gebäude';
-    section.appendChild(h);
-    container.insertBefore(section, container.firstChild);
-  }
-  while (section.children.length > 1) section.removeChild(section.lastChild);
-
-  if (buildings.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = '- Noch keine Gebäude gebaut! -';
-    section.appendChild(empty);
-    return;
-  }
-
-  buildings.forEach(b => {
-    const row = document.createElement('div');
-    row.className = 'building-row';
-
-    const name = document.createElement('span');
-    name.textContent = b.anzahl > 1 ? `${b.name} (${b.anzahl}x)` : b.name;
-
-    const cat = document.createElement('span');
-    cat.className = 'building-category';
-    cat.textContent = b.category || b.kategorie || '';
-
-    row.append(name, cat);
-    section.appendChild(row);
-  });
-}
-
 // ── Kategorien + Gebäudetypen ─────────────────────────────
-async function renderCategories(container, myBuildings, queue) {
+function renderCategories(container) {
+  if (!container) return;
   container.innerHTML = '';
 
   const heading = document.createElement('h2');
@@ -119,32 +106,91 @@ async function renderCategories(container, myBuildings, queue) {
   const msgEl = document.createElement('p');
   msgEl.id = 'build-message';
   msgEl.style.color = '#7cc8ff';
+  msgEl.textContent = bauhofState.message;
 
   container.append(heading, msgEl);
 
-  renderMyBuildings(container, myBuildings);
-  renderQueue(container, queue);
-
-  // Gebäudetypen laden
-  const types = await apiFetch('/buildings/types');
-
-  const categories = [
-    { key: 'infrastructure', title: 'Infrastruktur', description: 'Grundversorgung, Energie und Rohstoffe.' },
-    { key: 'housing', title: 'Unterkünfte', description: 'Wohngebäude und Einkommen.' },
-    { key: 'military', title: 'Militär', description: 'Kasernen und Produktionsanlagen für Einheiten.' },
-    { key: 'government', title: 'Regierung', description: 'Verwaltung, Forschung und Wirtschaft.' },
-    { key: 'defense', title: 'Verteidigung', description: 'Schutzanlagen für Land, See und Luft.' },
-  ];
+  const { types, buildings, queue, selectedCategory } = bauhofState;
 
   const grid = document.createElement('div');
   grid.className = 'category-grid';
 
-  categories.forEach(({ key, title, description }) => {
+  const sectionTitle = document.createElement('h3');
+
+  if (!selectedCategory) {
+    sectionTitle.textContent = 'Rubriken';
+    container.appendChild(sectionTitle);
+
+    CATEGORIES.forEach(({ key, title, description, image }) => {
+      const catBuildings = types.filter(t => t.category === key && t.name !== 'Rathaus');
+      if (catBuildings.length === 0) return;
+
+      const card = document.createElement('article');
+      card.className = 'category-card';
+
+      if (image) {
+        const img = document.createElement('img');
+        img.src = image;
+        img.alt = `${title} Vorschau`;
+        img.className = 'category-image';
+        card.appendChild(img);
+      }
+
+      const h = document.createElement('h3');
+      h.textContent = title;
+
+      const desc = document.createElement('p');
+      desc.textContent = description;
+
+      const count = document.createElement('p');
+      count.className = 'category-count';
+      count.textContent = `${catBuildings.length} Gebäude verfügbar`;
+
+      const openBtn = document.createElement('button');
+      openBtn.className = 'primary-action';
+      openBtn.textContent = 'Rubrik öffnen';
+      openBtn.addEventListener('click', () => {
+        changeCategory(key);
+      });
+
+      card.append(h, desc, count, openBtn);
+      grid.appendChild(card);
+    });
+
+    container.appendChild(grid);
+    return;
+  }
+
+  const selectedDefinition = CATEGORIES.find(c => c.key === selectedCategory);
+  sectionTitle.textContent = selectedDefinition
+    ? `Rubrik: ${selectedDefinition.title}`
+    : 'Rubrik';
+  container.appendChild(sectionTitle);
+
+  const backBtn = document.createElement('button');
+  backBtn.className = 'secondary-action';
+  backBtn.textContent = 'Zurück zu Rubriken';
+  backBtn.addEventListener('click', () => {
+    changeCategory(null);
+  });
+  container.appendChild(backBtn);
+
+  CATEGORIES.forEach(({ key, title, description, image }) => {
+    if (key !== selectedCategory) return;
+
     const catBuildings = types.filter(t => t.category === key && t.name !== 'Rathaus');
     if (catBuildings.length === 0) return;
 
     const card = document.createElement('article');
     card.className = 'category-card';
+
+    if (image) {
+      const img = document.createElement('img');
+      img.src = image;
+      img.alt = `${title} Vorschau`;
+      img.className = 'category-image';
+      card.appendChild(img);
+    }
 
     const h = document.createElement('h3');
     h.textContent = title;
@@ -155,7 +201,7 @@ async function renderCategories(container, myBuildings, queue) {
     card.append(h, desc);
 
     catBuildings.forEach(bt => {
-      const owned = myBuildings.find(b => Number(b.id) === Number(bt.id));
+      const owned = buildings.find(b => Number(b.id) === Number(bt.id));
       const inQueue = queue.find(q => q.building_type_id === bt.id);
 
       const bRow = document.createElement('div');
@@ -211,11 +257,14 @@ async function renderCategories(container, myBuildings, queue) {
               method: 'POST',
               body: JSON.stringify({ building_type_id: bt.id, anzahl: quantity }),
             });
-            const successMsg = result.message ?? '';
+            bauhofState.message = result.message ?? '';
             input.value = '1';
-            await init();
-            const newMsg = document.getElementById('build-message');
-            if (newMsg) newMsg.textContent = successMsg;
+            const updated = await apiFetch('/buildings/me');
+            bauhofState.buildings = updated.buildings ?? [];
+            bauhofState.queue = updated.queue ?? [];
+            await initShell();
+            renderCategories(container);
+            syncSidebarCategorySelection();
           } catch (err) {
             if (msg) msg.textContent = err.message;
             btn.disabled = false;
@@ -235,18 +284,47 @@ async function renderCategories(container, myBuildings, queue) {
   container.appendChild(grid);
 }
 
+function attachSidebarCategoryInterception() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar || sidebar.dataset.bauhofInterceptAttached === 'true') return;
+
+  sidebar.dataset.bauhofInterceptAttached = 'true';
+  sidebar.addEventListener('click', (event) => {
+    const anchor = event.target.closest('a');
+    if (!anchor) return;
+
+    const url = new URL(anchor.href, window.location.origin);
+    if (url.pathname.toLowerCase() !== '/bauhof.html') return;
+
+    event.preventDefault();
+    const nextCategory = url.searchParams.get('category');
+    changeCategory(nextCategory);
+  });
+}
+
 // ── Hauptlogik ────────────────────────────────────────────
 async function init() {
   const container = document.getElementById('Bauhof');
   if (!container) return;
 
   await initShell();
+  attachSidebarCategoryInterception();
 
   container.innerHTML = '';
 
   try {
-    const { buildings, queue } = await apiFetch('/buildings/me');
-    await renderCategories(container, buildings, queue);
+    const [buildData, types] = await Promise.all([
+      apiFetch('/buildings/me'),
+      apiFetch('/buildings/types'),
+    ]);
+
+    bauhofState.buildings = buildData.buildings ?? [];
+    bauhofState.queue = buildData.queue ?? [];
+    bauhofState.types = types;
+    bauhofState.selectedCategory = getSelectedCategory();
+
+    renderCategories(container);
+    syncSidebarCategorySelection();
   } catch (err) {
     console.error(err);
     const errMsg = document.createElement('p');
@@ -255,6 +333,12 @@ async function init() {
     container.appendChild(errMsg);
   }
 }
+
+window.addEventListener('popstate', () => {
+  bauhofState.selectedCategory = getSelectedCategory();
+  renderCategories(document.getElementById('Bauhof'));
+  syncSidebarCategorySelection();
+});
 
 init();
 
