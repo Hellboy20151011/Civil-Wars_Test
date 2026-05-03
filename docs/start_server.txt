@@ -1,0 +1,9 @@
+Datenbank zurücksetzen:
+
+cd d:\Hellboy\Programmieren\Civil-Wars_Test\backend
+node scripts/resetdb.js
+
+Backend starten:
+
+cd d:\Hellboy\Programmieren\Civil-Wars_Test\backend
+npm run dev

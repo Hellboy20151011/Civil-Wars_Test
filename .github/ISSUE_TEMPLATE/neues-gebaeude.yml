@@ -1,0 +1,164 @@
+name: Neues Gebäude
+description: Vorlage zum Hinzufügen eines neuen Gebäudetyps
+title: "[Gebäude] <Name des Gebäudes>"
+labels: ["feature", "building"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: Anzeigename des Gebäudes (muss in der DB eindeutig sein)
+      placeholder: z.B. Kaserne Level 5
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Kategorie
+      description: Zu welcher Kategorie gehört das Gebäude?
+      options:
+        - infrastructure
+        - housing
+        - military
+        - government
+        - defense
+    validations:
+      required: true
+
+  - type: input
+    id: description
+    attributes:
+      label: Beschreibung
+      description: Kurze Beschreibung für den Bauhof
+      placeholder: z.B. Trainiert schwere Panzer. Benötigt 80Mwh Strom.
+    validations:
+      required: true
+
+  - type: input
+    id: level
+    attributes:
+      label: Level
+      description: Gebäude-Level (INTEGER, Standard 1)
+      placeholder: "1"
+
+  - type: input
+    id: prerequisite
+    attributes:
+      label: Voraussetzung (prerequisite_building)
+      description: Name des Gebäudes, das vorher vorhanden sein muss (leer = keine)
+      placeholder: z.B. Kaserne Level 4
+
+  - type: markdown
+    attributes:
+      value: "## Baukosten"
+
+  - type: input
+    id: money_cost
+    attributes:
+      label: Geld (money_cost)
+      placeholder: "0"
+    validations:
+      required: true
+
+  - type: input
+    id: stone_cost
+    attributes:
+      label: Stein (stone_cost)
+      placeholder: "0"
+    validations:
+      required: true
+
+  - type: input
+    id: steel_cost
+    attributes:
+      label: Stahl (steel_cost)
+      placeholder: "0"
+    validations:
+      required: true
+
+  - type: input
+    id: fuel_cost
+    attributes:
+      label: Treibstoff (fuel_cost)
+      placeholder: "0"
+
+  - type: markdown
+    attributes:
+      value: "## Produktion pro Tick"
+
+  - type: input
+    id: money_production
+    attributes:
+      label: Geld-Produktion
+      placeholder: "0"
+
+  - type: input
+    id: stone_production
+    attributes:
+      label: Stein-Produktion
+      placeholder: "0"
+
+  - type: input
+    id: steel_production
+    attributes:
+      label: Stahl-Produktion
+      placeholder: "0"
+
+  - type: input
+    id: fuel_production
+    attributes:
+      label: Treibstoff-Produktion
+      placeholder: "0"
+
+  - type: markdown
+    attributes:
+      value: "## Energiebilanz"
+
+  - type: input
+    id: power_production
+    attributes:
+      label: Strom-Produktion (MWh/Tick)
+      placeholder: "0"
+
+  - type: input
+    id: power_consumption
+    attributes:
+      label: Strom-Verbrauch (MWh/Tick)
+      placeholder: "0"
+
+  - type: input
+    id: population
+    attributes:
+      label: Bevölkerung
+      placeholder: "0"
+
+  - type: input
+    id: build_time_ticks
+    attributes:
+      label: Bauzeit (build_time_ticks)
+      description: "1 Tick = 10 Min in Produktion, 1 Min in Dev. Dezimalzahlen erlaubt (z.B. 0.5)"
+      placeholder: "1"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: "## SQL-Snippet (bitte ausfüllen)"
+
+  - type: textarea
+    id: sql
+    attributes:
+      label: INSERT-Statement für building_types.sql
+      description: Fertige SQL-Zeile, die in das Schema eingefügt wird
+      placeholder: |
+        ('Kaserne Level 5', 'military', 'Beschreibung', 5, 5000000, 2000, 5000, 800, 0, 0, 0, 0, 0, 200, 0, 0, 50)
+      render: sql
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Weitere Hinweise
+      description: Besonderheiten, Balancing-Überlegungen, abhängige Änderungen (z.B. neue Einheit, Forschung)
