@@ -9,10 +9,10 @@ export async function findById(id, client = pool) {
 }
 
 export async function findByUsernameOrEmail(username, email, client = pool) {
-    const result = await client.query(
-        'SELECT id FROM users WHERE username = $1 OR email = $2',
-        [username, email]
-    );
+    const result = await client.query('SELECT id FROM users WHERE username = $1 OR email = $2', [
+        username,
+        email,
+    ]);
     return result.rows[0] ?? null;
 }
 
@@ -24,7 +24,14 @@ export async function findByUsername(username, client = pool) {
     return result.rows[0] ?? null;
 }
 
-export async function create(username, email, passwordHash, koordinateX, koordinateY, client = pool) {
+export async function create(
+    username,
+    email,
+    passwordHash,
+    koordinateX,
+    koordinateY,
+    client = pool
+) {
     const result = await client.query(
         `INSERT INTO users (email, username, password_hash, koordinate_x, koordinate_y)
          VALUES ($1, $2, $3, $4, $5)

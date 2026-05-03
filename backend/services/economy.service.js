@@ -14,7 +14,7 @@ export async function getStromStatus(userId, client) {
     let verbrauch = 0;
     for (const b of buildings) {
         produktion += Number(b.power_production) * Number(b.anzahl);
-        verbrauch  += Number(b.power_consumption) * Number(b.anzahl);
+        verbrauch += Number(b.power_consumption) * Number(b.anzahl);
     }
     return { produktion, verbrauch, frei: produktion - verbrauch };
 }
@@ -24,14 +24,18 @@ export async function getStromStatus(userId, client) {
  */
 export async function getProductionPerTick(userId, client) {
     const buildings = await buildingRepo.findBuildingsByUser(userId, client);
-    let geld = 0, stein = 0, stahl = 0, treibstoff = 0, bevoelkerung = 0;
+    let geld = 0,
+        stein = 0,
+        stahl = 0,
+        treibstoff = 0,
+        bevoelkerung = 0;
     for (const b of buildings) {
         const n = Number(b.anzahl);
-        geld       += Number(b.money_production) * n;
-        stein      += Number(b.stone_production) * n;
-        stahl      += Number(b.steel_production) * n;
-        treibstoff += Number(b.fuel_production)  * n;
-        bevoelkerung += Number(b.population)     * n;
+        geld += Number(b.money_production) * n;
+        stein += Number(b.stone_production) * n;
+        stahl += Number(b.steel_production) * n;
+        treibstoff += Number(b.fuel_production) * n;
+        bevoelkerung += Number(b.population) * n;
     }
     return { geld, stein, stahl, treibstoff, bevoelkerung };
 }
@@ -54,9 +58,9 @@ export async function applyProductionTicks(userId, client) {
 
     await resourcesRepo.addResources(
         userId,
-        production.geld       * ticks,
-        production.stein      * ticks,
-        production.stahl      * ticks,
+        production.geld * ticks,
+        production.stein * ticks,
+        production.stahl * ticks,
         production.treibstoff * ticks,
         new Date(new Date(lastUpdated).getTime() + ticks * TICK_MS),
         client
@@ -82,8 +86,8 @@ export async function processFinishedQueue(userId, client) {
 export async function getSpielerStatus(userId, client) {
     const resources = await resourcesRepo.findByUserId(userId, client);
     const buildings = await buildingRepo.findBuildingsByUser(userId, client);
-    const queue     = await buildingRepo.findQueueByUser(userId, client);
-    const strom     = await getStromStatus(userId, client);
+    const queue = await buildingRepo.findQueueByUser(userId, client);
+    const strom = await getStromStatus(userId, client);
     const production = await getProductionPerTick(userId, client);
 
     let bevoelkerung = 0;

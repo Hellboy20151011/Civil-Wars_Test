@@ -65,10 +65,9 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
         await client.query('BEGIN');
 
         // 1. Gebäudetyp abrufen
-        const buildingType = await client.query(
-            'SELECT * FROM building_types WHERE id = $1',
-            [buildingTypeId]
-        );
+        const buildingType = await client.query('SELECT * FROM building_types WHERE id = $1', [
+            buildingTypeId,
+        ]);
         const building = buildingType.rows[0];
         if (!building) throw new Error('Gebäudetyp nicht gefunden');
 
@@ -79,7 +78,7 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
                 money: building.money_cost,
                 stone: building.stone_cost,
                 steel: building.steel_cost,
-                fuel: building.fuel_cost
+                fuel: building.fuel_cost,
             },
             client
         );
@@ -98,7 +97,7 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
                 money: building.money_cost,
                 stone: building.stone_cost,
                 steel: building.steel_cost,
-                fuel: building.fuel_cost
+                fuel: building.fuel_cost,
             },
             client
         );
@@ -106,7 +105,7 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
         // 5. Gebäude in Konstruktion setzen
         const now = new Date();
         const constructionEndTime = new Date(now.getTime() + building.build_time_ticks * 60 * 1000); // Ticks zu Millisekunden
-        
+
         const result = await client.query(
             `INSERT INTO user_buildings 
             (user_id, building_type_id, level, is_constructing, construction_start_time, construction_end_time, location_x, location_y)
@@ -116,7 +115,11 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
         );
 
         await client.query('COMMIT');
-        return { success: true, building: result.rows[0], estimatedTime: building.build_time_ticks };
+        return {
+            success: true,
+            building: result.rows[0],
+            estimatedTime: building.build_time_ticks,
+        };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -154,7 +157,7 @@ export async function startUpgrade(userId, userBuildingId) {
             money: Math.floor(userBuilding.money_cost * 1.5),
             stone: Math.floor(userBuilding.stone_cost * 1.5),
             steel: Math.floor(userBuilding.steel_cost * 1.5),
-            fuel: Math.floor(userBuilding.fuel_cost * 1.5)
+            fuel: Math.floor(userBuilding.fuel_cost * 1.5),
         };
 
         const hasResources = await hasEnoughResources(userId, nextLevelCosts, client);
@@ -166,7 +169,7 @@ export async function startUpgrade(userId, userBuildingId) {
         // 5. Upgrade starten
         const now = new Date();
         const upgradeEndTime = new Date(now.getTime() + userBuilding.build_time_ticks * 1500); // 1.5x länger
-        
+
         await client.query(
             `UPDATE user_buildings 
             SET level = level + 1, is_constructing = TRUE, 
@@ -176,10 +179,10 @@ export async function startUpgrade(userId, userBuildingId) {
         );
 
         await client.query('COMMIT');
-        return { 
-            success: true, 
+        return {
+            success: true,
             newLevel: userBuilding.level + 1,
-            estimatedTime: userBuilding.build_time_ticks * 1.5
+            estimatedTime: userBuilding.build_time_ticks * 1.5,
         };
     } catch (error) {
         await client.query('ROLLBACK');
@@ -203,14 +206,16 @@ export async function hasEnoughResources(userId, requiredResources, client = poo
     );
 
     const resources = {};
-    result.rows.forEach(row => {
+    result.rows.forEach((row) => {
         resources[row.name.toLowerCase()] = row.amount || 0;
     });
 
-    return (resources.geld || 0) >= (requiredResources.money || 0) &&
-           (resources.stein || 0) >= (requiredResources.stone || 0) &&
-           (resources.stahl || 0) >= (requiredResources.steel || 0) &&
-           (resources.treibstoff || 0) >= (requiredResources.fuel || 0);
+    return (
+        (resources.geld || 0) >= (requiredResources.money || 0) &&
+        (resources.stein || 0) >= (requiredResources.stone || 0) &&
+        (resources.stahl || 0) >= (requiredResources.steel || 0) &&
+        (resources.treibstoff || 0) >= (requiredResources.fuel || 0)
+    );
 }
 
 export async function checkPowerAvailable(userId, powerNeeded, client = pool) {
@@ -232,10 +237,10 @@ export async function checkPowerAvailable(userId, powerNeeded, client = pool) {
 
 export async function deductResources(userId, resources, client = pool) {
     const resourceMap = {
-        'Geld': resources.money || 0,
-        'Stein': resources.stone || 0,
-        'Stahl': resources.steel || 0,
-        'Treibstoff': resources.fuel || 0
+        Geld: resources.money || 0,
+        Stein: resources.stone || 0,
+        Stahl: resources.steel || 0,
+        Treibstoff: resources.fuel || 0,
     };
 
     for (const [resourceName, amount] of Object.entries(resourceMap)) {
@@ -252,10 +257,10 @@ export async function deductResources(userId, resources, client = pool) {
 
 export async function addResources(userId, resources, client = pool) {
     const resourceMap = {
-        'Geld': resources.money || 0,
-        'Stein': resources.stone || 0,
-        'Stahl': resources.steel || 0,
-        'Treibstoff': resources.fuel || 0
+        Geld: resources.money || 0,
+        Stein: resources.stone || 0,
+        Stahl: resources.steel || 0,
+        Treibstoff: resources.fuel || 0,
     };
 
     for (const [resourceName, amount] of Object.entries(resourceMap)) {
@@ -293,12 +298,16 @@ export async function tickProduction(userId) {
         );
 
         const production = result.rows[0];
-        await addResources(userId, {
-            money: production.money,
-            stone: production.stone,
-            steel: production.steel,
-            fuel: production.fuel
-        }, client);
+        await addResources(
+            userId,
+            {
+                money: production.money,
+                stone: production.stone,
+                steel: production.steel,
+                fuel: production.fuel,
+            },
+            client
+        );
 
         await client.query('COMMIT');
         return production;

@@ -11,18 +11,17 @@ export async function initializeNewPlayer(userId, username) {
 
         // 1. Ressourcen initialisieren
         const resourceTypes = [
-            { name: 'Geld', amount: 50000 },        // 50.000€ Startkapital
-            { name: 'Stein', amount: 100 },         // 100t
-            { name: 'Stahl', amount: 50 },          // 50t
-            { name: 'Treibstoff', amount: 0 }       // 0L
+            { name: 'Geld', amount: 50000 }, // 50.000€ Startkapital
+            { name: 'Stein', amount: 100 }, // 100t
+            { name: 'Stahl', amount: 50 }, // 50t
+            { name: 'Treibstoff', amount: 0 }, // 0L
         ];
 
         for (const resource of resourceTypes) {
-            const rtResult = await client.query(
-                'SELECT id FROM resource_types WHERE name = $1',
-                [resource.name]
-            );
-            
+            const rtResult = await client.query('SELECT id FROM resource_types WHERE name = $1', [
+                resource.name,
+            ]);
+
             if (rtResult.rows.length > 0) {
                 await client.query(
                     `INSERT INTO user_resources (user_id, resource_type_id, amount)
@@ -35,12 +34,9 @@ export async function initializeNewPlayer(userId, username) {
         }
 
         // 2. Rathaus bauen
-        const rathausResult = await client.query(
-            'SELECT id FROM building_types WHERE name = $1',
-            [
-                'Rathaus'
-            ]
-        );
+        const rathausResult = await client.query('SELECT id FROM building_types WHERE name = $1', [
+            'Rathaus',
+        ]);
 
         if (rathausResult.rows.length > 0) {
             await client.query(
@@ -52,7 +48,10 @@ export async function initializeNewPlayer(userId, username) {
         }
 
         await client.query('COMMIT');
-        return { success: true, message: `Spieler '${username}' initialisiert mit Starterressourcen und Rathaus` };
+        return {
+            success: true,
+            message: `Spieler '${username}' initialisiert mit Starterressourcen und Rathaus`,
+        };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -87,7 +86,12 @@ export async function executeTick() {
             );
 
             const production = productionResult.rows[0];
-            if (production.money > 0 || production.stone > 0 || production.steel > 0 || production.fuel > 0) {
+            if (
+                production.money > 0 ||
+                production.stone > 0 ||
+                production.steel > 0 ||
+                production.fuel > 0
+            ) {
                 // Ressourcen hinzufügen
                 const rtResult = await client.query(
                     `SELECT id, name FROM resource_types WHERE name IN ('Geld', 'Stein', 'Stahl', 'Treibstoff')`
@@ -96,10 +100,18 @@ export async function executeTick() {
                 for (const rt of rtResult.rows) {
                     let amount = 0;
                     switch (rt.name) {
-                        case 'Geld': amount = production.money; break;
-                        case 'Stein': amount = production.stone; break;
-                        case 'Stahl': amount = production.steel; break;
-                        case 'Treibstoff': amount = production.fuel; break;
+                        case 'Geld':
+                            amount = production.money;
+                            break;
+                        case 'Stein':
+                            amount = production.stone;
+                            break;
+                        case 'Stahl':
+                            amount = production.steel;
+                            break;
+                        case 'Treibstoff':
+                            amount = production.fuel;
+                            break;
                     }
 
                     if (amount > 0) {

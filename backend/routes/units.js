@@ -32,36 +32,52 @@ const attackSchema = z.object({
 // GET: Alle Einheitentypen
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get('/types', requireAuth, apiLimiter, asyncWrapper(async (req, res) => {
-    const unitTypes = await unitsService.getAllUnitTypes();
-    res.json(unitTypes);
-}));
+router.get(
+    '/types',
+    requireAuth,
+    apiLimiter,
+    asyncWrapper(async (req, res) => {
+        const unitTypes = await unitsService.getAllUnitTypes();
+        res.json(unitTypes);
+    })
+);
 
 // GET: Einheiten nach Kategorie
-router.get('/types/category/:category', requireAuth, apiLimiter, asyncWrapper(async (req, res) => {
-    const { category } = req.params;
-    const units = await unitsService.getUnitsByCategory(category);
-    res.json(units);
-}));
+router.get(
+    '/types/category/:category',
+    requireAuth,
+    apiLimiter,
+    asyncWrapper(async (req, res) => {
+        const { category } = req.params;
+        const units = await unitsService.getUnitsByCategory(category);
+        res.json(units);
+    })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Meine Einheiten
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get('/me', requireAuth, apiLimiter, asyncWrapper(async (req, res) => {
-    const userId = req.user.id;
-    const units = await unitsService.getUserUnits(userId);
-    res.json(units);
-}));
+router.get(
+    '/me',
+    requireAuth,
+    apiLimiter,
+    asyncWrapper(async (req, res) => {
+        const userId = req.user.id;
+        const units = await unitsService.getUserUnits(userId);
+        res.json(units);
+    })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST: Einheiten ausbilden
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post('/train', 
-    requireAuth, 
-    apiLimiter, 
-    validateBody(trainSchema), 
+router.post(
+    '/train',
+    requireAuth,
+    apiLimiter,
+    validateBody(trainSchema),
     asyncWrapper(async (req, res) => {
         const userId = req.user.id;
         const { unit_type_id, quantity } = req.body;
@@ -71,12 +87,12 @@ router.post('/train',
             res.json({
                 success: true,
                 message: `${quantity}x ${result.unit} wird ausgebildet`,
-                data: result
+                data: result,
             });
         } catch (error) {
             return res.status(400).json({
                 success: false,
-                message: error.message
+                message: error.message,
             });
         }
     })
@@ -86,7 +102,8 @@ router.post('/train',
 // POST: Einheiten bewegen
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post('/move',
+router.post(
+    '/move',
     requireAuth,
     apiLimiter,
     validateBody(moveSchema),
@@ -95,16 +112,21 @@ router.post('/move',
         const { user_unit_id, destination_x, destination_y } = req.body;
 
         try {
-            const result = await unitsService.moveUnits(userId, user_unit_id, destination_x, destination_y);
+            const result = await unitsService.moveUnits(
+                userId,
+                user_unit_id,
+                destination_x,
+                destination_y
+            );
             res.json({
                 success: true,
                 message: `Einheit bewegt sich zum Ziel (${destination_x}, ${destination_y})`,
-                data: result
+                data: result,
             });
         } catch (error) {
             return res.status(400).json({
                 success: false,
-                message: error.message
+                message: error.message,
             });
         }
     })
@@ -114,7 +136,8 @@ router.post('/move',
 // POST: Angriff ausführen
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post('/attack',
+router.post(
+    '/attack',
     requireAuth,
     apiLimiter,
     validateBody(attackSchema),
@@ -126,12 +149,12 @@ router.post('/attack',
             res.json({
                 success: true,
                 message: `Angriff erfolgreich! ${result.actualDamage.toFixed(2)} Schaden verursacht`,
-                data: result
+                data: result,
             });
         } catch (error) {
             return res.status(400).json({
                 success: false,
-                message: error.message
+                message: error.message,
             });
         }
     })

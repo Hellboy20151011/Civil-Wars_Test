@@ -33,20 +33,20 @@ app.use('/units', unitsRouter);
 app.use('/me', meRouter);
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+    res.json({ status: 'ok' });
 });
 
 // Routen für HTML-Seiten
 app.get('/', (req, res) => {
-  res.sendFile(path.join(FRONTEND_DIR, 'pages/index.html'));
+    res.sendFile(path.join(FRONTEND_DIR, 'pages/index.html'));
 });
 
 app.get('/dashboard.html', (req, res) => {
-  res.sendFile(path.join(FRONTEND_DIR, 'pages/dashboard.html'));
+    res.sendFile(path.join(FRONTEND_DIR, 'pages/dashboard.html'));
 });
 
 app.get('/bauhof.html', (req, res) => {
-  res.sendFile(path.join(FRONTEND_DIR, 'pages/Bauhof.html'));
+    res.sendFile(path.join(FRONTEND_DIR, 'pages/Bauhof.html'));
 });
 
 // Zentraler Error-Handler (muss nach allen Routen stehen)
@@ -56,5 +56,5 @@ app.use(errorHandler);
 startGameLoop();
 
 app.listen(PORT, () => {
-  console.log(`Server läuft auf http://localhost:${PORT}`);
+    console.log(`Server läuft auf http://localhost:${PORT}`);
 });

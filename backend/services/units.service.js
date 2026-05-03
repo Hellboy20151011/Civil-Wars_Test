@@ -65,10 +65,9 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
         await client.query('BEGIN');
 
         // 1. Einheitentyp abrufen
-        const unitTypeResult = await client.query(
-            'SELECT * FROM unit_types WHERE id = $1',
-            [unitTypeId]
-        );
+        const unitTypeResult = await client.query('SELECT * FROM unit_types WHERE id = $1', [
+            unitTypeId,
+        ]);
         const unitType = unitTypeResult.rows[0];
         if (!unitType) throw new Error('Einheitentyp nicht gefunden');
 
@@ -79,16 +78,18 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
             WHERE ub.user_id = $1 AND bt.name = $2 AND ub.is_constructing = FALSE`,
             [userId, unitType.building_requirement]
         );
-        
+
         if (Number(hasBuilding.rows[0].count) === 0) {
-            throw new Error(`Gebäude '${unitType.building_requirement}' nicht gefunden oder noch in Konstruktion`);
+            throw new Error(
+                `Gebäude '${unitType.building_requirement}' nicht gefunden oder noch in Konstruktion`
+            );
         }
 
         // 3. Ressourcen prüfen (x Menge)
         const totalCosts = {
             money: unitType.money_cost * quantity,
             steel: unitType.steel_cost * quantity,
-            fuel: unitType.fuel_cost * quantity
+            fuel: unitType.fuel_cost * quantity,
         };
 
         const hasResources = await hasEnoughResources(userId, totalCosts, client);
@@ -124,7 +125,7 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
             unit: unitType.name,
             quantity,
             totalCost: totalCosts,
-            trainingTime: unitType.training_time_ticks * quantity
+            trainingTime: unitType.training_time_ticks * quantity,
         };
     } catch (error) {
         await client.query('ROLLBACK');
@@ -157,7 +158,7 @@ export async function moveUnits(userId, userUnitId, destinationX, destinationY) 
         // 2. Distanz berechnen
         const distance = Math.sqrt(
             Math.pow(destinationX - unit.location_x, 2) +
-            Math.pow(destinationY - unit.location_y, 2)
+                Math.pow(destinationY - unit.location_y, 2)
         );
 
         // 3. Ankunftszeit berechnen (Ticks)
@@ -177,7 +178,7 @@ export async function moveUnits(userId, userUnitId, destinationX, destinationY) 
             success: true,
             distance,
             travelTime,
-            arrivalTime
+            arrivalTime,
         };
     } catch (error) {
         await client.query('ROLLBACK');
@@ -228,7 +229,7 @@ export async function attackUnits(attackingUnitId, targetUnitId) {
                 JOIN unit_types ut ON uu.unit_type_id = ut.id
                 WHERE uu.id = $1`,
                 [targetUnitId]
-            )
+            ),
         ]);
 
         const attacker = attackerResult.rows[0];
@@ -245,17 +246,14 @@ export async function attackUnits(attackingUnitId, targetUnitId) {
         const healthLoss = (actualDamage / target.hitpoints) * 100;
         const newHealth = Math.max(0, target.health_percentage - healthLoss);
 
-        await client.query(
-            `UPDATE user_units SET health_percentage = $1 WHERE id = $2`,
-            [newHealth, targetUnitId]
-        );
+        await client.query(`UPDATE user_units SET health_percentage = $1 WHERE id = $2`, [
+            newHealth,
+            targetUnitId,
+        ]);
 
         // 4. Wenn tot, Einheit entfernen oder auf 0 setzen
         if (newHealth <= 0) {
-            await client.query(
-                `UPDATE user_units SET quantity = 0 WHERE id = $1`,
-                [targetUnitId]
-            );
+            await client.query(`UPDATE user_units SET quantity = 0 WHERE id = $1`, [targetUnitId]);
         }
 
         // 5. Erfahrung für Angreifer
@@ -270,7 +268,7 @@ export async function attackUnits(attackingUnitId, targetUnitId) {
             baseDamage,
             actualDamage,
             targetHealth: newHealth,
-            targetDestroyed: newHealth <= 0
+            targetDestroyed: newHealth <= 0,
         };
     } catch (error) {
         await client.query('ROLLBACK');

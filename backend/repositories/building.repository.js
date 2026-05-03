@@ -79,7 +79,7 @@ export async function upsertBuilding(userId, buildingTypeId, anzahl = 1, client 
 
 export async function findQueueByUser(userId, client = pool) {
     const result = await client.query(
-                `SELECT ub.id,
+        `SELECT ub.id,
                                 ub.building_type_id,
                                 1 AS anzahl,
                                 ub.construction_end_time AS fertig_am,
@@ -110,7 +110,13 @@ export async function findExistingQueueEntry(userId, buildingTypeId, client = po
     return result.rows[0] ?? null;
 }
 
-export async function createQueueEntry(userId, buildingTypeId, anzahl, bauzeit_ticks, client = pool) {
+export async function createQueueEntry(
+    userId,
+    buildingTypeId,
+    anzahl,
+    bauzeit_ticks,
+    client = pool
+) {
     const quantity = Math.max(1, Number(anzahl || 1));
     const ticks = Number(bauzeit_ticks || 0);
     const buildMs = Math.max(0, Math.round(ticks * TICK_MS));

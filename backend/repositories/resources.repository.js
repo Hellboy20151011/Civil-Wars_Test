@@ -92,7 +92,15 @@ export async function findByUserId(userId, client = pool) {
 }
 
 // Tick-Produktion aufaddieren
-export async function addResources(userId, addGeld, addStein, addStahl, addTreibstoff, neueZeit, client = pool) {
+export async function addResources(
+    userId,
+    addGeld,
+    addStein,
+    addStahl,
+    addTreibstoff,
+    neueZeit,
+    client = pool
+) {
     await changeResourceByName(userId, 'Geld', addGeld, neueZeit, client);
     await changeResourceByName(userId, 'Stein', addStein, neueZeit, client);
     await changeResourceByName(userId, 'Stahl', addStahl, neueZeit, client);
@@ -105,5 +113,11 @@ export async function deductResources(userId, geld, stein, stahl, treibstoff, cl
     await changeResourceByName(userId, 'Geld', -Math.max(0, Number(geld || 0)), null, client);
     await changeResourceByName(userId, 'Stein', -Math.max(0, Number(stein || 0)), null, client);
     await changeResourceByName(userId, 'Stahl', -Math.max(0, Number(stahl || 0)), null, client);
-    await changeResourceByName(userId, 'Treibstoff', -Math.max(0, Number(treibstoff || 0)), null, client);
+    await changeResourceByName(
+        userId,
+        'Treibstoff',
+        -Math.max(0, Number(treibstoff || 0)),
+        null,
+        client
+    );
 }
