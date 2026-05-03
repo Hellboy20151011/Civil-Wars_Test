@@ -1,7 +1,7 @@
 /* Benutzerressourcen: Verknüpfung zwischen Benutzern und ihren Ressourcen */
 CREATE TABLE IF NOT EXISTS user_resources (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    user_id BIGINT NOT NULL,
     resource_type_id INTEGER NOT NULL,
     amount BIGINT DEFAULT 0, -- Große Zahlen möglich
     
@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS user_resources (
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (resource_type_id) REFERENCES resource_types(id),
-    
-    UNIQUE KEY unique_user_resource (user_id, resource_type_id)
+
+    CONSTRAINT unique_user_resource UNIQUE (user_id, resource_type_id)
 );
 
 -- Index für schnelle Spieler-Abfragen

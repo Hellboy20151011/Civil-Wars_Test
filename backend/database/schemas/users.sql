@@ -1,16 +1,14 @@
-Create Table if not exists users (
-id BIGSERIAL Primary KEY,
-
-email Varchar(255) Not Null Unique,
-username Varchar(50) Not Null Unique,
-
-	password_hash Text not NULL,
-
-	role varchar(30) not null default 'player',
-	is_active Boolean not null default true,
-	is_email_verified Boolean not null default false,
-
-	created_at Timestamptz not null default now(),
-	updated_at TIMESTAMPtZ not null default now(),
-	last_login_at TIMESTAMPtZ
-)
+CREATE TABLE IF NOT EXISTS users (
+	id BIGSERIAL PRIMARY KEY,
+	email VARCHAR(255) NOT NULL UNIQUE,
+	username VARCHAR(50) NOT NULL UNIQUE,
+	password_hash TEXT NOT NULL,
+	role VARCHAR(30) NOT NULL DEFAULT 'player',
+	is_active BOOLEAN NOT NULL DEFAULT TRUE,
+	is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+	koordinate_x INTEGER,
+	koordinate_y INTEGER,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	last_login_at TIMESTAMPTZ
+);

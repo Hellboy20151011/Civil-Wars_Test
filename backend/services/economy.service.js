@@ -24,16 +24,16 @@ export async function getStromStatus(userId, client) {
  */
 export async function getProductionPerTick(userId, client) {
     const buildings = await buildingRepo.findBuildingsByUser(userId, client);
-    let geld = 0, stein = 0, eisen = 0, treibstoff = 0, bevoelkerung = 0;
+    let geld = 0, stein = 0, stahl = 0, treibstoff = 0, bevoelkerung = 0;
     for (const b of buildings) {
         const n = Number(b.anzahl);
         geld       += Number(b.money_production) * n;
         stein      += Number(b.stone_production) * n;
-        eisen      += Number(b.iron_production)  * n;
+        stahl      += Number(b.steel_production) * n;
         treibstoff += Number(b.fuel_production)  * n;
         bevoelkerung += Number(b.population)     * n;
     }
-    return { geld, stein, eisen, treibstoff, bevoelkerung };
+    return { geld, stein, stahl, eisen: stahl, treibstoff, bevoelkerung };
 }
 
 /**
@@ -45,7 +45,8 @@ export async function applyProductionTicks(userId, client) {
     if (!resources) return 0;
 
     const now = new Date();
-    const elapsed = now.getTime() - new Date(resources.letzte_aktualisierung).getTime();
+    const lastUpdated = resources.last_updated ?? resources.letzte_aktualisierung;
+    const elapsed = now.getTime() - new Date(lastUpdated).getTime();
     const ticks = Math.floor(elapsed / TICK_MS);
     if (ticks <= 0) return 0;
 
@@ -55,9 +56,9 @@ export async function applyProductionTicks(userId, client) {
         userId,
         production.geld       * ticks,
         production.stein      * ticks,
-        production.eisen      * ticks,
+        production.stahl      * ticks,
         production.treibstoff * ticks,
-        new Date(new Date(resources.letzte_aktualisierung).getTime() + ticks * TICK_MS),
+        new Date(new Date(lastUpdated).getTime() + ticks * TICK_MS),
         client
     );
 
@@ -69,9 +70,6 @@ export async function applyProductionTicks(userId, client) {
  */
 export async function processFinishedQueue(userId, client) {
     const finished = await buildingRepo.findFinishedQueueEntries(userId, client);
-    for (const entry of finished) {
-        await buildingRepo.upsertBuilding(userId, entry.building_type_id, entry.anzahl, client);
-    }
     if (finished.length > 0) {
         await buildingRepo.deleteFinishedQueueEntries(userId, client);
     }
@@ -94,7 +92,7 @@ export async function getSpielerStatus(userId, client) {
     }
 
     return {
-        resources: resources ?? { geld: 0, stein: 0, eisen: 0, treibstoff: 0 },
+        resources: resources ?? { geld: 0, stein: 0, stahl: 0, eisen: 0, treibstoff: 0, strom: 0 },
         buildings,
         queue,
         strom,

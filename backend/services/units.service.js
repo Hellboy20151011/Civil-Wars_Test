@@ -80,7 +80,7 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
             [userId, unitType.building_requirement]
         );
         
-        if (hasBuilding.rows[0].count === 0) {
+        if (Number(hasBuilding.rows[0].count) === 0) {
             throw new Error(`Gebäude '${unitType.building_requirement}' nicht gefunden oder noch in Konstruktion`);
         }
 

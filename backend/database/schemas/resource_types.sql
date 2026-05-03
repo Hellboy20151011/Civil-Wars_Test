@@ -6,9 +6,9 @@
 - 5: "Strom" (Mwh - nur für Bilanz)
 */
 
-CREATE TABLE resource_types (
+CREATE TABLE IF NOT EXISTS resource_types (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL UNIQUE,
     unit VARCHAR(50) NOT NULL
 );
 INSERT INTO resource_types (name, unit) VALUES
@@ -16,4 +16,5 @@ INSERT INTO resource_types (name, unit) VALUES
 ('Stein', 't'),
 ('Stahl', 't'),
 ('Treibstoff', 'L'),
-('Strom', 'Mwh');
+('Strom', 'Mwh')
+ON CONFLICT (name) DO NOTHING;

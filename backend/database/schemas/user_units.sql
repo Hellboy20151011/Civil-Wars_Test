@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS user_units (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    user_id BIGINT NOT NULL,
     unit_type_id INTEGER NOT NULL,
     quantity INTEGER DEFAULT 0,
     
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS user_units (
     
     -- Zeitstempel
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (unit_type_id) REFERENCES unit_types(id)

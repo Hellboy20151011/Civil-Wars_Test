@@ -81,7 +81,7 @@ router.post('/build', requireAuth, apiLimiter, validateBody(buildSchema), asyncW
         }
 
         // Kaserne nur einmal
-        if (bt.name === 'Kaserne') {
+        if (bt.name.startsWith('Kaserne Level')) {
             const anzahlKaserne = await buildingRepo.findBuildingCountByName(req.user.id, 'Kaserne', client);
             if (anzahlKaserne >= 1) {
                 await client.query('ROLLBACK');
@@ -108,32 +108,32 @@ router.post('/build', requireAuth, apiLimiter, validateBody(buildSchema), asyncW
 
         const totalGeld  = Number(bt.money_cost) * anzahl;
         const totalStein = Number(bt.stone_cost)  * anzahl;
-        const totalEisen = Number(bt.iron_cost)   * anzahl;
+        const totalStahl = Number(bt.steel_cost)   * anzahl;
         const totalTreibstoff = Number(bt.fuel_cost) * anzahl;
 
         if (Number(resources.geld)       < totalGeld)       { await client.query('ROLLBACK'); return res.status(400).json({ message: `Nicht genug Geld. Benötigt: ${totalGeld}` }); }
         if (Number(resources.stein)      < totalStein)      { await client.query('ROLLBACK'); return res.status(400).json({ message: `Nicht genug Stein. Benötigt: ${totalStein}` }); }
-        if (Number(resources.eisen)      < totalEisen)      { await client.query('ROLLBACK'); return res.status(400).json({ message: `Nicht genug Eisen. Benötigt: ${totalEisen}` }); }
+        if (Number(resources.stahl)      < totalStahl)      { await client.query('ROLLBACK'); return res.status(400).json({ message: `Nicht genug Stahl. Benötigt: ${totalStahl}` }); }
         if (Number(resources.treibstoff) < totalTreibstoff) { await client.query('ROLLBACK'); return res.status(400).json({ message: `Nicht genug Treibstoff. Benötigt: ${totalTreibstoff}` }); }
 
         // Kosten abziehen
-        await resourcesRepo.deductResources(req.user.id, totalGeld, totalStein, totalEisen, totalTreibstoff, client);
+        await resourcesRepo.deductResources(req.user.id, totalGeld, totalStein, totalStahl, totalTreibstoff, client);
 
         const label = anzahl > 1 ? `${anzahl}x ${bt.name}` : bt.name;
 
-        if (Number(bt.build_time) > 0) {
+        if (Number(bt.build_time_ticks) > 0) {
             // Nur ein aktiver Auftrag pro Gebäudetyp in der Queue
             const existing = await buildingRepo.findExistingQueueEntry(req.user.id, building_type_id, client);
             if (existing) {
                 await client.query('ROLLBACK');
                 return res.status(400).json({ message: `${bt.name} ist bereits in der Bauwarteschlange.` });
             }
-            const auftrag = await buildingRepo.createQueueEntry(req.user.id, building_type_id, anzahl, bt.build_time, client);
+            const auftrag = await buildingRepo.createQueueEntry(req.user.id, building_type_id, anzahl, bt.build_time_ticks, client);
             await client.query('COMMIT');
             const fertigStr = new Date(auftrag.fertig_am).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
             res.status(201).json({ message: `${label} wird gebaut (fertig um ${fertigStr}).`, auftrag });
         } else {
-            // Sofortiger Bau (build_time = 0)
+            // Sofortiger Bau (build_time_ticks = 0)
             await buildingRepo.upsertBuilding(req.user.id, building_type_id, anzahl, client);
             await client.query('COMMIT');
             res.status(201).json({ message: `${label} erfolgreich gebaut.` });

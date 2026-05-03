@@ -102,7 +102,7 @@ function renderMyBuildings(container, buildings) {
 
     const cat = document.createElement('span');
     cat.className = 'building-category';
-    cat.textContent = b.kategorie;
+    cat.textContent = b.category || b.kategorie || '';
 
     row.append(name, cat);
     section.appendChild(row);
@@ -110,7 +110,7 @@ function renderMyBuildings(container, buildings) {
 }
 
 // ── Kategorien + Gebäudetypen ─────────────────────────────
-async function renderCategories(container, myBuildings) {
+async function renderCategories(container, myBuildings, queue) {
   container.innerHTML = '';
 
   const heading = document.createElement('h2');
@@ -122,27 +122,25 @@ async function renderCategories(container, myBuildings) {
 
   container.append(heading, msgEl);
 
-  // Meine Gebäude und Queue laden
-  const { buildings, queue } = await apiFetch('/buildings/me');
-  renderMyBuildings(container, buildings);
+  renderMyBuildings(container, myBuildings);
   renderQueue(container, queue);
 
   // Gebäudetypen laden
   const types = await apiFetch('/buildings/types');
 
   const categories = [
-    { key: 'Unterkunft', title: 'Unterkünfte',  description: 'Wohnhäuser und Kapazität für Einwohner.' },
-    { key: 'Industrie',  title: 'Industrie',    description: 'Rohstoffproduktion: Stein, Eisen, Treibstoff.' },
-    { key: 'Versorgung', title: 'Versorgung',   description: 'Energie und Grundversorgung.' },
-    { key: 'Militär',    title: 'Militär',      description: 'Ausbildung und Organisation deiner Truppen.' },
-    { key: 'Regierung',  title: 'Regierung',    description: 'Verwaltung, Gesetze und Reichsboni.' },
+    { key: 'infrastructure', title: 'Infrastruktur', description: 'Grundversorgung, Energie und Rohstoffe.' },
+    { key: 'housing', title: 'Unterkünfte', description: 'Wohngebäude und Einkommen.' },
+    { key: 'military', title: 'Militär', description: 'Kasernen und Produktionsanlagen für Einheiten.' },
+    { key: 'government', title: 'Regierung', description: 'Verwaltung, Forschung und Wirtschaft.' },
+    { key: 'defense', title: 'Verteidigung', description: 'Schutzanlagen für Land, See und Luft.' },
   ];
 
   const grid = document.createElement('div');
   grid.className = 'category-grid';
 
   categories.forEach(({ key, title, description }) => {
-    const catBuildings = types.filter(t => t.kategorie === key && t.name !== 'Rathaus');
+    const catBuildings = types.filter(t => t.category === key && t.name !== 'Rathaus');
     if (catBuildings.length === 0) return;
 
     const card = document.createElement('article');
@@ -157,7 +155,7 @@ async function renderCategories(container, myBuildings) {
     card.append(h, desc);
 
     catBuildings.forEach(bt => {
-      const owned = myBuildings.find(b => b.id === bt.id);
+      const owned = myBuildings.find(b => Number(b.id) === Number(bt.id));
       const inQueue = queue.find(q => q.building_type_id === bt.id);
 
       const bRow = document.createElement('div');
@@ -169,7 +167,7 @@ async function renderCategories(container, myBuildings) {
       const costs = [];
       if (bt.money_cost > 0) costs.push(`💰 ${Number(bt.money_cost).toLocaleString('de-DE')}`);
       if (bt.stone_cost  > 0) costs.push(`🪨 ${Number(bt.stone_cost).toLocaleString('de-DE')}`);
-      if (bt.iron_cost   > 0) costs.push(`⚙️ ${Number(bt.iron_cost).toLocaleString('de-DE')}`);
+      if (bt.steel_cost  > 0) costs.push(`⚙️ ${Number(bt.steel_cost).toLocaleString('de-DE')}`);
       if (bt.fuel_cost   > 0) costs.push(`🛢️ ${Number(bt.fuel_cost).toLocaleString('de-DE')}`);
 
       const costSpan = document.createElement('span');
@@ -191,10 +189,12 @@ async function renderCategories(container, myBuildings) {
           try {
             const result = await apiFetch('/buildings/build', {
               method: 'POST',
-              body: JSON.stringify({ building_type_id: bt.id }),
+              body: JSON.stringify({ building_type_id: bt.id, anzahl: 1 }),
             });
-            if (msg) msg.textContent = result.message ?? '';
-            await init(); // Seite neu laden
+            const successMsg = result.message ?? '';
+            await init();
+            const newMsg = document.getElementById('build-message');
+            if (newMsg) newMsg.textContent = successMsg;
           } catch (err) {
             if (msg) msg.textContent = err.message;
             btn.disabled = false;
@@ -223,7 +223,7 @@ async function init() {
 
   try {
     const { buildings, queue } = await apiFetch('/buildings/me');
-    await renderCategories(container, buildings);
+    await renderCategories(container, buildings, queue);
   } catch (err) {
     console.error(err);
     const errMsg = document.createElement('p');

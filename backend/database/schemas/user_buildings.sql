@@ -1,7 +1,7 @@
 /* Benutzergebäude: Verknüpfung zwischen Benutzern und ihren Gebäuden */
 CREATE TABLE IF NOT EXISTS user_buildings (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    user_id BIGINT NOT NULL,
     building_type_id INTEGER NOT NULL,
     level INTEGER DEFAULT 1,
     
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS user_buildings (
     
     -- Zeitstempel
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (building_type_id) REFERENCES building_types(id)

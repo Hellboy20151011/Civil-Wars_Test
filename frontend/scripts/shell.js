@@ -46,6 +46,8 @@ function renderSidebar(navLinks, auth) {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
 
+  sidebar.innerHTML = '';
+
   const defaultLinks = [
     { label: 'Dashboard', href: '/dashboard.html' },
     { label: 'Bauhof',    href: '/bauhof.html'   },
@@ -80,6 +82,8 @@ function renderResourceBar(status) {
   const bar = document.getElementById('resource-bar');
   if (!bar) return;
 
+  bar.innerHTML = '';
+
   const res = status.resources ?? {};
   const strom = status.strom ?? { frei: 0 };
   const bevoelkerung = status.bevoelkerung ?? 0;
@@ -87,9 +91,9 @@ function renderResourceBar(status) {
   const items = [
     { key: 'geld',       label: '💰', value: Number(res.geld       ?? 0) },
     { key: 'stein',      label: '🪨', value: Number(res.stein      ?? 0) },
-    { key: 'eisen',      label: '⚙️', value: Number(res.eisen      ?? 0) },
+    { key: 'stahl',      label: '⚙️', value: Number(res.stahl      ?? res.eisen ?? 0) },
     { key: 'treibstoff', label: '🛢️', value: Number(res.treibstoff ?? 0) },
-    { key: 'strom',      label: '⚡', value: strom.frei },
+    { key: 'strom',      label: '⚡', value: Number(strom.frei ?? 0) },
     { key: 'bevoelkerung', label: '👥', value: bevoelkerung },
   ];
 
@@ -115,6 +119,8 @@ function renderProductionPanel(status) {
   const panel = document.getElementById('production-panel');
   if (!panel) return;
 
+  panel.innerHTML = '';
+
   const prod = status.production ?? {};
 
   const heading = document.createElement('h3');
@@ -124,7 +130,7 @@ function renderProductionPanel(status) {
   const rows = [
     { label: '💰 Geld',       key: 'geld'       },
     { label: '🪨 Stein',      key: 'stein'      },
-    { label: '⚙️ Eisen',      key: 'eisen'      },
+    { label: '⚙️ Stahl',      key: 'stahl'      },
     { label: '🛢️ Treibstoff', key: 'treibstoff' },
   ];
 
@@ -136,7 +142,7 @@ function renderProductionPanel(status) {
     nameSpan.textContent = label;
 
     const rate = document.createElement('span');
-    const val = Number(prod[key] ?? 0);
+    const val = Number(prod[key] ?? (key === 'stahl' ? prod.eisen : 0) ?? 0);
     rate.textContent = val > 0 ? `+${val.toLocaleString('de-DE')}` : '+0';
     rate.dataset.productionFor = key;
 

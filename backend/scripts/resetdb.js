@@ -39,7 +39,28 @@ const appPool = new Pool({
     port: parseInt(process.env.DB_PORT || '5432'),
 });
 
-const sql = readFileSync(path.join(__dirname, '../database/setup.sql'), 'utf8');
-await appPool.query(sql);
-console.log('Schema erfolgreich eingespielt');
+const schemaDir = path.join(__dirname, '../database/schemas');
+const schemaFilesInOrder = [
+    'users.sql',
+    'resource_types.sql',
+    'building_types.sql',
+    'units.sql',
+    'user_profiles.sql',
+    'user_resources.sql',
+    'user_buildings.sql',
+    'user_units.sql',
+];
+
+for (const schemaFile of schemaFilesInOrder) {
+    const fullPath = path.join(schemaDir, schemaFile);
+    const sql = readFileSync(fullPath, 'utf8').trim();
+    if (!sql) {
+        console.log(`Überspringe leere Datei: ${schemaFile}`);
+        continue;
+    }
+    await appPool.query(sql);
+    console.log(`Eingespielt: ${schemaFile}`);
+}
+
+console.log('Schema aus database/schemas erfolgreich eingespielt');
 await appPool.end();
