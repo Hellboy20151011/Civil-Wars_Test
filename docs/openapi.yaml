@@ -1,0 +1,451 @@
+openapi: 3.0.3
+info:
+  title: Civil Wars API
+  version: 1.0.0
+  description: Maschinenlesbare API-Spezifikation fuer Civil Wars (Backend).
+servers:
+  - url: http://localhost:3000
+    description: Lokale Entwicklung
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Me
+  - name: Resources
+  - name: Buildings
+  - name: Units
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health Check
+      responses:
+        '200':
+          description: Server ist erreichbar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Benutzer registrieren
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registrierung erfolgreich
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '400':
+          description: Validierungs- oder Konfliktfehler
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Benutzer einloggen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login erfolgreich
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Ungueltige Credentials
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Eigenes User-Profil aus Token lesen
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Userdaten
+        '401':
+          description: Kein oder ungueltiger Token
+
+  /me:
+    get:
+      tags: [Me]
+      summary: Vollstaendiger Spielerstatus
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Spielerstatus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerStatus'
+        '401':
+          description: Kein oder ungueltiger Token
+
+  /me/stream:
+    get:
+      tags: [Me]
+      summary: SSE-Stream fuer Live-Statusupdates
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event-Stream geoeffnet
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          description: Token fehlt oder ist ungueltig
+
+  /resources/me:
+    get:
+      tags: [Resources]
+      summary: Ressourcen des eingeloggten Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ressourcenobjekt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcesResponse'
+
+  /buildings/types:
+    get:
+      tags: [Buildings]
+      summary: Alle Gebaeudetypen
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Liste von Gebaeudetypen
+
+  /buildings/me:
+    get:
+      tags: [Buildings]
+      summary: Eigene Gebaeude und Bauqueue
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Gebaeude + Queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildingsMeResponse'
+
+  /buildings/queue:
+    get:
+      tags: [Buildings]
+      summary: Eigene Bauqueue
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Queueeintraege
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QueueEntry'
+
+  /buildings/build:
+    post:
+      tags: [Buildings]
+      summary: Gebaeudebau starten
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildRequest'
+      responses:
+        '201':
+          description: Bau gestartet oder sofort gebaut
+        '400':
+          description: Validierung/Ressourcen/Strom
+        '404':
+          description: Gebaeudetyp oder Ressourcen nicht gefunden
+
+  /units/types:
+    get:
+      tags: [Units]
+      summary: Alle Einheitentypen
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Einheitentypen
+
+  /units/types/category/{category}:
+    get:
+      tags: [Units]
+      summary: Einheitentypen nach Kategorie
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Gefilterte Einheitentypen
+
+  /units/me:
+    get:
+      tags: [Units]
+      summary: Eigene Einheiten
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Einheitenliste
+
+  /units/train:
+    post:
+      tags: [Units]
+      summary: Einheiten ausbilden
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainRequest'
+      responses:
+        '200':
+          description: Ausbildung gestartet
+        '400':
+          description: Validierung oder fachlicher Fehler
+
+  /units/move:
+    post:
+      tags: [Units]
+      summary: Einheit bewegen
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveRequest'
+      responses:
+        '200':
+          description: Bewegung gestartet
+        '400':
+          description: Validierung oder fachlicher Fehler
+
+  /units/attack:
+    post:
+      tags: [Units]
+      summary: Angriff ausfuehren
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttackRequest'
+      responses:
+        '200':
+          description: Angriffsergebnis
+        '400':
+          description: Validierung oder fachlicher Fehler
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        token:
+          type: string
+        user:
+          type: object
+          additionalProperties: true
+
+    ResourceValues:
+      type: object
+      properties:
+        geld:
+          type: number
+        stein:
+          type: number
+        stahl:
+          type: number
+        treibstoff:
+          type: number
+        strom:
+          type: number
+
+    ResourcesResponse:
+      type: object
+      properties:
+        resources:
+          $ref: '#/components/schemas/ResourceValues'
+
+    Building:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        anzahl:
+          type: integer
+        level:
+          type: integer
+
+    QueueEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        building_type_id:
+          type: integer
+        anzahl:
+          type: integer
+        fertig_am:
+          type: string
+          format: date-time
+
+    BuildingsMeResponse:
+      type: object
+      properties:
+        buildings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Building'
+        queue:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueEntry'
+
+    PlayerStatus:
+      type: object
+      properties:
+        resources:
+          $ref: '#/components/schemas/ResourceValues'
+        buildings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Building'
+        queue:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueEntry'
+        strom:
+          type: object
+          additionalProperties: true
+        produktion:
+          type: object
+          additionalProperties: true
+
+    BuildRequest:
+      type: object
+      required: [building_type_id]
+      properties:
+        building_type_id:
+          type: integer
+          minimum: 1
+        anzahl:
+          type: integer
+          minimum: 1
+          default: 1
+
+    TrainRequest:
+      type: object
+      required: [unit_type_id]
+      properties:
+        unit_type_id:
+          type: integer
+          minimum: 1
+        quantity:
+          type: integer
+          minimum: 1
+          default: 1
+
+    MoveRequest:
+      type: object
+      required: [user_unit_id, destination_x, destination_y]
+      properties:
+        user_unit_id:
+          type: integer
+          minimum: 1
+        destination_x:
+          type: number
+        destination_y:
+          type: number
+
+    AttackRequest:
+      type: object
+      required: [attacking_unit_id, target_unit_id]
+      properties:
+        attacking_unit_id:
+          type: integer
+          minimum: 1
+        target_unit_id:
+          type: integer
+          minimum: 1

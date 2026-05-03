@@ -10,6 +10,12 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 ## [Unreleased]
 
 ### Added
+- `backend/tests/services/units.service.test.js` – 18 Unit-Tests für `units.service.js` (Getter, startTraining, moveUnits, attackUnits)
+- `backend/tests/services/gameloop-scheduler.test.js` – 7 Unit-Tests für `gameloop-scheduler.js` (executeGameTick, getTickStats, startGameLoop)
+- `backend/tests/e2e/auth-flow.test.js` – Playwright API-E2E-Tests: Register, Login, Authentifizierungsschutz, Startressourcen
+- `backend/tests/e2e/buildings-flow.test.js` – Playwright API-E2E-Tests: Gebäudetypen, Startgebäude, Bau-Flow, vollständiger Spiel-Flow
+- `backend/playwright.config.js` – Playwright-Konfiguration für API-E2E-Tests
+- `backend/vitest.config.js` – Coverage-Konfiguration mit V8-Provider und Schwellen (Statements/Lines/Functions ≥80 %, Branches ≥60 %)
 - `backend/config.js` – zentrale Konfigurationsschicht mit Startup-Validierung (JWT-Secret-Länge, fehlende Env-Vars)
 - `frontend/scripts/config.js` – zentrale API-URL für alle Frontend-Skripte
 - `.editorconfig` – einheitliche Editor-Grundeinstellungen im Root
@@ -18,6 +24,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `.github/ISSUE_TEMPLATE/feature_request.yml` – Feature-Request-Template
 - `CONTRIBUTING.md` – Onboarding-Anleitung für Beitragende
 - `LICENSE` – MIT-Lizenz
+- `docs/openapi.yaml` – erste maschinenlesbare OpenAPI-3.0-Spezifikation für die aktuellen API-Routen
+- `docs/architecture.md` – Architekturuebersicht mit Schichtenmodell, Laufzeitfluss und Querschnittsthemen
 - `docker-compose.yml` + `backend/Dockerfile` – lokales Setup mit Docker
 - `backend/repositories/units.repository.js` – Einheiten-Abfragen/Updates zentralisiert
 - `backend/repositories/transaction.repository.js` – zentrale Transaktions-Hilfe (`withTransaction`)
@@ -28,6 +36,16 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `frontend/eslint.config.js` – ESLint-Konfiguration für Frontend-Skripte
 
 ### Changed
+- `backend/services/economy.service.js`, `backend/services/units.service.js`, `backend/services/gameloop-scheduler.js` und `backend/routes/auth.js` – JSDoc für kritische Tick-/Kampf-/Auth-Funktionen ergänzt (inkl. Parametern, Rückgaben und Seiteneffekten)
+
+### Security
+- `.github/copilot-instructions.md`: Regel für parametrierte SQL-Queries ergänzt (kein String-Concatenation in DB-Abfragen)
+- `backend/package.json`: `test:coverage`- und `test:e2e`-Script ergänzt
+- `backend/vitest.config.js`: `tests/e2e/**` von Vitest-Ausführung ausgeschlossen
+- `.github/workflows/ci.yml`: Security-Audit-Step (`npm audit --audit-level=high`) nach Coverage ergänzt; E2E-Job mit postgres:16-Service-Container und `wait-on` ergänzt
+- `.github/dependabot.yml`: Ecosystems für `/frontend` (npm) und `/` (github-actions) ergänzt
+- `CONTRIBUTING.md`: Abschnitt „Branch-Schutz-Regeln" mit konkreten GitHub-Einstellungen ergänzt
+- `.gitignore`: `backend/coverage/`, `backend/playwright-report/`, `backend/test-results/` ausgeschlossen
 - `backend/scripts/free-port.js` und `backend/package.json` – `dev:full` räumt die Dev-Ports `3000` und `5173` automatisch vor dem Start auf, um `EADDRINUSE` im Dev-Workflow zu vermeiden
 - `frontend/scripts/main.js`, `frontend/scripts/shell.js`, `frontend/scripts/bauhof.js`, `frontend/scripts/militaer.js` – Navigation/Sidebar auf Vite-Multi-Page-Routen (`/pages/*.html`) angepasst und Legacy-Pfade weiterhin unterstützt
 - `backend/package.json` – neuer `dev:full`-Workflow startet Backend-Watch und Vite-Dev-Server parallel (Hot Reload)
@@ -59,6 +77,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `.github/workflows/ci.yml` – separater Frontend-Lint-Job (`npm ci` + `npm run lint`) ergänzt
 - `docs/Verbesserungs.md` und `docs/next-steps.md` – Frontend-Lint in CI als erledigt markiert
 - `README.md`, `docs/Verbesserungs.md` und `docs/next-steps.md` – Hot-Reload-Dev-Workflow dokumentiert und als erledigt markiert
+- `docs/Verbesserungs.md` und `docs/next-steps.md` – Dokumentationspunkt 8.2 bzw. OpenAPI-Teilaufgabe auf erledigt aktualisiert
+- `CONTRIBUTING.md`, `docs/Verbesserungs.md` und `docs/next-steps.md` – verbindliche Semantic-Versioning-Regeln dokumentiert und Fortschritt auf erledigt gesetzt
 
 ### Fixed
 - Hardcodierter Datenbankpasswort-Default (`1234`) in `db.js` entfernt

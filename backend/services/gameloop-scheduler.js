@@ -14,6 +14,12 @@ const TICK_INTERVAL = config.gameloop.tickIntervalMs;
 let tickCounter = 0;
 let gameLoopActive = false;
 
+/**
+ * Fuehrt einen vollstaendigen Spiel-Tick ueber alle aktiven Benutzer aus.
+ *
+ * @returns {Promise<void>}
+ * @sideEffects Aktualisiert Ressourcen/Bauqueue je User, sendet SSE-Statusupdates und schreibt Logs.
+ */
 export async function executeGameTick() {
     if (gameLoopActive) {
         console.log('[GAMELOOP] Tick lï¿½uft bereits, ï¿½berspringe...');

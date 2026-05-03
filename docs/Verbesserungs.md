@@ -168,71 +168,81 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 
 ## 5. Tests
 
-### 5.1 Testabdeckung für Business-Logik
+### ✅ 5.1 Testabdeckung für Business-Logik
 
-Die kritischsten Module (`economy.service.js`, `units.service.js`,
-`gameloop-scheduler.js`) sind schwer zu regressionssichern ohne Tests.
-
-**Empfehlung:**
-- Unit-Tests mit **Vitest** (bereits in `devDependencies` vorhanden) für alle
-  Services in `backend/tests/services/`.
-- Mocking von `backend/database/db.js`-Pool, damit Tests ohne laufende DB laufen.
-- Integration-Tests für kritische API-Endpunkte (Auth-Flow, Gebäude-Bau) mit
-  einer Test-DB in CI.
+**Umgesetzt:** Unit-Tests mit Vitest für alle kritischen Services:
+- `backend/tests/services/units.service.test.js` – 18 Tests: Getter, `startTraining`, `moveUnits`, `attackUnits`
+- `backend/tests/services/gameloop-scheduler.test.js` – 7 Tests: `executeGameTick`, `getTickStats`, `startGameLoop`
+- Alle Abhängigkeiten (Repositories, DB-Pool, config) werden via `vi.mock()` ersetzt; Tests laufen ohne laufende DB.
+- `backend/tests/services/economy.service.test.js` war bereits vorhanden (11 Tests).
+- Gesamt: **36 Tests**, alle grün.
 
 ---
 
-### 5.2 Code Coverage Reporting
+### ✅ 5.2 Code Coverage Reporting
 
-Vitest unterstützt `--coverage` (mit `@vitest/coverage-v8`). Ein Coverage-Report
-in CI hilft, ungetestate Pfade sichtbar zu machen.
-
-**Empfehlung:**
-```bash
-npx vitest run --coverage
-```
-Coverage-Schwelle in `backend/package.json` via Vitest-Config definieren.
+**Umgesetzt:** `@vitest/coverage-v8` installiert.
+- `npm run test:coverage` erzeugt einen Abdeckungsbericht (Text + LCOV) in `backend/coverage/`.
+- `backend/vitest.config.js` definiert Schwellen: Statements/Lines/Functions ≥80 %, Branches ≥60 %.
+- Aktuell erreicht: Statements 88 %, Branches 89 %, Functions 87 %, Lines 88 %.
+- CI-Workflow führt `npm run test:coverage` nach den Unit-Tests aus.
 
 ---
 
-### 5.3 End-to-End-Tests (langfristig)
+### ✅ 5.3 End-to-End-Tests
 
-Für das gesamte Spiel-Flow (Register → Login → Gebäude bauen → Tick abwarten)
-wären E2E-Tests mit **Playwright** oder **Cypress** wertvoll.
+**Umgesetzt:** Playwright API-E2E-Tests für den kritischen Spiel-Flow:
+- `backend/tests/e2e/auth-flow.test.js` – Register, Login, Authentifizierungsschutz, Startressourcen
+- `backend/tests/e2e/buildings-flow.test.js` – Gebäudetypen, Rathaus-Startgebäude, Bauwarteschlange, Gebäude bauen, vollständiger Spiel-Flow
+- `backend/playwright.config.js` konfiguriert die `baseURL` gegenüber dem laufenden Backend
+- `npm run test:e2e` führt die Tests aus; benötigt laufendes Backend + DB
+- CI-Job `e2e` in `.github/workflows/ci.yml` mit postgres:16-Service-Container, `node scripts/resetdb.js` und `wait-on` für Health-Check
 
 ---
 
 ## 6. CI/CD
 
-### 6.1 Aktueller Status
+### ✅ 6.1 Aktueller Status
 
 `.github/workflows/ci.yml` führt bei Push/PR auf `main` aus:
 - `npm ci`
 - `npm run lint`
 - `npm test`
+- `npm run test:coverage` (Coverage-Schwellen)
+- `npm audit --audit-level=high` (Security Audit)
+- E2E-Job mit postgres:16-Service
 
 Das ist eine solide Basis.
 
 ---
 
-### 6.2 Fehlende CI-Schritte
+### ✅ 6.2 Fehlende CI-Schritte
 
-| Fehlend | Empfehlung |
-|---------|-----------|
-| Code Coverage | `vitest --coverage` + Upload zu Codecov o. Ä. |
+| Fehlend | Status |
+|---------|-------|
+| Code Coverage | ✅ `vitest --coverage` in CI, Schwellen in `vitest.config.js` |
 | Frontend-Lint | ✅ ESLint-Check für `frontend/` in CI ergänzt |
-| Security Audit | `npm audit --audit-level=high` als CI-Schritt |
-| Dependency Updates | Dependabot in `.github/dependabot.yml` aktivieren |
-| Release-Workflow | Tag-basierter Workflow für GitHub-Releases |
+| Security Audit | ✅ `npm audit --audit-level=high` als CI-Schritt ergänzt |
+| Dependency Updates | ✅ Dependabot für `/backend`, `/frontend` und `github-actions` aktiv |
+| Release-Workflow | ✅ Tag-basierter Workflow in `.github/workflows/release.yml` |
 
 ---
 
-### 6.3 Branch-Schutz-Regeln
+### ✅ 6.3 Branch-Schutz-Regeln
 
-Für `main` sollten folgende Branch-Protection-Regeln aktiviert werden:
-- Status-Checks müssen bestehen (CI muss grün sein).
-- Mindestens 1 Review vor Merge.
-- Force-Push deaktivieren.
+Branch-Protection-Regeln können nicht als Datei im Repository hinterlegt werden –
+sie müssen einmalig von einem Repository-Admin unter **Settings → Branches** gesetzt werden.
+
+**Dokumentiert in `CONTRIBUTING.md`** (Abschnitt „Branch-Schutz-Regeln“):
+
+| Einstellung | Wert |
+|-------------|------|
+| Require a pull request before merging | ✔ aktiv |
+| Required approvals | 1 |
+| Require status checks to pass | ✔ aktiv |
+| Required checks | `Lint & Test (Backend)`, `Build (Frontend)`, `Lint (Frontend)` |
+| Allow force pushes | ✘ deaktiviert |
+| Allow deletions | ✘ deaktiviert |
 
 ---
 
@@ -258,52 +268,88 @@ Alle Werte sind via `RATE_AUTH_WINDOW_MS`, `RATE_AUTH_MAX`, `RATE_API_WINDOW_MS`
 
 ---
 
-### 7.4 SQL-Injection
+### ✅ 7.4 SQL-Injection
 
-Alle Datenbankabfragen sollten ausschließlich parametrierte Queries verwenden
-(kein String-Concatenation für SQL). Das `pg`-Modul unterstützt parametrierte
-Queries nativ – bitte in Code-Reviews darauf achten.
+**Geprüft:** Alle Datenbankabfragen in `backend/repositories/` verwenden ausschließlich
+parametrierte Queries (`$1, $2, ...` mit separatem Parameter-Array). Keine String-Konkatenation
+oder Template-Literale mit eingebetteten Variablen gefunden.
+
+**Regel in `.github/copilot-instructions.md` ergänzt:** Copilot wird angewiesen,
+nur parametrierte Queries zu generieren.
 
 ---
 
-### 7.5 Abhängigkeits-Audits
+### ✅ 7.5 Abhängigkeits-Audits
 
-Regelmäßige `npm audit` Checks:
-- Manuell: `npm audit --audit-level=high`
-- Automatisiert: Dependabot in `.github/dependabot.yml` aktivieren.
+**Umgesetzt:**
+- `npm audit --audit-level=high` läuft als CI-Schritt nach jedem Push.
+- Dependabot überwacht `/backend`, `/frontend` und `github-actions` wöchentlich.
 
 ---
 
 ## 8. Dokumentation
 
-### 8.1 Vorhandene Dokumentation (Stärken)
+### ✅ 8.1 Vorhandene Dokumentation (Stärken)
 
-Das Projekt hat bereits eine überdurchschnittlich gute Dokumentation für einen
-Prototyp:
-- `README.md` mit Setup, Start-Kommandos, Struktur, Ressourcen-Tabelle.
-- `API_DOCUMENTATION.md` mit Endpunkten, Beispiel-Requests, Statuscodes.
-- `VARIABLES.md` mit Modul-Exports und DB-Schema.
-- `docs/BEWERTUNG.md`, `docs/Buildings.md`, `docs/Issues.md`, `docs/Resources.md`,
-  `docs/Units.md` als interne Design-Dokumente.
+Das Projekt hat eine überdurchschnittlich gute Dokumentation für einen Prototyp.
+Aktuelle Root-Dateien:
+
+| Datei | Inhalt |
+|-------|--------|
+| `README.md` | Setup, Start-Kommandos, Projektstruktur, Docker-Quickstart, Ressourcen-Tabelle |
+| `API_DOCUMENTATION.md` | Alle Endpunkte mit Beispiel-Requests und Statuscodes |
+| `VARIABLES.md` | Modul-Exports, DB-Schema, Ressourcen-Felder |
+| `CONTRIBUTING.md` | Onboarding, Branch-Konvention, Commit-Style, PR-Workflow, Branch-Schutz-Regeln |
+| `CHANGELOG.md` | Alle Änderungen nach Keep a Changelog |
+| `LICENSE` | MIT-Lizenz |
+
+Interne Design-Dokumente (`docs/`):
+
+| Datei | Inhalt |
+|-------|--------|
+| `docs/BEWERTUNG.md` | Projektbewertung und Anforderungen |
+| `docs/Issues.md` | Bekannte offene Punkte |
+| `docs/next-steps.md` | Roadmap nächster Schritte |
+| `docs/Verbesserungs.md` | Dieses Dokument |
+| `docs/Vorgaben/Buildings.md` | Gebäude-Designvorgaben |
+| `docs/Vorgaben/Resources.md` | Ressourcen-Designvorgaben |
+| `docs/Vorgaben/Units.md` | Einheiten-Designvorgaben |
+
+GitHub-Prozesse (`.github/`):
+
+| Datei | Inhalt |
+|-------|--------|
+| `copilot-instructions.md` | Copilot-Konventionen für dieses Projekt |
+| `pull_request_template.md` | PR-Checkliste |
+| `ISSUE_TEMPLATE/bug_report.yml` | Strukturiertes Bug-Report-Formular |
+| `ISSUE_TEMPLATE/feature_request.yml` | Feature-Request-Formular |
+| `ISSUE_TEMPLATE/neues-gebaeude.yml` | Gebäude-Request-Formular |
+| `workflows/ci.yml` | CI: Lint, Tests, Coverage, Security Audit, E2E |
+| `workflows/release.yml` | Release-Workflow für Git-Tags |
+| `dependabot.yml` | Automatische Dependency-Updates |
 
 ---
 
-### 8.2 Fehlende Dokumentation
+### ✅ 8.2 Fehlende Dokumentation
 
 | Dokument | Warum wichtig | Status |
 |----------|---------------|--------|
 | `CONTRIBUTING.md` | Onboarding externer Beitragender | ✅ angelegt |
 | `CHANGELOG.md` | Nachvollziehbarkeit von Änderungen | ✅ angelegt |
 | `LICENSE` | Rechtliche Klarheit | ✅ angelegt (MIT) |
-| `docs/openapi.yaml` | Maschinenlesbare API-Spec | ⏳ ausstehend |
-| `docs/architecture.md` | Architektur-Entscheidungen (ADRs) | ⏳ ausstehend |
+| `docs/openapi.yaml` | Maschinenlesbare API-Spec | ✅ angelegt |
+| `docs/architecture.md` | Architektur-Entscheidungen (ADRs) | ✅ angelegt |
 
 ---
 
-### 8.3 JSDoc / Code-Kommentare
+### ✅ 8.3 JSDoc / Code-Kommentare
 
-Kritische Funktionen (Tick-Logik, Kampf-Berechnung, Token-Generierung) sollten
-JSDoc-Kommentare haben, die Parameter, Rückgabewerte und Seiteneffekte beschreiben.
+**Umgesetzt:** Kritische Funktionen wurden mit JSDoc ergänzt (Parameter, Rückgabewerte,
+Seiteneffekte):
+- `backend/services/economy.service.js` – `applyProductionTicks`, `processFinishedQueue`
+- `backend/services/units.service.js` – `attackUnits`
+- `backend/services/gameloop-scheduler.js` – `executeGameTick`
+- `backend/routes/auth.js` – `requireAuth` und neue Helper-Funktion `signAuthToken`
 
 ---
 
@@ -328,15 +374,19 @@ JSDoc-Kommentare haben, die Parameter, Rückgabewerte und Seiteneffekte beschrei
 
 ## 10. Release- und Versionierungs-Prozess
 
-### 10.1 Semantic Versioning
+### ✅ 10.1 Semantic Versioning
 
 `backend/package.json` steht auf `"version": "1.0.0"`. Bisher gibt es keine
 Versionierungsregeln im Team.
 
-**Empfehlung:**
+**Umgesetzt:** Verbindliche SemVer-Teamregeln in `CONTRIBUTING.md` ergänzt.
+
 - **MAJOR**: Breaking API Changes.
 - **MINOR**: Neue Features (rückwärtskompatibel).
 - **PATCH**: Bug Fixes, Dokumentation.
+
+Zusätzlich dokumentiert: `BREAKING CHANGE`-Hinweis im PR-Titel, Tag-Schema
+`vX.Y.Z` und Pflicht zur Changelog-Pflege unter `[Unreleased]`.
 
 ---
 
@@ -361,7 +411,7 @@ führt Tests aus und erstellt einen GitHub-Release.
 | Architektur | Repository-Pattern + Frontend-Komponentenbasis | M | ✅ |
 | Performance | N+1 + Cache + Frontend-Bundling (Vite) | M | ✅ |
 | DX | Docker Compose | M | ✅ |
-| Tests | Unit-Tests Economy/Units-Service | M | ⏳ |
+| Tests | Unit-Tests Economy/Units-Service | M | ✅ |
 | CI/CD | Security Audit + Dependabot | S | ✅ |
 | Security | CORS einschränken + JWT-Validierung | S | ✅ |
 | Dokumentation | CONTRIBUTING.md + LICENSE | S | ✅ |

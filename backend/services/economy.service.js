@@ -41,8 +41,12 @@ export async function getProductionPerTick(userId, client) {
 }
 
 /**
- * Wendet ausstehende Produktions-Ticks auf die Ressourcen an (lazy – wird bei jedem Request gemacht).
- * Gibt die Anzahl der verarbeiteten Ticks zurück.
+ * Wendet alle seit `last_updated` ausstehenden Produktions-Ticks auf die User-Ressourcen an.
+ *
+ * @param {number} userId - Spieler-ID.
+ * @param {import('pg').PoolClient} client - Aktiver DB-Client innerhalb einer Transaktion.
+ * @returns {Promise<number>} Anzahl der tatsaechlich verarbeiteten Ticks.
+ * @sideEffects Schreibt Ressourcen und `last_updated` in der Datenbank fort.
  */
 export async function applyProductionTicks(userId, client) {
     const resources = await resourcesRepo.findByUserIdLocked(userId, client);
@@ -70,7 +74,12 @@ export async function applyProductionTicks(userId, client) {
 }
 
 /**
- * Verarbeitet fertige Bauaufträge: bucht sie als Gebäude ein und löscht sie aus der Queue.
+ * Verarbeitet fertige Bauauftraege: verbucht Gebaeudelevels und bereinigt die Queue.
+ *
+ * @param {number} userId - Spieler-ID.
+ * @param {import('pg').PoolClient} client - Aktiver DB-Client innerhalb einer Transaktion.
+ * @returns {Promise<number>} Anzahl der verarbeiteten Queue-Eintraege.
+ * @sideEffects Entfernt fertige Bauauftraege aus `building_queue` und aktualisiert Benutzergebaeude.
  */
 export async function processFinishedQueue(userId, client) {
     const finished = await buildingRepo.findFinishedQueueEntries(userId, client);

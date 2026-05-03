@@ -133,7 +133,7 @@ Es gibt kein strukturiertes Request-/Error-Logging (nur `console.log`).
 würde Client-Generierung und Testautomatisierung ermöglichen.
 
 **Aufgaben:**
-- [ ] `docs/openapi.yaml` aus `API_DOCUMENTATION.md` ableiten.
+- [x] `docs/openapi.yaml` aus `API_DOCUMENTATION.md` ableiten.
 - [ ] Swagger UI als optionale Dev-Route einbinden (`/api-docs`).
 - [ ] Request/Response-Schemas mit Zod-Definitionen abgleichen.
 
@@ -249,7 +249,7 @@ Für ein vollständiges Strategiespiel fehlt eine Karte mit Territorien.
 
 - [x] Changelogformat festlegen (`CHANGELOG.md` nach „Keep a Changelog“).
 - [x] GitHub-Releases-Workflow in `.github/workflows/` anlegen (Tag → Release).
-- [ ] Semantic Versioning (`major.minor.patch`) im Team kommunizieren.
+- [x] Semantic Versioning (`major.minor.patch`) im Team kommunizieren.
 
 ---
 

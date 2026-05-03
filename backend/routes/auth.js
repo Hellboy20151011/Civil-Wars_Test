@@ -16,6 +16,18 @@ const router = express.Router();
 const JWT_SECRET = config.jwt.secret;
 const JWT_EXPIRES_IN = config.jwt.expiresIn;
 
+/**
+ * Erzeugt ein signiertes JWT fuer einen authentifizierten Benutzer.
+ *
+ * @param {{ id: number, username: string, role: string }} user - Minimaler User-Context fuer den Token-Payload.
+ * @returns {string} Signiertes JWT mit konfigurierter Ablaufzeit.
+ * @sideEffects Kryptografische Signatur mit dem serverseitigen JWT-Secret.
+ */
+function signAuthToken(user) {
+    const payload = { id: user.id, username: user.username, role: user.role };
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+}
+
 const registerSchema = z.object({
     username: z.string().min(3, 'Username muss mindestens 3 Zeichen lang sein'),
     email: z.string().email('Ungültige E-Mail-Adresse'),
@@ -82,8 +94,7 @@ router.post(
 
             await client.query('COMMIT');
 
-            const payload = { id: newUser.id, username: newUser.username, role: newUser.role };
-            const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+            const token = signAuthToken(newUser);
 
             res.status(201).json({ message: 'User registered successfully', token, user: newUser });
         } catch (error) {
@@ -119,8 +130,7 @@ router.post(
 
         await playerRepo.updateLastLogin(user.id);
 
-        const payload = { id: user.id, username: user.username, role: user.role };
-        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        const token = signAuthToken(user);
 
         res.status(200).json({
             message: 'Login successful',
@@ -130,7 +140,15 @@ router.post(
     })
 );
 
-// Middleware: Token prüfen
+/**
+ * Prueft den Bearer-Token und schreibt den verifizierten Payload nach `req.user`.
+ *
+ * @param {import('express').Request} req - Express Request mit optionalem Authorization-Header.
+ * @param {import('express').Response} res - Express Response fuer 401-Antworten bei Auth-Fehlern.
+ * @param {import('express').NextFunction} next - Gibt den Kontrollfluss an den naechsten Handler weiter.
+ * @returns {void}
+ * @sideEffects Mutiert `req.user` bei erfolgreicher Verifikation.
+ */
 export function requireAuth(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;

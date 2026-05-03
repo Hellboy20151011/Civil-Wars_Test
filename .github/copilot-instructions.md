@@ -16,6 +16,7 @@ Wann immer Code oder Konfiguration geändert wird, muss `CHANGELOG.md` unter
 - Fehler in Routen immer via `next(err)` an den zentralen `errorHandler` delegieren,
   kein direktes `res.status(...).json(...)` für Serverfehler (4xx durch Validierung ist OK)
 - Neue DB-Abfragen gehören in `backend/repositories/`, nicht direkt in Services
+- Alle DB-Abfragen **müssen** parametrierte Queries verwenden (`$1, $2, ...` mit separatem Parameter-Array) – niemals SQL per String-Konkatenation oder Template-Literal mit Variablen bauen
 - Kein Hardcode von `http://localhost:3000` im Frontend – `frontend/scripts/config.js` verwenden
 
 ## Sprache / Naming

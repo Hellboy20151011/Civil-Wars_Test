@@ -111,6 +111,20 @@ export async function arriveAtDestination(userUnitId) {
 // ATTACK: Einheiten angreifen (vereinfacht)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Berechnet Kampfschaden zwischen zwei Einheiten und persistiert das Ergebnis.
+ *
+ * @param {number} attackingUnitId - ID der angreifenden Einheit (`user_units.id`).
+ * @param {number} targetUnitId - ID der verteidigenden Einheit (`user_units.id`).
+ * @returns {Promise<{
+ *   success: boolean,
+ *   baseDamage: number,
+ *   actualDamage: number,
+ *   targetHealth: number,
+ *   targetDestroyed: boolean
+ * }>} Ergebnis mit Basis- und Endschaden sowie Zielstatus.
+ * @sideEffects Aktualisiert Ziel-Lebenspunkte/Menge und erhoeht Erfahrung des Angreifers.
+ */
 export async function attackUnits(attackingUnitId, targetUnitId) {
     return withTransaction(async (client) => {
         const [attacker, target] = await Promise.all([

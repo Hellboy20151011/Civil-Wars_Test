@@ -35,6 +35,12 @@ jobs:
       - name: Tests
         run: npm test
 
+      - name: Coverage
+        run: npm run test:coverage
+
+      - name: Security Audit
+        run: npm audit --audit-level=high
+
   frontend-build:
     name: Build (Frontend)
     runs-on: ubuntu-latest
@@ -84,3 +90,63 @@ jobs:
 
       - name: Frontend Lint
         run: npm run lint
+
+  e2e:
+    name: E2E Tests (Backend API)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: civil_wars_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: civil_wars_test
+      JWT_SECRET: ci-e2e-secret-placeholder-32chars!!
+      CORS_ORIGIN: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js Setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Datenbank einrichten
+        run: node scripts/resetdb.js
+
+      - name: Backend starten
+        run: node server.js &
+
+      - name: Warten bis Backend bereit ist
+        run: npx wait-on http://localhost:3000/health --timeout 15000
+
+      - name: E2E Tests
+        run: npm run test:e2e
