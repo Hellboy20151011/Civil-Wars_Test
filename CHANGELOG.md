@@ -41,6 +41,10 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/database/schemas/refresh_tokens.sql` – Persistenz fuer Refresh-Tokens (inkl. Ablauf/Revoke/Rotation)
 - `backend/repositories/refresh-token.repository.js` – DB-Zugriffe fuer Refresh-Token-Flow
 
+### Fixed
+- `backend/vitest.config.js` – `test.env.JWT_SECRET` gesetzt, damit Vitest-Tests nicht mehr mit „JWT_SECRET ist nicht gesetzt" abbrechen
+- `.github/workflows/ci.yml` – `JWT_SECRET` Umgebungsvariable für den Backend-Lint-&-Test-Job ergänzt
+
 ### Changed
 - `backend/config.js` – `map.gridSize` (Standard: 999) und `map.maxPlayers` (Standard: 1000) als konfigurierbare Werte ergänzt
 - `backend/repositories/player.repository.js` – `findAllForMap()` für Karten-Endpunkt ergänzt
