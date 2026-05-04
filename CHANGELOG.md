@@ -16,6 +16,11 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Changed
 - `backend/package.json` – `zod` von `4.4.1` auf `4.4.2` angehoben
+- `backend/package.json` – `express` von `4.22.1` auf `5.2.1` angehoben (Major-Version, getestet)
+- `backend/package.json` – `dotenv` von `16.6.1` auf `17.4.2` angehoben
+- `.github/workflows/ci.yml` – `actions/checkout` von `v4` auf `v6` angehoben
+- `.github/workflows/ci.yml` – `actions/setup-node` von `v4` auf `v6` angehoben
+- `.github/workflows/release.yml` – `softprops/action-gh-release` von `v2` auf `v3` angehoben
 
 ### Added
 - `backend/routes/map.js` – neue Route `GET /map/players` und `GET /map/config` für das Karten-/Territorien-System
