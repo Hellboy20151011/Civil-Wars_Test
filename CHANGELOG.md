@@ -12,6 +12,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 ### Fixed
 - `backend/scripts/free-port.js` – `no-useless-assignment` Lint-Fehler behoben: `freePortOnUnix` nutzt jetzt einen leeren `catch`-Block, sodass das initiale `undefined` beim Check `!output` gelesen wird
 - `backend/middleware/rateLimiters.js` – Rate-Limiter werden in `NODE_ENV=test` übersprungen (`skip`-Option), um 429-Fehler in E2E-Tests zu verhindern
+- `backend/routes/buildings.js` – Bau-Regeln für Level-Gebäude korrigiert: Gebäude mit Namensschema `Level X` erfordern jetzt zwingend das direkte Vorgängerlevel (`X-1`), dadurch sind Sprünge wie „Kaserne Level 2 ohne Level 1“ nicht mehr möglich
+- `backend/routes/buildings.js` – Für Kategorien `military` und `government` ist jetzt vor dem Bau mindestens eine Produktionskette pro Ressource erforderlich (Geld, Stein, Stahl, Treibstoff)
 
 ### Changed
 - `backend/database/schemas/units.sql` – Kompletter Einheiten-Umbau: Spionage-Einheiten (Spion, SR-71 Blackbird, Spionagesatellit) entfernt; Infanterie (Soldat, Pionier, Minentaucher, Seal → Soldat, Panzergrenadier, Kampftaucher, Fallschirmjäger, Elitesoldat), Fahrzeuge (Jeep, Minenleger, Kampfpanzer, Panzerhaubitze → Luchs, Minenräumer, Leopard 2, Mobile Flak, Panzerhaubitze 2000), Marine (Torpedoboot, Fregatte, U-Boot, Flugzeugträger → Kreuzer, Zerstörer, Fregatte, U-Boot Typhoon, Flugzeugträger), Luftwaffe (Kampfhubschrauber, Kampfjet, Bomber, Transportflugzeug → Seahawk, Apache, Eurofighter, Mig-35, B2 Bomber), Verteidigung (MG-Stellung/Mine/Artillerie + Unterwassermine/Küstengeschützturm/Küstenartillerie + 2cm Flak/15cm Flak/Patriot-System – 9 Einheiten)

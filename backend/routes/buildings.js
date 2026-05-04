@@ -11,6 +11,55 @@ import * as economyService from '../services/economy.service.js';
 
 const router = express.Router();
 
+const LEVEL_NAME_REGEX = /^(.*) Level (\d+)$/;
+const MONEY_PRODUCTION_BUILDINGS = ['Wohnhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Hochhaus'];
+
+function getLevelMeta(buildingName) {
+    const match = buildingName.match(LEVEL_NAME_REGEX);
+    if (!match) return null;
+
+    return {
+        baseName: match[1],
+        level: Number(match[2]),
+    };
+}
+
+function getBuiltLevelSet(buildings, baseName) {
+    const levels = new Set();
+
+    for (const entry of buildings) {
+        if (Number(entry.anzahl) <= 0) continue;
+        const meta = getLevelMeta(entry.name);
+        if (!meta || meta.baseName !== baseName) continue;
+        levels.add(meta.level);
+    }
+
+    return levels;
+}
+
+function getMissingProductionChains(buildings) {
+    const builtNames = new Set(
+        buildings.filter((entry) => Number(entry.anzahl) > 0).map((entry) => entry.name)
+    );
+
+    const missing = [];
+
+    if (!MONEY_PRODUCTION_BUILDINGS.some((name) => builtNames.has(name))) {
+        missing.push('Geldproduktion (Wohnhaus/Reihenhaus/Mehrfamilienhaus/Hochhaus)');
+    }
+    if (!builtNames.has('Steinbruch')) {
+        missing.push('Steinproduktion (Steinbruch)');
+    }
+    if (!builtNames.has('Stahlwerk')) {
+        missing.push('Stahlproduktion (Stahlwerk)');
+    }
+    if (!builtNames.has('Öl-Raffinerie')) {
+        missing.push('Treibstoffproduktion (Öl-Raffinerie)');
+    }
+
+    return missing;
+}
+
 const buildSchema = z.object({
     building_type_id: z.coerce
         .number()
@@ -105,20 +154,34 @@ router.post(
                     .json({ message: 'Das Rathaus wurde bereits beim Start gebaut.' });
             }
 
-            // Kaserne nur einmal
-            if (bt.name.startsWith('Kaserne Level')) {
-                const anzahlKaserne = await buildingRepo.findBuildingCountByName(
-                    req.user.id,
-                    'Kaserne',
-                    client
-                );
-                if (anzahlKaserne >= 1) {
+            const builtBuildings = await buildingRepo.findBuildingsByUser(req.user.id, client);
+
+            const levelMeta = getLevelMeta(bt.name);
+            if (levelMeta) {
+                const builtLevels = getBuiltLevelSet(builtBuildings, levelMeta.baseName);
+
+                if (builtLevels.has(levelMeta.level)) {
                     await client.query('ROLLBACK');
                     return res
                         .status(400)
-                        .json({
-                            message: 'Die Kaserne ist bereits gebaut. Upgrade im Militär-Menü.',
-                        });
+                        .json({ message: `${bt.name} ist bereits gebaut.` });
+                }
+
+                if (levelMeta.level > 1 && !builtLevels.has(levelMeta.level - 1)) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        message: `Du musst zuerst ${levelMeta.baseName} Level ${levelMeta.level - 1} bauen.`,
+                    });
+                }
+            }
+
+            if (bt.category === 'military' || bt.category === 'government') {
+                const missingProductionChains = getMissingProductionChains(builtBuildings);
+                if (missingProductionChains.length > 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        message: `Für ${bt.category === 'military' ? 'Militär-' : 'Regierungs-'}gebäude brauchst du mindestens je ein Produktionsgebäude für alle Ressourcen. Fehlend: ${missingProductionChains.join(', ')}`,
+                    });
                 }
             }
 
