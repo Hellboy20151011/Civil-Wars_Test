@@ -287,6 +287,30 @@ nur parametrierte Queries zu generieren.
 
 ---
 
+## 8. Gameplay-Logik
+
+### ✅ 8.1 Gebäude-Reihenfolge erzwingen
+
+~~Es war möglich, Kaserne Level 2 zu bauen, bevor Kaserne Level 1 gebaut wurde
+(vermutlich bei mehreren Gebäuden mit Level-Schema so).~~
+
+**Umgesetzt:** Für alle Gebäude mit Namensschema „Level X" gilt eine harte Reihenfolge.
+Level 2+ ist erst erlaubt, wenn das direkte Vorgängerlevel bereits gebaut wurde.
+Ein bereits gebautes Level kann nicht erneut gebaut werden.
+
+---
+
+### ✅ 8.2 Voraussetzungen für Militär- und Regierungsgebäude
+
+~~Militär- und Regierungsgebäude konnten ohne Basisinfrastruktur gebaut werden.~~
+
+**Umgesetzt:** Vor dem Bau von Kategorien `military`/`government` wird geprüft,
+ob mindestens je ein Produktionsgebäude für Geld, Stein, Stahl und Treibstoff vorhanden ist.
+Erforderlich: eines aus Wohnhaus/Reihenhaus/Mehrfamilienhaus/Hochhaus sowie Steinbruch,
+Stahlwerk und Öl-Raffinerie.
+
+---
+
 ## 8. Dokumentation
 
 ### ✅ 8.1 Vorhandene Dokumentation (Stärken)

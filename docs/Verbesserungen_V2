@@ -1,6 +1,0 @@
-# verbessern
-
-- [x] Es ist möglich Kaserne Level 2 zu bauen bevor man Kaserne Level 1 gebaut hat (vermutlich bei mehreren Gebäuden so)
-  Umsetzung: Für alle Gebäude mit Namensschema Level X gilt jetzt eine harte Reihenfolge. Level 2+ ist erst erlaubt, wenn das direkte Vorgängerlevel gebaut wurde. Ein bereits gebautes Level kann nicht erneut gebaut werden.
-- [x] Requirement für Militär- und Regierungsgebäude: mindestens ein Produktionsgebäude für jede Ressource
-  Umsetzung: Vor dem Bau von Kategorien military/government wird geprüft auf Geld-, Stein-, Stahl- und Treibstoffproduktion. Erforderlich sind mindestens eines aus Wohnhaus/Reihenhaus/Mehrfamilienhaus/Hochhaus sowie Steinbruch, Stahlwerk und Öl-Raffinerie.

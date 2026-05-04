@@ -9,6 +9,10 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ## [Unreleased]
 
+### Changed
+- `docs/Verbesserungs.md` – Abschnitt „8. Gameplay-Logik" ergänzt mit den bereits umgesetzten Punkten aus `Verbesserungen_V2.md` (Gebäude-Reihenfolge, Voraussetzungen für Militär-/Regierungsgebäude)
+- `docs/Vorgaben/Anpassungen.md` – von `docs/` nach `docs/Vorgaben/` verschoben (thematisch passend zu Buildings/Resources/Units)
+
 ### Fixed
 - `backend/scripts/free-port.js` – `no-useless-assignment` Lint-Fehler behoben: `freePortOnUnix` nutzt jetzt einen leeren `catch`-Block, sodass das initiale `undefined` beim Check `!output` gelesen wird
 - `backend/middleware/rateLimiters.js` – Rate-Limiter werden in `NODE_ENV=test` übersprungen (`skip`-Option), um 429-Fehler in E2E-Tests zu verhindern
