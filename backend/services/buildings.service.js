@@ -35,7 +35,7 @@ export async function getBuildingByName(name) {
 export async function startBuildingConstruction(userId, buildingTypeId, locationX, locationY) {
     return withTransaction(async (client) => {
         const building = await buildingRepo.findTypeById(buildingTypeId, client);
-        if (!building) throw new Error('Gebäudetyp nicht gefunden');
+        if (!building) throw createServiceError('Gebäudetyp nicht gefunden', 404, 'BUILDING_TYPE_NOT_FOUND');
 
         const hasResources = await hasEnoughResources(
             userId,
@@ -47,11 +47,11 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
             },
             client
         );
-        if (!hasResources) throw new Error('Nicht genug Ressourcen');
+        if (!hasResources) throw createServiceError('Nicht genug Ressourcen', 400, 'INSUFFICIENT_RESOURCES');
 
         if (building.power_consumption > 0) {
             const hasPower = await checkPowerAvailable(userId, building.power_consumption, client);
-            if (!hasPower) throw new Error('Nicht genug Strom verfügbar');
+            if (!hasPower) throw createServiceError('Nicht genug Strom verfügbar', 400, 'INSUFFICIENT_POWER');
         }
 
         await deductResources(
@@ -92,10 +92,10 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
 export async function startUpgrade(userId, userBuildingId) {
     return withTransaction(async (client) => {
         const userBuilding = await buildingRepo.findUserBuildingWithType(userBuildingId, userId, client);
-        if (!userBuilding) throw new Error('Gebäude nicht gefunden');
+        if (!userBuilding) throw createServiceError('Gebäude nicht gefunden', 404, 'BUILDING_NOT_FOUND');
 
         const maxLevel = 4;
-        if (userBuilding.level >= maxLevel) throw new Error('Maximales Level erreicht');
+        if (userBuilding.level >= maxLevel) throw createServiceError('Maximales Level erreicht', 400, 'BUILDING_MAX_LEVEL');
 
         const nextLevelCosts = {
             money: Math.floor(userBuilding.money_cost * 1.5),
@@ -105,7 +105,7 @@ export async function startUpgrade(userId, userBuildingId) {
         };
 
         const hasResources = await hasEnoughResources(userId, nextLevelCosts, client);
-        if (!hasResources) throw new Error('Nicht genug Ressourcen für Upgrade');
+        if (!hasResources) throw createServiceError('Nicht genug Ressourcen für Upgrade', 400, 'INSUFFICIENT_RESOURCES');
 
         await deductResources(userId, nextLevelCosts, client);
 

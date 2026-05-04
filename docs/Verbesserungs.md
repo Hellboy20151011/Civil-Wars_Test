@@ -85,6 +85,7 @@ Für wachsende Komplexität (Kampf, Karte, Echtzeit-Updates) wird das schwer
 wartbar.
 
 **Optionen (aufsteigend nach Aufwand):**
+
 1. Einfaches Komponentensystem selbst bauen (Mini-Framework).
 2. Leichtgewichtiger Reaktivitätslayer wie **Preact** oder **Solid.js**.
 3. Vollständiges Framework wie **Vue 3** oder **React** (mit Vite Build).
@@ -113,12 +114,14 @@ den Stream via `EventSource` und aktualisiert Ressourcen/Produktion live.
 
 ~~- N+1-Abfragen in Repositories vermeiden: statt mehrerer einzelner `SELECT`-
   Statements pro Einheit/Gebäude besser JOINs oder Batch-Abfragen nutzen.
+
 - DB-Verbindungspool-Größe (`backend/database/db.js`) konfigurierbar machen
   (via `POOL_MAX` in `.env`).
 - Häufig gelesene Stammdaten (z. B. `building_types`, `resource_types`) im
   Application-Memory cachen (einfaches In-Memory-Cache für wenige Minuten TTL).~~
 
 **Umgesetzt:**
+
 - Batch-Inserts für Gebäude/Queue statt Query-Schleifen (`building.repository.js`).
 - Stammdaten-Cache mit TTL für `building_types`, `unit_types`, `resource_types`
   (`reference-data.repository.js`, TTL via `REFERENCE_DATA_CACHE_TTL_MS`).
@@ -132,6 +135,7 @@ den Stream via `EventSource` und aktualisiert Ressourcen/Produktion live.
 
 ~~Das Frontend lädt aktuell kein Build-Tool (reines ESM). Für Produktion empfiehlt
 sich ein Bundler (z. B. **Vite**), der:
+
 - Dateien minifiziert und komprimiert.
 - Tree-Shaking für ungenutzte Module durchführt.
 - Lange Cache-Hashes für Assets erzeugt.~~
@@ -173,6 +177,7 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 ### ✅ 5.1 Testabdeckung für Business-Logik
 
 **Umgesetzt:** Unit-Tests mit Vitest für alle kritischen Services:
+
 - `backend/tests/services/units.service.test.js` – 19 Tests: Getter, `startTraining`, `moveUnits`, `arriveAtDestination`, `attackUnits`
 - `backend/tests/services/gameloop-scheduler.test.js` – 7 Tests: `executeGameTick`, `getTickStats`, `startGameLoop`
 - Alle Abhängigkeiten (Repositories, DB-Pool, config) werden via `vi.mock()` ersetzt; Tests laufen ohne laufende DB.
@@ -184,6 +189,7 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 ### ✅ 5.2 Code Coverage Reporting
 
 **Umgesetzt:** `@vitest/coverage-v8` installiert.
+
 - `npm run test:coverage` erzeugt einen Abdeckungsbericht (Text + LCOV) in `backend/coverage/`.
 - `backend/vitest.config.js` definiert Schwellen: Statements/Lines/Functions ≥80 %, Branches ≥60 %.
 - Aktuell erreicht: Statements 88 %, Branches 89 %, Functions 87 %, Lines 88 %.
@@ -194,6 +200,7 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 ### ✅ 5.3 End-to-End-Tests
 
 **Umgesetzt:** Playwright API-E2E-Tests für den kritischen Spiel-Flow:
+
 - `backend/tests/e2e/auth-flow.test.js` – Register, Login, Authentifizierungsschutz, Startressourcen
 - `backend/tests/e2e/buildings-flow.test.js` – Gebäudetypen, Rathaus-Startgebäude, Bauwarteschlange, Gebäude bauen, vollständiger Spiel-Flow
 - `backend/playwright.config.js` konfiguriert die `baseURL` gegenüber dem laufenden Backend
@@ -207,6 +214,7 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 ### ✅ 6.1 Aktueller Status
 
 `.github/workflows/ci.yml` führt bei Push/PR auf `main` aus:
+
 - `npm ci`
 - `npm run lint`
 - `npm test`
@@ -284,6 +292,7 @@ nur parametrierte Queries zu generieren.
 ### ✅ 7.5 Abhängigkeits-Audits
 
 **Umgesetzt:**
+
 - `npm audit --audit-level=high` läuft als CI-Schritt nach jedem Push.
 - Dependabot überwacht `/backend`, `/frontend` und `github-actions` wöchentlich.
 
@@ -372,6 +381,7 @@ GitHub-Prozesse (`.github/`):
 
 **Umgesetzt:** Kritische Funktionen wurden mit JSDoc ergänzt (Parameter, Rückgabewerte,
 Seiteneffekte):
+
 - `backend/services/economy.service.js` – `applyProductionTicks`, `processFinishedQueue`
 - `backend/services/units.service.js` – `attackUnits`
 - `backend/services/gameloop-scheduler.js` – `executeGameTick`
@@ -392,6 +402,7 @@ Seiteneffekte):
 ### ✅ 9.2 Empfohlene Templates
 
 **Umgesetzt:**
+
 - `.github/pull_request_template.md`
 - `.github/ISSUE_TEMPLATE/bug_report.yml`
 - `.github/ISSUE_TEMPLATE/feature_request.yml`

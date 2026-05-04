@@ -55,12 +55,14 @@
 ist bisher kaum durch Unit-Tests abgesichert.
 
 **Erledigt:**
+
 - Unit-Tests für `economy.service.js` vorhanden (Tick-Produktion, Queue-Verarbeitung).
 - Unit-Tests für `units.service.js` erweitert (u. a. `arriveAtDestination`, Bewegungszeit-Berechnung).
 - Tests laufen mit Mocks ohne echte DB (`vi.mock` auf Repositories/Transaktionsschicht).
 - Coverage-Report ist in CI aktiv (`npm run test:coverage` in `.github/workflows/ci.yml`).
 
 **Aufgaben:**
+
 - [x] Unit-Tests für `economy.service.js` (Ressourcenproduktion pro Tick).
 - [x] Unit-Tests für `units.service.js` (Einheitenankünfte, Ankunftszeit-Berechnung).
 - [x] Mocks für `pg`-Pool einrichten, damit Tests ohne echte DB laufen.
@@ -129,11 +131,13 @@ Stammdaten (`building_types`, `unit_types`, `resource_types`) mit TTL gecacht.
 Es gibt kein strukturiertes Request-/Error-Logging (nur `console.log`).
 
 **Erledigt:**
+
 - `pino` als Logger-Bibliothek integriert (konfigurierbar über `LOG_LEVEL` in `backend/config.js`).
 - Request-Logging-Middleware (`pino-http`) in `backend/server.js` aktiviert (Dev lesbar, Prod JSON).
 - Runtime-Logs in zentralen Stellen auf Logger umgestellt (`gameloop-scheduler`, `errorHandler`, Server-Startup).
 
 **Aufgaben:**
+
 - [x] Logger-Bibliothek wählen (z. B. `pino` oder `winston`).
 - [x] Request-Logging-Middleware hinzufügen (dev: verbose, prod: JSON).
 - [x] `console.log`/`console.error` in Services und Routes ersetzen.
@@ -146,11 +150,13 @@ Es gibt kein strukturiertes Request-/Error-Logging (nur `console.log`).
 würde Client-Generierung und Testautomatisierung ermöglichen.
 
 **Erledigt:**
+
 - `docs/openapi.yaml` erweitert und an Zod-Validierung aus den Routen angeglichen.
 - Swagger UI als optionale Dev-Route unter `/api-docs` eingebunden.
 - Request/Response-Schemas (u. a. Auth/Buildings/Units) präzisiert.
 
 **Aufgaben:**
+
 - [x] `docs/openapi.yaml` aus `API_DOCUMENTATION.md` ableiten.
 - [x] Swagger UI als optionale Dev-Route einbinden (`/api-docs`).
 - [x] Request/Response-Schemas mit Zod-Definitionen abgleichen.
@@ -229,12 +235,14 @@ gepusht und im Frontend ohne Polling aktualisiert.
 Aktuell wird nur ein kurzlebiges JWT ohne Refresh-Token verwendet.
 
 **Erledigt:**
+
 - Refresh-Token-Tabelle (`backend/database/schemas/refresh_tokens.sql`) eingeführt.
 - Endpunkt `POST /auth/refresh` mit Token-Rotation implementiert.
 - `register`/`login` geben zusätzlich `refresh_token` zurück.
 - API-Dokumentation und OpenAPI-Spec um Refresh-Flow ergänzt.
 
 **Aufgaben:**
+
 - [x] Refresh-Token-Tabelle in der Datenbank (Schema in `backend/database/schemas/`).
 - [x] Neuen Endpunkt `POST /auth/refresh` implementieren.
 - [x] Dokumentation in `API_DOCUMENTATION.md` aktualisieren.
@@ -249,6 +257,7 @@ Das Spiel hat Einheiten, aber kein Kampfsystem. Laut `docs/Issues.md` und
 `docs/Units.md` ist das ein geplantes Kernfeature.
 
 **Aufgaben:**
+
 - [ ] Kampf-Mechanik definieren (Rundenbasiert / Echtzeit-Simulation pro Tick).
 - [ ] `backend/services/combat.service.js` implementieren.
 - [ ] Zugehörige Route, Repository und Schema anlegen.
@@ -261,6 +270,7 @@ Das Spiel hat Einheiten, aber kein Kampfsystem. Laut `docs/Issues.md` und
 Für ein vollständiges Strategiespiel fehlt einer Karte mit Territorien.
 
 **Erledigt:**
+
 - Koordinatenspalten `koordinate_x`/`koordinate_y` (1–999) in `users`-Tabelle genutzt; werden bereits bei Registrierung zufällig und kollisionsfrei vergeben.
 - `GET /map/players` und `GET /map/config` Endpunkte implementiert (`backend/routes/map.js`).
 - Interaktive Canvas-Karte (`frontend/pages/karte.html` + `frontend/scripts/karte.js`) mit Zoom/Pan, Hover-Tooltip und Hervorhebung der eigenen Position.
@@ -268,6 +278,7 @@ Für ein vollständiges Strategiespiel fehlt einer Karte mit Territorien.
 - Karteseite in Vite Multi-Page-Build und Sidebar-Navigation aufgenommen.
 
 **Aufgaben:**
+
 - [x] Datenbankschema für Karte/Territorien entwerfen. andere sql prüfen ob schon koordinaten vorgegeben sind
 - [x] Backend-Service und Routen für Kartenbewegungen.
 - [x] Frontend-Karten-Rendering (z. B. Canvas oder SVG).

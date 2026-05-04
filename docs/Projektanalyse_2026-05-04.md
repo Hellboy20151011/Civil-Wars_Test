@@ -89,27 +89,27 @@ Diese Analyse fasst technische Probleme, konkrete Verbesserungen, Strukturvorsch
 
 ## Strukturverbesserungen (Architektur)
 
-1. Route-Service-Repository strikter durchziehen
+1. ✅ Route-Service-Repository strikter durchziehen
 
 - Ziel: Keine DB-Operationen in `routes/`.
 - Nutzen: Bessere Testbarkeit, geringere Kopplung, klarere Verantwortlichkeiten.
 
-1. Einheitliches Transaktionsmuster
+1. ✅ Einheitliches Transaktionsmuster
 
 - Standardisieren: Nur `withTransaction(...)` verwenden (auch in Routen-nahen Flows).
 - Nutzen: Weniger Fehler bei Rollback/Commit, einheitliches Verhalten.
 
-1. Fehlercode-Katalog einfuehren
+1. ✅ Fehlercode-Katalog einfuehren
 
 - Neben `message` einen stabilen `error.code` Katalog dokumentieren (z. B. `AUTH_INVALID_TOKEN`, `BUILDING_NOT_FOUND`, `INSUFFICIENT_RESOURCES`).
 - Nutzen: Frontend kann Fehler robust und lokalisiert behandeln.
 
-1. Service-Schicht fuer SSE-Einstieg staerken
+1. ✅ Service-Schicht fuer SSE-Einstieg staerken
 
 - Initialstatus + Stream-Setup in Service kapseln.
 - Nutzen: weniger Logik in Route, leichter unit-testbar.
 
-1. Doku-Informationsarchitektur aufraeumen
+1. ✅ Doku-Informationsarchitektur aufraeumen
 
 - `docs/next-steps.md` fuer Roadmap, `docs/Verbesserungs.md` fuer Quality-Backlog, diese Analyse als Snapshot.
 - Nutzen: weniger Ueberschneidungen, bessere Wartbarkeit der Doku.

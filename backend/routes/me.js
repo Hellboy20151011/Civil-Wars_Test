@@ -5,7 +5,7 @@ import { apiLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from './auth.js';
 import { config } from '../config.js';
 import * as meService from '../services/me.service.js';
-import { openUserStream } from '../services/live-updates.service.js';
+import { mountUserStream } from '../services/live-updates.service.js';
 
 const router = express.Router();
 
@@ -37,17 +37,7 @@ router.get(
             return res.status(401).json({ message: 'Invalid or expired token' });
         }
 
-        const closeStream = openUserStream(user.id, res);
-
-        try {
-            // Initialen Status direkt nach Verbindungsaufbau senden.
-            const payload = await meService.getStreamPayload(user.id);
-            res.write(`event: status\n`);
-            res.write(`data: ${JSON.stringify(payload)}\n\n`);
-        } catch (err) {
-            closeStream();
-            throw err;
-        }
+        const closeStream = await mountUserStream(user.id, res);
 
         req.on('close', () => {
             closeStream();

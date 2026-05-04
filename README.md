@@ -78,6 +78,7 @@ node scripts/resetdb.js
 ```
 
 Das Skript:
+
 - legt die Datenbank `civil_wars_test` neu an
 - spielt alle Schema-Dateien aus `database/schemas/` ein
 
@@ -142,7 +143,7 @@ npm run format
 
 ## Projekt-Struktur
 
-```
+```text
 backend/
   routes/         ← Express-Router (HTTP-Handler): auth, resources, buildings, me, units
   services/       ← Business-Logik: economy.service, units.service, gameloop-scheduler, gameloop
