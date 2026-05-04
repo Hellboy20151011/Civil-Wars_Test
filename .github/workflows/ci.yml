@@ -33,9 +33,13 @@ jobs:
         run: npm run lint
 
       - name: Tests
+        env:
+          JWT_SECRET: ci-test-secret-placeholder-at-least-32chars!!
         run: npm test
 
       - name: Coverage
+        env:
+          JWT_SECRET: ci-test-secret-placeholder-at-least-32chars!!
         run: npm run test:coverage
 
       - name: Security Audit

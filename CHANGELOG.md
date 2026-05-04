@@ -9,6 +9,14 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ## [Unreleased]
 
+### Fixed
+- `backend/middleware/validate.js` – `result.error.errors` auf `result.error.issues` umgestellt (Zod v4 entfernt `.errors`, nur `.issues` ist verfügbar); Validierungsfehler geben jetzt korrekt 400 statt 500 zurück
+- `backend/vitest.config.js` – `test.env.JWT_SECRET` gesetzt, damit Vitest-Tests nicht mehr mit „JWT_SECRET ist nicht gesetzt" abbrechen
+- `.github/workflows/ci.yml` – `JWT_SECRET` Umgebungsvariable für den Backend-Lint-&-Test-Job ergänzt
+
+### Changed
+- `backend/package.json` – `zod` von `4.4.1` auf `4.4.2` angehoben
+
 ### Added
 - `backend/routes/map.js` – neue Route `GET /map/players` und `GET /map/config` für das Karten-/Territorien-System
 - `frontend/pages/karte.html` + `frontend/scripts/karte.js` – interaktive Canvas-Gitterkarte mit Zoom/Pan, Hover-Tooltip und eigener Positionsmarkierung
