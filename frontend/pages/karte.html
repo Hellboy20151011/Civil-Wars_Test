@@ -118,6 +118,18 @@
             <button id="btn-zoom-out" title="Verkleinern">−</button>
             <button id="btn-reset-view" title="Ansicht zurücksetzen">⊙</button>
           </div>
+
+          <!-- Angriffs-Panel (erscheint beim Klick auf einen anderen Spieler) -->
+          <div id="attack-panel" style="display:none">
+            <h3>
+              <span>⚔️ Angriff auf <span id="attack-target-name"></span></span>
+              <button id="attack-panel-close" title="Schließen">✕</button>
+            </h3>
+            <div class="attack-info" id="attack-info"></div>
+            <div id="attack-units-list"></div>
+            <button id="btn-launch-attack" disabled>Angriff starten</button>
+            <div id="attack-panel-msg"></div>
+          </div>
           <div id="map-info">Lade Karte…</div>
           <div id="map-legend">
             <span><span class="dot" style="background:#f97316"></span>Eigene Position</span>

@@ -93,6 +93,38 @@ function startLiveUpdates(token) {
     }
   });
 
+  source.addEventListener('combat_incoming', (event) => {
+    try {
+      const d = JSON.parse(event.data || '{}');
+      const eta = new Date(d.arrivalTime);
+      const mins = Math.round((eta - Date.now()) / 60000);
+      showToast(`⚔️ Eingehender Angriff von ${d.attackerUsername}! Ankunft in ~${mins} min.`, 'danger');
+    } catch (err) {
+      console.error('SSE combat_incoming parse error:', err);
+    }
+  });
+
+  source.addEventListener('combat_result', (event) => {
+    try {
+      const d = JSON.parse(event.data || '{}');
+      const msg = d.attackerWon
+        ? `⚔️ Kampf gegen ${d.defenderUsername}: Sieg! Einheiten kehren zurück.`
+        : `⚔️ Kampf gegen ${d.defenderUsername}: Niederlage. Einheiten kehren zurück.`;
+      showToast(msg, d.attackerWon ? 'success' : 'warning');
+    } catch (err) {
+      console.error('SSE combat_result parse error:', err);
+    }
+  });
+
+  source.addEventListener('combat_return', (event) => {
+    try {
+      const d = JSON.parse(event.data || '{}');
+      showToast(`🏠 Deine Einheiten aus dem Angriff auf ${d.defenderUsername} sind heimgekehrt.`, 'info');
+    } catch (err) {
+      console.error('SSE combat_return parse error:', err);
+    }
+  });
+
   source.addEventListener('error', () => {
     // EventSource reconnectet automatisch.
   });
@@ -222,6 +254,34 @@ function renderSidebar(navLinks) {
   );
 
   render(sidebar, nodes);
+}
+
+/**
+ * Zeigt eine kurze Toast-Benachrichtigung an.
+ * @param {string} message
+ * @param {'info'|'success'|'warning'|'danger'} type
+ */
+export function showToast(message, type = 'info') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast--${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  // Einblenden
+  requestAnimationFrame(() => toast.classList.add('toast--visible'));
+
+  // Nach 5 s ausblenden + entfernen
+  setTimeout(() => {
+    toast.classList.remove('toast--visible');
+    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+  }, 5000);
 }
 
 function renderResourceBar(status) {

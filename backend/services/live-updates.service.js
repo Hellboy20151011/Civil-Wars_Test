@@ -52,6 +52,18 @@ export function broadcastUserStatusUpdate(userId, status) {
     }
 }
 
+/**
+ * Sendet ein beliebiges SSE-Event an einen bestimmten Spieler.
+ * Wird vom Combat-Service für Kampf-Benachrichtigungen verwendet.
+ */
+export function broadcastToUser(userId, event, data) {
+    const clients = sseClientsByUser.get(String(userId));
+    if (!clients || clients.size === 0) return;
+    for (const response of clients) {
+        writeSseEvent(response, event, data);
+    }
+}
+
 setInterval(() => {
     const heartbeat = { at: new Date().toISOString() };
     for (const clients of sseClientsByUser.values()) {

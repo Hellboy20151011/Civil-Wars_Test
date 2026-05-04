@@ -9,25 +9,37 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ## [Unreleased]
 
+### Added
+- `backend/database/schemas/combat_missions.sql` – neue Tabellen `combat_missions` und `combat_mission_units` für distanzbasierte Kampf-Missionen zwischen Spielern; unterstützt Lebenszyklus `traveling_to → in_combat → traveling_back → completed`
+- `backend/repositories/combat-missions.repository.js` – Repository für Kampf-Missionen: Erstellen, Tick-Abfragen (ankommend/zurückkehrend), Status-Updates, Einheiten-Verwaltung, Spieler-Dashboard und Kampfhistorie
+- `backend/services/combat.service.js` – Kampf-Service: `launchAttack()` (Einheiten entsenden, Distanz + Reisezeit berechnen, Einheiten reservieren), `processArrivingMissions()` und `processReturningMissions()` für das Tick-System
+- `backend/routes/combat.js` – neue Routen: `POST /combat/attack`, `GET /combat/missions`, `GET /combat/incoming`, `GET /combat/history`
+- `backend/database/schemas/users.sql` – Spalten `failed_login_attempts` und `locked_until` für Account-Lockout nach mehrfach fehlgeschlagenen Login-Versuchen
+- `backend/scripts/resetdb.js` – `combat_missions.sql` in die Schema-Ladereihenfolge aufgenommen
+- `backend/database/migrate_v2_combat.sql` – Migrations-Skript zum Anwenden der neuen Spalten (`failed_login_attempts`, `locked_until`) und der Kampf-Tabellen gegen eine bestehende Datenbank
+- `backend/repositories/units.repository.js` – neue Methoden `decrementUserUnitQuantity`, `addUnitQuantity`, `setUserUnitQuantity`, `setUnitHealth`, `findCombatUnitsByUser` für Kampfsystem
+- `backend/services/gameloop.js` – ruft nach den Spieler-Ticks `combatService.processArrivingMissions()` und `combatService.processReturningMissions()` auf
+- `backend/server.js` – `/combat`-Router registriert
+- `backend/config.js` – neue Sektion `security` mit `maxFailedLogins` (Default: 5) und `lockoutDurationMs` (Default: 15 Min), konfigurierbar über Umgebungsvariablen
+- `backend/.env.example` – neue Variablen `MAX_FAILED_LOGINS` und `LOCKOUT_DURATION_MS` dokumentiert
+- `backend/services/live-updates.service.js` – neue Funktion `broadcastToUser(userId, event, data)` für gezielte SSE-Events an einzelne Spieler
+- `frontend/scripts/shell.js` – `showToast(message, type)` hinzugefügt; SSE-Handler für `combat_incoming`, `combat_result`, `combat_return` ergänzt
+- `frontend/CSS/style.css` – CSS für `#toast-container`, `.toast`-Varianten und `#attack-panel` inkl. Unit-Rows und Launch-Button
+- `frontend/pages/karte.html` – `#attack-panel` mit Ziel-Info, Einheitenliste und Angriffs-Button hinzugefügt
+- `frontend/scripts/karte.js` – Klick-Handler auf Canvas: öffnet Angriffs-Panel für fremde Spieler; `openAttackPanel()`, `closeAttackPanel()`, Launch-Button-Logik mit POST auf `/combat/attack` und ETA-Anzeige
+
+- `backend/services/combat.service.js` – hartes Matchup-System in `_resolveCombat()`: Einheiten-Kategorien können nur bestimmte Gegner-Kategorien angreifen (infantry→vehicle/infantry/defense, ship→infantry/ship/defense, air→alle, defense passiv); Minentaucher-Vorbereitungsphase neutralisiert alle defense-Einheiten des Verteidigers; Counter-Unit-Bonus (+30 %); immune Einheiten erleiden keine Verluste; `MATCHUP`-Tabelle + `getMatchup()`-Hilfsfunktion
+- `backend/repositories/combat-missions.repository.js` – `findMissionUnits` gibt jetzt auch `category` und `counter_unit` zurück
+- `backend/repositories/units.repository.js` – `findCombatUnitsByUser` gibt jetzt auch `category` und `counter_unit` zurück, inkrementiert `failed_login_attempts` bei falschem Passwort und setzt Sperre nach `maxFailedLogins` Fehlversuchen; bei erfolgreichem Login wird der Zähler zurückgesetzt
+- `backend/repositories/player.repository.js` – `findByUsername` gibt jetzt auch `failed_login_attempts` und `locked_until` zurück
+- `backend/routes/units.js` – `/train`, `/move`, `/attack` delegieren Fehler jetzt via `next(err)` an den zentralen `errorHandler` statt direktem `res.json` (konsistentes Fehlerformat)
+
 ### Fixed
 - `backend/middleware/validate.js` – `result.error.errors` auf `result.error.issues` umgestellt (Zod v4 entfernt `.errors`, nur `.issues` ist verfügbar); Validierungsfehler geben jetzt korrekt 400 statt 500 zurück
 - `backend/vitest.config.js` – `test.env.JWT_SECRET` gesetzt, damit Vitest-Tests nicht mehr mit „JWT_SECRET ist nicht gesetzt" abbrechen
 - `.github/workflows/ci.yml` – `JWT_SECRET` Umgebungsvariable für den Backend-Lint-&-Test-Job ergänzt
 
-### Changed
-- `backend/package.json` – `zod` von `4.4.1` auf `4.4.2` angehoben
-- `backend/package.json` – `express` von `4.22.1` auf `5.2.1` angehoben (Major-Version, getestet)
-- `backend/package.json` – `dotenv` von `16.6.1` auf `17.4.2` angehoben
-- `.github/workflows/ci.yml` – `actions/checkout` von `v4` auf `v6` angehoben
-- `.github/workflows/ci.yml` – `actions/setup-node` von `v4` auf `v6` angehoben
-- `.github/workflows/release.yml` – `softprops/action-gh-release` von `v2` auf `v3` angehoben
 
-### Added
-- `backend/routes/map.js` – neue Route `GET /map/players` und `GET /map/config` für das Karten-/Territorien-System
-- `frontend/pages/karte.html` + `frontend/scripts/karte.js` – interaktive Canvas-Gitterkarte mit Zoom/Pan, Hover-Tooltip und eigener Positionsmarkierung
-- `backend/database/schemas/users.sql` – Koordinatenspalten `koordinate_x`/`koordinate_y` (1–999, bereits bei Registrierung vorhanden) dienen als Spielerpositionen auf der Karte
-- `backend/tests/services/units.service.test.js` – 18 Unit-Tests für `units.service.js` (Getter, startTraining, moveUnits, attackUnits)
-- `backend/tests/services/gameloop-scheduler.test.js` – 7 Unit-Tests für `gameloop-scheduler.js` (executeGameTick, getTickStats, startGameLoop)
 - `backend/tests/e2e/auth-flow.test.js` – Playwright API-E2E-Tests: Register, Login, Authentifizierungsschutz, Startressourcen
 - `backend/tests/e2e/buildings-flow.test.js` – Playwright API-E2E-Tests: Gebäudetypen, Startgebäude, Bau-Flow, vollständiger Spiel-Flow
 - `backend/playwright.config.js` – Playwright-Konfiguration für API-E2E-Tests

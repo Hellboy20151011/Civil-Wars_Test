@@ -10,5 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
 	koordinate_y INTEGER,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	last_login_at TIMESTAMPTZ
+	last_login_at TIMESTAMPTZ,
+	failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+	locked_until TIMESTAMPTZ
 );

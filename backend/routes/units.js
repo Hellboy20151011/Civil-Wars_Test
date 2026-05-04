@@ -78,7 +78,7 @@ router.post(
     requireAuth,
     apiLimiter,
     validateBody(trainSchema),
-    asyncWrapper(async (req, res) => {
+    asyncWrapper(async (req, res, next) => {
         const userId = req.user.id;
         const { unit_type_id, quantity } = req.body;
 
@@ -90,10 +90,8 @@ router.post(
                 data: result,
             });
         } catch (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message,
-            });
+            error.status = 400;
+            return next(error);
         }
     })
 );
@@ -107,7 +105,7 @@ router.post(
     requireAuth,
     apiLimiter,
     validateBody(moveSchema),
-    asyncWrapper(async (req, res) => {
+    asyncWrapper(async (req, res, next) => {
         const userId = req.user.id;
         const { user_unit_id, destination_x, destination_y } = req.body;
 
@@ -124,10 +122,8 @@ router.post(
                 data: result,
             });
         } catch (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message,
-            });
+            error.status = 400;
+            return next(error);
         }
     })
 );
@@ -141,7 +137,7 @@ router.post(
     requireAuth,
     apiLimiter,
     validateBody(attackSchema),
-    asyncWrapper(async (req, res) => {
+    asyncWrapper(async (req, res, next) => {
         const { attacking_unit_id, target_unit_id } = req.body;
 
         try {
@@ -152,10 +148,8 @@ router.post(
                 data: result,
             });
         } catch (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message,
-            });
+            error.status = 400;
+            return next(error);
         }
     })
 );

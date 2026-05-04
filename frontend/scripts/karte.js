@@ -1,4 +1,4 @@
-import { initShell, getAuth } from '/scripts/shell.js';
+import { initShell, getAuth, showToast } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
 
 const auth = getAuth();
@@ -29,6 +29,7 @@ let isDragging = false;
 let dragStartX = 0;
 let dragStartY = 0;
 let hoveredPlayer = null;
+let clickedPlayer = null;   // Ziel für den Angriffs-Dialog
 let ownId = auth.user?.id ?? null;
 
 const canvas = document.getElementById('map-canvas');
@@ -241,6 +242,148 @@ canvas.addEventListener('mouseleave', () => {
     hoveredPlayer = null;
     hideTooltip();
     draw();
+});
+
+// ── Klick auf Spieler → Angriffs-Panel öffnen ─────────────────────────────────
+canvas.addEventListener('click', (e) => {
+    if (isDragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const hitRadius = Math.max(PLAYER_RADIUS, OWN_RADIUS) + 6;
+
+    const found = players.find((p) => {
+        const pos = gridToCanvas(p.koordinate_x, p.koordinate_y);
+        return Math.hypot(pos.x - cx, pos.y - cy) <= hitRadius;
+    });
+
+    if (found && found.id !== ownId) {
+        openAttackPanel(found);
+    } else {
+        closeAttackPanel();
+    }
+});
+
+// ── Angriffs-Panel ─────────────────────────────────────────────────────────────
+const attackPanel      = document.getElementById('attack-panel');
+const attackTargetName = document.getElementById('attack-target-name');
+const attackInfo       = document.getElementById('attack-info');
+const attackUnitsList  = document.getElementById('attack-units-list');
+const btnLaunch        = document.getElementById('btn-launch-attack');
+const attackPanelMsg   = document.getElementById('attack-panel-msg');
+
+document.getElementById('attack-panel-close').addEventListener('click', closeAttackPanel);
+
+function closeAttackPanel() {
+    attackPanel.style.display = 'none';
+    clickedPlayer = null;
+}
+
+async function openAttackPanel(target) {
+    clickedPlayer = target;
+    attackTargetName.textContent = target.username;
+    attackPanel.style.display = 'block';
+    attackInfo.innerHTML = 'Einheiten werden geladen…';
+    attackUnitsList.innerHTML = '';
+    btnLaunch.disabled = true;
+    attackPanelMsg.textContent = '';
+
+    // Distanz berechnen
+    const ownPlayer = players.find((p) => p.id === ownId);
+    const distance = ownPlayer
+        ? Math.sqrt(
+              Math.pow(target.koordinate_x - ownPlayer.koordinate_x, 2) +
+              Math.pow(target.koordinate_y - ownPlayer.koordinate_y, 2)
+          ).toFixed(1)
+        : '?';
+
+    attackInfo.innerHTML = `
+        <strong>Ziel:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
+        <strong>Distanz:</strong> ${distance} Felder<br>
+        <small>Reisezeit abhängig von der langsamsten Einheit.</small>
+    `;
+
+    // Eigene Einheiten laden
+    try {
+        const res = await fetch(`${API_BASE_URL}/units`, {
+            headers: { Authorization: `Bearer ${auth.token}` },
+        });
+        if (!res.ok) throw new Error('Einheiten konnten nicht geladen werden');
+        const data = await res.json();
+        const units = (data.units ?? []).filter((u) => u.quantity > 0 && !u.is_moving);
+
+        if (units.length === 0) {
+            attackUnitsList.innerHTML = '<div style="color:#64748b;padding:6px 0">Keine verfügbaren Einheiten.</div>';
+            return;
+        }
+
+        attackUnitsList.innerHTML = '';
+        for (const u of units) {
+            const row = document.createElement('div');
+            row.className = 'attack-unit-row';
+            row.innerHTML = `
+                <span class="attack-unit-name">${u.name}</span>
+                <span class="attack-unit-avail">/${u.quantity}</span>
+                <input
+                    class="attack-unit-qty"
+                    type="number"
+                    min="0"
+                    max="${u.quantity}"
+                    value="0"
+                    data-unit-id="${u.id}"
+                />
+            `;
+            attackUnitsList.appendChild(row);
+        }
+
+        // Button aktivieren sobald mind. 1 Einheit > 0
+        attackUnitsList.addEventListener('input', () => {
+            const anySelected = [...attackUnitsList.querySelectorAll('.attack-unit-qty')]
+                .some((inp) => parseInt(inp.value, 10) > 0);
+            btnLaunch.disabled = !anySelected;
+        });
+    } catch (err) {
+        attackUnitsList.innerHTML = `<div style="color:#f87171">${err.message}</div>`;
+    }
+}
+
+btnLaunch.addEventListener('click', async () => {
+    if (!clickedPlayer) return;
+
+    const unitInputs = [...attackUnitsList.querySelectorAll('.attack-unit-qty')];
+    const units = unitInputs
+        .map((inp) => ({ user_unit_id: parseInt(inp.dataset.unitId, 10), quantity: parseInt(inp.value, 10) }))
+        .filter((u) => u.quantity > 0);
+
+    if (units.length === 0) return;
+
+    btnLaunch.disabled = true;
+    attackPanelMsg.textContent = 'Starte Angriff…';
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/combat/attack`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${auth.token}`,
+            },
+            body: JSON.stringify({ defender_id: clickedPlayer.id, units }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message ?? 'Fehler beim Starten des Angriffs');
+
+        const eta = new Date(data.data.arrivalTime);
+        const mins = Math.round((eta - Date.now()) / 60000);
+        attackPanelMsg.style.color = '#22c55e';
+        attackPanelMsg.textContent = `✓ Einheiten unterwegs – Ankunft in ~${mins} min`;
+        showToast(`⚔️ Angriff auf ${clickedPlayer.username} gestartet! Ankunft in ~${mins} min.`, 'info');
+
+        setTimeout(closeAttackPanel, 3000);
+    } catch (err) {
+        attackPanelMsg.style.color = '#f87171';
+        attackPanelMsg.textContent = err.message;
+        btnLaunch.disabled = false;
+    }
 });
 
 document.getElementById('btn-zoom-in').addEventListener('click', () => {

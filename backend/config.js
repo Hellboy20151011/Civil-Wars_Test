@@ -84,5 +84,12 @@ export const config = {
         maxPlayers: Number(process.env.MAP_MAX_PLAYERS) || 1000,
     },
 
+    security: {
+        // Anzahl fehlgeschlagener Login-Versuche bevor Account gesperrt wird
+        maxFailedLogins: Number(process.env.MAX_FAILED_LOGINS) || 5,
+        // Sperrdauer in ms (Standard: 15 Minuten)
+        lockoutDurationMs: Number(process.env.LOCKOUT_DURATION_MS) || 15 * 60 * 1000,
+    },
+
     nodeEnv: process.env.NODE_ENV || 'development',
 };

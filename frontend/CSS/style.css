@@ -1076,6 +1076,152 @@ body {
   line-height: 1.5;
 }
 
+/* ── Toast-Benachrichtigungen ─────────────────────────── */
+#toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #f0f0f0;
+  max-width: 360px;
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: auto;
+}
+
+.toast--visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast--info    { background: #1e40af; border-left: 4px solid #3b82f6; }
+.toast--success { background: #14532d; border-left: 4px solid #22c55e; }
+.toast--warning { background: #78350f; border-left: 4px solid #f59e0b; }
+.toast--danger  { background: #7f1d1d; border-left: 4px solid #ef4444; }
+
+/* ── Angriffs-Panel (Karte) ───────────────────────────── */
+#attack-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 280px;
+  background: rgba(20, 30, 48, 0.97);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 14px;
+  color: #e2e8f0;
+  font-size: 13px;
+  z-index: 20;
+}
+
+#attack-panel h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #f97316;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#attack-panel h3 button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+}
+
+#attack-panel h3 button:hover { color: #e2e8f0; }
+
+.attack-info {
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  line-height: 1.7;
+  color: #94a3b8;
+}
+
+.attack-info strong { color: #e2e8f0; }
+
+#attack-units-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.attack-unit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #1e293b;
+  gap: 8px;
+}
+
+.attack-unit-row:last-child { border-bottom: none; }
+
+.attack-unit-name {
+  flex: 1;
+  color: #cbd5e1;
+}
+
+.attack-unit-avail {
+  color: #64748b;
+  font-size: 11px;
+  min-width: 40px;
+  text-align: right;
+}
+
+.attack-unit-qty {
+  width: 56px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  padding: 2px 6px;
+  font-size: 12px;
+  text-align: center;
+}
+
+#btn-launch-attack {
+  width: 100%;
+  padding: 8px;
+  background: #dc2626;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#btn-launch-attack:hover:not(:disabled) { background: #b91c1c; }
+#btn-launch-attack:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+
+#attack-panel-msg {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  min-height: 16px;
+}
+
+
 /* ── Gebäude-Sektion (Bauhof Detail) ──────────────────── */
 .my-buildings-section,
 .queue-section {

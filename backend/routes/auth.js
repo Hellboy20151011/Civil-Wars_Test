@@ -151,8 +151,23 @@ router.post(
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+        // Account-Sperre prüfen
+        if (user.locked_until && new Date(user.locked_until) > new Date()) {
+            const remainingMs = new Date(user.locked_until) - new Date();
+            const remainingMin = Math.ceil(remainingMs / 60000);
+            return res.status(423).json({
+                message: `Account ist gesperrt. Bitte versuche es in ${remainingMin} Minute(n) erneut.`,
+            });
+        }
+
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
+            await playerRepo.incrementFailedLogin(user.id);
+            const newCount = user.failed_login_attempts + 1;
+            if (newCount >= config.security.maxFailedLogins) {
+                const lockedUntil = new Date(Date.now() + config.security.lockoutDurationMs);
+                await playerRepo.lockAccount(user.id, lockedUntil);
+            }
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
@@ -160,6 +175,7 @@ router.post(
             return res.status(403).json({ message: 'User account is inactive' });
         }
 
+        await playerRepo.resetFailedLogin(user.id);
         await playerRepo.updateLastLogin(user.id);
 
         const refreshToken = await withTransaction(async (client) => {

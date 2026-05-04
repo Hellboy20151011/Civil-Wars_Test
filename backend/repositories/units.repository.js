@@ -185,6 +185,51 @@ export async function addUnitExperience(unitId, amount, client = pool) {
     ]);
 }
 
+export async function decrementUserUnitQuantity(userUnitId, amount, client = pool) {
+    await client.query(
+        'UPDATE user_units SET quantity = quantity - $1 WHERE id = $2',
+        [amount, userUnitId]
+    );
+}
+
+export async function addUnitQuantity(userUnitId, amount, client = pool) {
+    await client.query(
+        'UPDATE user_units SET quantity = quantity + $1 WHERE id = $2',
+        [amount, userUnitId]
+    );
+}
+
+export async function setUserUnitQuantity(userUnitId, quantity, client = pool) {
+    await client.query(
+        'UPDATE user_units SET quantity = $1 WHERE id = $2',
+        [quantity, userUnitId]
+    );
+}
+
+export async function setUnitHealth(userUnitId, healthPercentage, client = pool) {
+    await client.query(
+        'UPDATE user_units SET health_percentage = $1 WHERE id = $2',
+        [healthPercentage, userUnitId]
+    );
+}
+
+/**
+ * Alle Einheiten eines Spielers mit Menge > 0 für die Kampfberechnung.
+ */
+export async function findCombatUnitsByUser(userId, client = pool) {
+    const result = await client.query(
+        `SELECT uu.id, uu.quantity, uu.health_percentage,
+                ut.name AS unit_name, ut.category, ut.counter_unit,
+                ut.attack_points, ut.defense_points,
+                ut.hitpoints, ut.movement_speed
+         FROM user_units uu
+         JOIN unit_types ut ON ut.id = uu.unit_type_id
+         WHERE uu.user_id = $1 AND uu.quantity > 0`,
+        [userId]
+    );
+    return result.rows;
+}
+
 export async function findAllTypes(client = pool) {
     return referenceDataRepo.getUnitTypes(client);
 }

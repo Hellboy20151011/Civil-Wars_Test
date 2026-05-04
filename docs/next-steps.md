@@ -95,7 +95,7 @@ ist bisher kaum durch Unit-Tests abgesichert.
 
 - [x] Standard-Fehlerformat definieren: `{ error: { message, code, details? } }`.
 - [x] `backend/middleware/errorHandler.js` auf dieses Format erweitern.
-- [ ] Alle Route-Handler auf konsistentes Format prüfen (direkte `res.json`-Returns in Routen noch vorhanden).
+- [x] Alle Route-Handler auf konsistentes Format prüfen (direkte `res.json`-Returns in Routen noch vorhanden).
 
 ---
 
@@ -289,8 +289,8 @@ Für ein vollständiges Strategiespiel fehlt einer Karte mit Territorien.
 **Teilweise erledigt:** Rate-Limiter-Konfiguration in `.env` ausgelagert.
 
 - [x] Rate-Limiter-Konfiguration in `.env` auslagern.
-- [ ] DB-Transaktionen für alle schreibenden Tick-Operationen sicherstellen.
-- [ ] Account-Lockout nach mehreren fehlgeschlagenen Login-Versuchen.
+- [x] DB-Transaktionen für alle schreibenden Tick-Operationen sicherstellen.
+- [x] Account-Lockout nach mehreren fehlgeschlagenen Login-Versuchen.
 
 ---
 
@@ -313,4 +313,4 @@ Für ein vollständiges Strategiespiel fehlt einer Karte mit Territorien.
 | P2 | Refresh Token | L | 🔴 Risiko hoch | ✅ |
 | P2 | Kampfsystem | XL | 🟢 Impact sehr hoch | ⏳ |
 | P2 | Karten-System | XL | 🟢 Impact sehr hoch | ✅ |
-| P2 | Multi-Player-Security | L | 🔴 Risiko hoch | ⏳ (Rate-Limit ✅) |
+| P2 | Multi-Player-Security | L | 🔴 Risiko hoch | ✅ (Rate-Limit + Lockout) |

@@ -9,6 +9,7 @@ import buildingsRouter from './routes/buildings.js';
 import meRouter from './routes/me.js';
 import unitsRouter from './routes/units.js';
 import mapRouter from './routes/map.js';
+import combatRouter from './routes/combat.js';
 import { createDocsRouter } from './routes/docs.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { startGameLoop } from './services/gameloop-scheduler.js';
@@ -37,6 +38,7 @@ app.use('/buildings', buildingsRouter);
 app.use('/units', unitsRouter);
 app.use('/me', meRouter);
 app.use('/map', mapRouter);
+app.use('/combat', combatRouter);
 
 if (config.docs.enableSwaggerUi) {
     app.use('/api-docs', createDocsRouter());

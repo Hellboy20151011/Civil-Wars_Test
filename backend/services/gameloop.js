@@ -7,6 +7,7 @@ import * as resourcesRepo from '../repositories/resources.repository.js';
 import * as buildingRepo from '../repositories/building.repository.js';
 import * as unitsRepo from '../repositories/units.repository.js';
 import * as economyService from './economy.service.js';
+import * as combatService from './combat.service.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { logger } from '../logger.js';
 
@@ -41,6 +42,10 @@ export async function executeTick() {
                 await unitsRepo.arriveDueUnitsByUser(user.id, new Date(), client);
             });
         }
+
+        // Kampf-Missionen global verarbeiten (missionsübergreifend, eigene Transaktionen)
+        await combatService.processArrivingMissions();
+        await combatService.processReturningMissions();
 
         logger.info({ playersProcessed: users.length }, 'Tick executed successfully');
         return { success: true, playersProcessed: users.length };

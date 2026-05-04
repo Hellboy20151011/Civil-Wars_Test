@@ -28,7 +28,7 @@ export async function findByUsernameOrEmail(username, email, client = pool) {
 
 export async function findByUsername(username, client = pool) {
     const result = await client.query(
-        'SELECT id, username, email, password_hash, role, is_active FROM users WHERE username = $1',
+        'SELECT id, username, email, password_hash, role, is_active, failed_login_attempts, locked_until FROM users WHERE username = $1',
         [username]
     );
     return result.rows[0] ?? null;
@@ -61,6 +61,27 @@ export async function findByKoordinaten(x, y, client = pool) {
 
 export async function updateLastLogin(id, client = pool) {
     await client.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [id]);
+}
+
+export async function incrementFailedLogin(id, client = pool) {
+    await client.query(
+        'UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = $1',
+        [id]
+    );
+}
+
+export async function lockAccount(id, lockedUntil, client = pool) {
+    await client.query(
+        'UPDATE users SET locked_until = $1 WHERE id = $2',
+        [lockedUntil, id]
+    );
+}
+
+export async function resetFailedLogin(id, client = pool) {
+    await client.query(
+        'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1',
+        [id]
+    );
 }
 
 /**
