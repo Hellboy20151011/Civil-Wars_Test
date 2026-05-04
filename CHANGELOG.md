@@ -16,6 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 ### Fixed
 - `backend/scripts/free-port.js` – `no-useless-assignment` Lint-Fehler behoben: `freePortOnUnix` nutzt jetzt einen leeren `catch`-Block, sodass das initiale `undefined` beim Check `!output` gelesen wird
 - `backend/middleware/rateLimiters.js` – Rate-Limiter werden in `NODE_ENV=test` übersprungen (`skip`-Option), um 429-Fehler in E2E-Tests zu verhindern
+- `backend/middleware/rateLimiters.js` – Playwright-Requests werden außerhalb von `production` ebenfalls vom Rate-Limit ausgenommen, damit lokale API-E2E-Läufe am laufenden Dev-Server nicht durch 429 in Folgefehler (z. B. 401 wegen fehlendem Token) kippen
 - `backend/routes/buildings.js` – Bau-Regeln für Level-Gebäude korrigiert: Gebäude mit Namensschema `Level X` erfordern jetzt zwingend das direkte Vorgängerlevel (`X-1`), dadurch sind Sprünge wie „Kaserne Level 2 ohne Level 1“ nicht mehr möglich
 - `backend/routes/buildings.js` – Für Kategorien `military` und `government` ist jetzt vor dem Bau mindestens eine Produktionskette pro Ressource erforderlich (Geld, Stein, Stahl, Treibstoff)
 
