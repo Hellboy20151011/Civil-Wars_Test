@@ -4,8 +4,8 @@ export function validateBody(schema) {
         const result = schema.safeParse(req.body);
         if (!result.success) {
             return res.status(400).json({
-                message: result.error.errors[0].message,
-                errors: result.error.errors,
+                message: result.error.issues[0].message,
+                errors: result.error.issues,
             });
         }
         req.body = result.data;

@@ -11,6 +11,9 @@ jobs:
     name: Lint & Test (Backend)
     runs-on: ubuntu-latest
 
+    env:
+      JWT_SECRET: ci-test-secret-placeholder-at-least-32-chars!!
+
     defaults:
       run:
         working-directory: backend
@@ -33,8 +36,6 @@ jobs:
         run: npm run lint
 
       - name: Tests
-        env:
-          JWT_SECRET: ci-test-secret-placeholder-at-least-32chars!!
         run: npm test
 
       - name: Coverage
