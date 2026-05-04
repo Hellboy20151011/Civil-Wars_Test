@@ -20,7 +20,6 @@ const MILITAER_CATEGORIES = [
   { key: 'vehicle',   label: 'Fahrzeuge'   },
   { key: 'ship',      label: 'Marine'      },
   { key: 'air',       label: 'Luftwaffe'   },
-  { key: 'spionage',  label: 'Spionage'    },
   { key: 'defense',   label: 'Verteidigung' },
 ];
 

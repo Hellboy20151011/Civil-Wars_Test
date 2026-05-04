@@ -9,7 +9,7 @@ const UNIT_CATEGORIES = [
   {
     key: 'infantry',
     title: 'Infanterie',
-    description: 'Bodeneinheiten – Soldaten, Pioniere und Spezialisten.',
+    description: 'Bodeneinheiten – Soldaten, Panzergrenadiere und Spezialisten.',
   },
   {
     key: 'vehicle',
@@ -25,11 +25,6 @@ const UNIT_CATEGORIES = [
     key: 'air',
     title: 'Luftwaffe',
     description: 'Kampfflugzeuge, Bomber und Luftabwehr.',
-  },
-  {
-    key: 'spionage',
-    title: 'Spionage',
-    description: 'Geheimdiensteinheiten und verdeckte Operationen.',
   },
   {
     key: 'defense',

@@ -55,28 +55,33 @@ INSERT INTO building_types (name, category, description, level, money_cost, ston
 ('Hochhaus', 'housing', 'Größtes Wohngebäude der Basis. Produziert 18.000€ pro Tick.', 1, 225000, 20, 40, 0, 18000, 0, 0, 0, 20, 0, 1000, 2),
 
 -- KASERNE (4 Level)
-('Kaserne Level 1', 'military', 'Basisstufe der Kaserne - Soldat', 1, 150000, 40, 50, 0, 0, 0, 0, 0, 0, 0, 0, 1.5),
-('Kaserne Level 2', 'military', 'Erste Erweiterung - Pionier', 2, 500000, 100, 120, 0, 0, 0, 0, 0, 0, 0, 0, 3),
-('Kaserne Level 3', 'military', 'Zweite Ausbaustufe - Minentaucher', 3, 1000000, 300, 500, 0, 0, 0, 0, 0, 0, 0, 0, 6),
-('Kaserne Level 4', 'military', 'Letzte Ausbaustufe - Seal', 4, 2500000, 1000, 2500, 0, 0, 0, 0, 0, 0, 0, 0, 12),
+-- KASERNE (5 Level)
+('Kaserne Level 1', 'military', 'Basisstufe der Kaserne – Soldat', 1, 150000, 40, 50, 0, 0, 0, 0, 0, 0, 0, 0, 1.5),
+('Kaserne Level 2', 'military', 'Erste Erweiterung – Panzergrenadier', 2, 500000, 100, 120, 0, 0, 0, 0, 0, 0, 0, 0, 3),
+('Kaserne Level 3', 'military', 'Zweite Ausbaustufe – Kampftaucher', 3, 1000000, 300, 500, 0, 0, 0, 0, 0, 0, 0, 0, 6),
+('Kaserne Level 4', 'military', 'Dritte Ausbaustufe – Fallschirmjäger', 4, 2500000, 1000, 2500, 0, 0, 0, 0, 0, 0, 0, 0, 12),
+('Kaserne Level 5', 'military', 'Letzte Ausbaustufe – Elitesoldat', 5, 5000000, 2000, 5000, 0, 0, 0, 0, 0, 0, 0, 0, 20),
 
--- FAHRZEUGFABRIK (4 Level)
-('Fahrzeugfabrik Level 1', 'military', 'Basisstufe - Jeep', 1, 250000, 75, 90, 0, 0, 0, 0, 0, 0, 0, 0, 1.5),
-('Fahrzeugfabrik Level 2', 'military', 'Erste Entwicklungsstufe - Minenleger', 2, 500000, 185, 235, 0, 0, 0, 0, 0, 0, 0, 0, 4.5),
-('Fahrzeugfabrik Level 3', 'military', 'Zweite Aufwertungsstufe - Kampfpanzer', 3, 1500000, 465, 675, 0, 0, 0, 0, 0, 0, 0, 0, 9),
-('Fahrzeugfabrik Level 4', 'military', 'Stufe 4 - Panzerhaubitze', 4, 3000000, 1150, 3200, 0, 0, 0, 0, 0, 0, 0, 0, 12),
+-- FAHRZEUGFABRIK (5 Level)
+('Fahrzeugfabrik Level 1', 'military', 'Basisstufe – Luchs', 1, 250000, 75, 90, 0, 0, 0, 0, 0, 0, 0, 0, 1.5),
+('Fahrzeugfabrik Level 2', 'military', 'Erste Entwicklungsstufe – Minenräumer', 2, 500000, 185, 235, 0, 0, 0, 0, 0, 0, 0, 0, 4.5),
+('Fahrzeugfabrik Level 3', 'military', 'Zweite Aufwertungsstufe – Leopard 2', 3, 1500000, 465, 675, 0, 0, 0, 0, 0, 0, 0, 0, 9),
+('Fahrzeugfabrik Level 4', 'military', 'Dritte Aufwertungsstufe – Mobile Flak', 4, 3000000, 1150, 3200, 0, 0, 0, 0, 0, 0, 0, 0, 12),
+('Fahrzeugfabrik Level 5', 'military', 'Letzte Ausbaustufe – Panzerhaubitze 2000', 5, 6000000, 2300, 6400, 0, 0, 0, 0, 0, 0, 0, 0, 18),
 
--- SCHIFFSWERFT (4 Level)
-('Schiffswerft Level 1', 'military', 'Basisstufe - Torpedoboot', 1, 280000, 85, 105, 0, 0, 0, 0, 0, 0, 0, 0, 2),
-('Schiffswerft Level 2', 'military', 'Erste Entwicklungsstufe - Fregatte', 2, 600000, 210, 280, 0, 0, 0, 0, 0, 0, 0, 0, 6),
-('Schiffswerft Level 3', 'military', 'Zweite Ausbaustufe - U-Boot', 3, 1800000, 540, 810, 0, 0, 0, 0, 0, 0, 0, 0, 12),
-('Schiffswerft Level 4', 'military', 'Höchste Ausbaustufe - Flugzeugträger', 4, 3500000, 1300, 3500, 0, 0, 0, 0, 0, 0, 0, 0, 18),
+-- SCHIFFSWERFT (5 Level)
+('Schiffswerft Level 1', 'military', 'Basisstufe – Kreuzer', 1, 280000, 85, 105, 0, 0, 0, 0, 0, 0, 0, 0, 2),
+('Schiffswerft Level 2', 'military', 'Erste Entwicklungsstufe – Zerstörer', 2, 600000, 210, 280, 0, 0, 0, 0, 0, 0, 0, 0, 6),
+('Schiffswerft Level 3', 'military', 'Zweite Ausbaustufe – Fregatte', 3, 1800000, 540, 810, 0, 0, 0, 0, 0, 0, 0, 0, 12),
+('Schiffswerft Level 4', 'military', 'Dritte Ausbaustufe – U-Boot Typhoon', 4, 3500000, 1300, 3500, 0, 0, 0, 0, 0, 0, 0, 0, 18),
+('Schiffswerft Level 5', 'military', 'Höchste Ausbaustufe – Flugzeugträger', 5, 7000000, 2600, 7000, 0, 0, 0, 0, 0, 0, 0, 0, 24),
 
--- FLUGPLATZ (4 Level)
-('Flugplatz Level 1', 'military', 'Basisstufe - Kampfhubschrauber', 1, 300000, 95, 120, 0, 0, 0, 0, 0, 0, 0, 0, 2.5),
-('Flugplatz Level 2', 'military', 'Erste Entwicklungsstufe - Kampfjet', 2, 700000, 245, 350, 0, 0, 0, 0, 0, 0, 0, 0, 7.5),
-('Flugplatz Level 3', 'military', 'Zweite Ausbaustufe - Bomber', 3, 2000000, 650, 950, 0, 0, 0, 0, 0, 0, 0, 0, 15),
-('Flugplatz Level 4', 'military', 'Höchste Ausbaustufe - Transportflugzeug', 4, 4000000, 1500, 4000, 0, 0, 0, 0, 0, 0, 0, 0, 20),
+-- FLUGPLATZ (5 Level)
+('Flugplatz Level 1', 'military', 'Basisstufe – Seahawk', 1, 300000, 95, 120, 0, 0, 0, 0, 0, 0, 0, 0, 2.5),
+('Flugplatz Level 2', 'military', 'Erste Entwicklungsstufe – Apache', 2, 700000, 245, 350, 0, 0, 0, 0, 0, 0, 0, 0, 7.5),
+('Flugplatz Level 3', 'military', 'Zweite Ausbaustufe – Eurofighter', 3, 2000000, 650, 950, 0, 0, 0, 0, 0, 0, 0, 0, 15),
+('Flugplatz Level 4', 'military', 'Dritte Ausbaustufe – Mig-35', 4, 4000000, 1500, 4000, 0, 0, 0, 0, 0, 0, 0, 0, 20),
+('Flugplatz Level 5', 'military', 'Höchste Ausbaustufe – B2 Bomber', 5, 8000000, 3000, 8000, 0, 0, 0, 0, 0, 0, 0, 0, 27),
 
 -- REGIERUNGSGEBÄUDE
 ('Geheimdienstzentrum Level 1', 'government', 'Basisstufe - Spion', 1, 140000, 45, 65, 0, 0, 0, 0, 0, 0, 0, 0, 1),

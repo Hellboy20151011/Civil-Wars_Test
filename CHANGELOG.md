@@ -13,6 +13,14 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/scripts/free-port.js` – `no-useless-assignment` Lint-Fehler behoben: `freePortOnUnix` nutzt jetzt einen leeren `catch`-Block, sodass das initiale `undefined` beim Check `!output` gelesen wird
 - `backend/middleware/rateLimiters.js` – Rate-Limiter werden in `NODE_ENV=test` übersprungen (`skip`-Option), um 429-Fehler in E2E-Tests zu verhindern
 
+### Changed
+- `backend/database/schemas/units.sql` – Kompletter Einheiten-Umbau: Spionage-Einheiten (Spion, SR-71 Blackbird, Spionagesatellit) entfernt; Infanterie (Soldat, Pionier, Minentaucher, Seal → Soldat, Panzergrenadier, Kampftaucher, Fallschirmjäger, Elitesoldat), Fahrzeuge (Jeep, Minenleger, Kampfpanzer, Panzerhaubitze → Luchs, Minenräumer, Leopard 2, Mobile Flak, Panzerhaubitze 2000), Marine (Torpedoboot, Fregatte, U-Boot, Flugzeugträger → Kreuzer, Zerstörer, Fregatte, U-Boot Typhoon, Flugzeugträger), Luftwaffe (Kampfhubschrauber, Kampfjet, Bomber, Transportflugzeug → Seahawk, Apache, Eurofighter, Mig-35, B2 Bomber), Verteidigung (MG-Stellung/Mine/Artillerie + Unterwassermine/Küstengeschützturm/Küstenartillerie + 2cm Flak/15cm Flak/Patriot-System – 9 Einheiten)
+- `backend/database/schemas/building_types.sql` – Militärgebäude auf Level 5 erweitert (Kaserne L5: Elitesoldat, Fahrzeugfabrik L5: Panzerhaubitze 2000, Schiffswerft L5: Flugzeugträger, Flugplatz L5: B2 Bomber); alle Beschreibungen auf neue Einheitennamen angepasst
+- `backend/services/combat.service.js` – Einheitennamen aktualisiert: `Pionier` → `Panzergrenadier`, `Minentaucher` → `Kampftaucher`; Variable `hasMinentaucher` → `hasKampftaucher`, Kampfergebnis-Feld `minentaucherUsed` → `kampftaucherUsed`
+- `frontend/scripts/militaer.js` – Spionage-Kategorie aus `UNIT_CATEGORIES` entfernt; Infanterie-Beschreibung aktualisiert
+- `frontend/scripts/shell.js` – Spionage-Eintrag aus `MILITAER_CATEGORIES` entfernt
+- `docs/Vorgaben/Units.md` – Vollständige Neudokumentation aller 29 Einheiten mit aktuellen Werten und Beschreibungen
+
 ### Added
 - `backend/database/schemas/combat_missions.sql` – neue Tabellen `combat_missions` und `combat_mission_units` für distanzbasierte Kampf-Missionen zwischen Spielern; unterstützt Lebenszyklus `traveling_to → in_combat → traveling_back → completed`
 - `backend/repositories/combat-missions.repository.js` – Repository für Kampf-Missionen: Erstellen, Tick-Abfragen (ankommend/zurückkehrend), Status-Updates, Einheiten-Verwaltung, Spieler-Dashboard und Kampfhistorie

@@ -32,9 +32,9 @@ import { logger } from '../logger.js';
  *
  * Sonderregeln (per unit_name):
  *  - Fregatte      → kann auch Luft angreifen (0.8)
- *  - Pionier       → vehicle bekommt 0.8 statt 0.5
- *  - Minentaucher  → vehicle bekommt 0.8 statt 0.5;
- *                    PLUS Vorbereitungsphase: neutralisiert alle defense-Einheiten des Gegners
+ *  - Panzergrenadier → vehicle bekommt 0.8 statt 0.5
+ *  - Kampftaucher    → vehicle bekommt 0.8 statt 0.5;
+ *                      PLUS Vorbereitungsphase: neutralisiert alle defense-Einheiten des Gegners
  */
 const MATCHUP = {
     infantry: { infantry: 1.0, vehicle: 0.5, defense: 0.6 },
@@ -58,9 +58,9 @@ function getMatchup(attackerCategory, attackerUnitName, defenderCategory) {
     const base = MATCHUP[attackerCategory]?.[defenderCategory] ?? 0;
     if (base === 0) return 0;
 
-    // Sonderfall: Pionier + Minentaucher sind besser gegen Fahrzeuge
+    // Sonderfall: Panzergrenadier + Kampftaucher sind besser gegen Fahrzeuge
     if (
-        (attackerUnitName === 'Pionier' || attackerUnitName === 'Minentaucher') &&
+        (attackerUnitName === 'Panzergrenadier' || attackerUnitName === 'Kampftaucher') &&
         defenderCategory === 'vehicle'
     ) {
         return 0.8;
@@ -212,7 +212,7 @@ export async function processArrivingMissions() {
  * Berechnet den Kampf für eine einzelne Mission.
  *
  * Phasen:
- *  1. Minentaucher-Phase  – neutralisiert alle defense-Einheiten des Verteidigers
+ *  1. Kampftaucher-Phase  – neutralisiert alle defense-Einheiten des Verteidigers
  *  2. Matchup-Berechnung  – Angriffskraft gewichtet nach Matchup-Multiplikator
  *  3. Verlustberechnung   – Einheiten die nicht angreifbar sind, erleiden keine Verluste
  *  4. Persistierung       – Ergebnis + Rückreise-Zeit speichern
@@ -224,16 +224,16 @@ async function _resolveCombat(mission, client) {
     // Verteidiger-Einheiten (alle mit Menge > 0)
     let defenderUnits = await unitsRepo.findCombatUnitsByUser(mission.defender_id, client);
 
-    // ── Phase 1: Minentaucher neutralisiert Küstenverteidigung ───────────────
-    const hasMinentaucher = missionUnits.some(
-        (u) => u.unit_name === 'Minentaucher' && u.quantity_sent > 0
+    // ── Phase 1: Kampftaucher neutralisiert Küstenverteidigung ───────────────
+    const hasKampftaucher = missionUnits.some(
+        (u) => u.unit_name === 'Kampftaucher' && u.quantity_sent > 0
     );
-    if (hasMinentaucher) {
+    if (hasKampftaucher) {
         // defense-Einheiten werden für diese Kampfrunde auf 0 gesetzt (keine Verluste, aber kein Beitrag)
         defenderUnits = defenderUnits.map((u) =>
             u.category === 'defense' ? { ...u, quantity: 0 } : u
         );
-        logger.info({ missionId: mission.id }, 'Minentaucher: Küstenverteidigung neutralisiert');
+        logger.info({ missionId: mission.id }, 'Kampftaucher: Küstenverteidigung neutralisiert');
     }
 
     // ── Phase 2: Effektive Angriffskraft (Matchup-gewichtet) ─────────────────
@@ -312,7 +312,7 @@ async function _resolveCombat(mission, client) {
         defensePower: parseFloat(defensePower.toFixed(2)),
         attackerCasualtyRate: parseFloat(attackerCasualtyRate.toFixed(3)),
         defenderCasualtyRate: parseFloat(defenderCasualtyRate.toFixed(3)),
-        minentaucherUsed: hasMinentaucher,
+        kampftaucherUsed: hasKampftaucher,
         attackerUnits: attackerResults,
         defenderUnits: defenderResults,
         resolvedAt: new Date().toISOString(),
@@ -332,7 +332,7 @@ async function _resolveCombat(mission, client) {
             attackerWon,
             attackPower: attackPower.toFixed(1),
             defensePower: defensePower.toFixed(1),
-            hasMinentaucher,
+            hasKampftaucher,
         },
         'Combat resolved'
     );
