@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
     test: {
+        env: {
+            JWT_SECRET: 'test-secret-placeholder-at-least-32-chars!!',
+        },
         exclude: ['tests/e2e/**', 'node_modules/**'],
         coverage: {
             provider: 'v8',
