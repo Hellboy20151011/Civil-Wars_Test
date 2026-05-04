@@ -104,6 +104,8 @@ ist bisher kaum durch Unit-Tests abgesichert.
 **Erledigt:** Services greifen nicht mehr direkt auf `backend/database/db.js` zu.
 SQL liegt jetzt in Repositories; Transaktionen laufen über
 `backend/repositories/transaction.repository.js`.
+Route-nahe DB-/Transaktionslogik für `auth`, `buildings` und `me` wurde in
+dedizierte Services ausgelagert.
 
 - [x] Direkte Pool-Imports aus Services entfernen.
 - [x] Fehlende Repository-Methoden für Gebäude-/Einheiten-/Spieler-Abfragen ergänzen.

@@ -15,6 +15,7 @@ import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastToUser } from './live-updates.service.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import { createServiceError } from './service-error.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KAMPF-MATCHUP-TABELLE
@@ -113,8 +114,8 @@ function calcArrivalTime(distance, speed) {
  * @returns {Promise<{ missionId: number, distance: number, arrivalTime: Date }>}
  */
 export async function launchAttack(attackerId, defenderId, units) {
-    if (!units || units.length === 0) throw new Error('Mindestens eine Einheit erforderlich');
-    if (attackerId === defenderId) throw new Error('Angriff auf sich selbst nicht möglich');
+    if (!units || units.length === 0) throw createServiceError('Mindestens eine Einheit erforderlich', 400, 'NO_UNITS');
+    if (attackerId === defenderId) throw createServiceError('Angriff auf sich selbst nicht möglich', 400, 'SELF_ATTACK');
 
     return withTransaction(async (client) => {
         // Koordinaten beider Spieler laden
@@ -123,20 +124,20 @@ export async function launchAttack(attackerId, defenderId, units) {
             playerRepo.findById(defenderId, client),
         ]);
 
-        if (!attacker) throw new Error('Angreifer nicht gefunden');
-        if (!defender) throw new Error('Verteidiger nicht gefunden');
+        if (!attacker) throw createServiceError('Angreifer nicht gefunden', 404, 'ATTACKER_NOT_FOUND');
+        if (!defender) throw createServiceError('Verteidiger nicht gefunden', 404, 'DEFENDER_NOT_FOUND');
         if (attacker.koordinate_x == null || defender.koordinate_x == null) {
-            throw new Error('Spielerkoordinaten fehlen');
+            throw createServiceError('Spielerkoordinaten fehlen', 400, 'MISSING_COORDINATES');
         }
 
         // Einheiten validieren + Daten laden
         const unitRecords = [];
         for (const entry of units) {
             const unit = await unitsRepo.findMovableUnit(entry.userUnitId, attackerId, client);
-            if (!unit) throw new Error(`Einheit ${entry.userUnitId} nicht gefunden oder gehört nicht dir`);
-            if (unit.is_moving) throw new Error(`Einheit ${unit.id} ist bereits unterwegs`);
+            if (!unit) throw createServiceError(`Einheit ${entry.userUnitId} nicht gefunden oder gehört nicht dir`, 404, 'UNIT_NOT_FOUND');
+            if (unit.is_moving) throw createServiceError(`Einheit ${unit.id} ist bereits unterwegs`, 409, 'UNIT_BUSY');
             if (unit.quantity < entry.quantity) {
-                throw new Error(`Nicht genug Einheiten (vorhanden: ${unit.quantity}, gefordert: ${entry.quantity})`);
+                throw createServiceError(`Nicht genug Einheiten (vorhanden: ${unit.quantity}, gefordert: ${entry.quantity})`, 400, 'INSUFFICIENT_UNITS');
             }
             unitRecords.push({ ...unit, quantitySent: entry.quantity });
         }
@@ -147,7 +148,7 @@ export async function launchAttack(attackerId, defenderId, units) {
             attacker.koordinate_x, attacker.koordinate_y,
             defender.koordinate_x, defender.koordinate_y
         );
-        if (distance === 0) throw new Error('Ziel ist identisch mit eigener Position');
+        if (distance === 0) throw createServiceError('Ziel ist identisch mit eigener Position', 400, 'SAME_POSITION');
         const arrivalTime = calcArrivalTime(distance, speed);
 
         // Mission anlegen

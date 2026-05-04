@@ -73,6 +73,8 @@ Repository-Schicht verlagert werden, damit Services datenbankagnostisch bleiben.
 liegen in Repositories (u. a. `building.repository.js`, `units.repository.js`,
 `player.repository.js`) und Transaktionen laufen zentral über
 `transaction.repository.js`.
+Zusätzlich wurden Route-nahe DB-/Transaktionsabläufe aus `auth.js`,
+`buildings.js` und `me.js` in dedizierte Service-Funktionen verlagert.
 
 ---
 

@@ -274,7 +274,7 @@ export function showToast(message, type = 'info') {
   container.appendChild(toast);
 
   // Einblenden
-  requestAnimationFrame(() => toast.classList.add('toast--visible'));
+  globalThis.requestAnimationFrame(() => toast.classList.add('toast--visible'));
 
   // Nach 5 s ausblenden + entfernen
   setTimeout(() => {

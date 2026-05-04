@@ -6,6 +6,11 @@
 import * as buildingRepo from '../repositories/building.repository.js';
 import * as resourcesRepo from '../repositories/resources.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
+import * as economyService from './economy.service.js';
+import { createServiceError } from './service-error.js';
+
+const LEVEL_NAME_REGEX = /^(.*) Level (\d+)$/;
+const MONEY_PRODUCTION_BUILDINGS = ['Wohnhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Hochhaus'];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Gebäude abrufen
@@ -190,5 +195,213 @@ export async function tickProduction(userId) {
 
         await addResources(userId, production, client);
         return production;
+    });
+}
+
+function getLevelMeta(buildingName) {
+    const match = buildingName.match(LEVEL_NAME_REGEX);
+    if (!match) return null;
+
+    return {
+        baseName: match[1],
+        level: Number(match[2]),
+    };
+}
+
+function getBuiltLevelSet(buildings, baseName) {
+    const levels = new Set();
+
+    for (const entry of buildings) {
+        if (Number(entry.anzahl) <= 0) continue;
+        const meta = getLevelMeta(entry.name);
+        if (!meta || meta.baseName !== baseName) continue;
+        levels.add(meta.level);
+    }
+
+    return levels;
+}
+
+function getMissingProductionChains(buildings) {
+    const builtNames = new Set(
+        buildings.filter((entry) => Number(entry.anzahl) > 0).map((entry) => entry.name)
+    );
+
+    const missing = [];
+
+    if (!MONEY_PRODUCTION_BUILDINGS.some((name) => builtNames.has(name))) {
+        missing.push('Geldproduktion (Wohnhaus/Reihenhaus/Mehrfamilienhaus/Hochhaus)');
+    }
+    if (!builtNames.has('Steinbruch')) {
+        missing.push('Steinproduktion (Steinbruch)');
+    }
+    if (!builtNames.has('Stahlwerk')) {
+        missing.push('Stahlproduktion (Stahlwerk)');
+    }
+    if (!builtNames.has('Öl-Raffinerie')) {
+        missing.push('Treibstoffproduktion (Öl-Raffinerie)');
+    }
+
+    return missing;
+}
+
+export async function getBuildingTypes() {
+    return buildingRepo.findAllTypes();
+}
+
+export async function getMyBuildingsAndQueue(userId) {
+    return withTransaction(async (client) => {
+        await economyService.processFinishedQueue(userId, client);
+        const buildings = await buildingRepo.findBuildingsByUser(userId, client);
+        const queue = await buildingRepo.findQueueByUser(userId, client);
+        return { buildings, queue };
+    });
+}
+
+export async function getMyQueue(userId) {
+    return withTransaction(async (client) => {
+        await economyService.processFinishedQueue(userId, client);
+        return buildingRepo.findQueueByUser(userId, client);
+    });
+}
+
+export async function buildBuilding(userId, buildingTypeId, anzahl) {
+    return withTransaction(async (client) => {
+        const quantity = Number(anzahl);
+
+        await economyService.applyProductionTicks(userId, client);
+        await economyService.processFinishedQueue(userId, client);
+
+        const bt = await buildingRepo.findTypeById(buildingTypeId, client);
+        if (!bt) {
+            throw createServiceError('Gebäudetyp nicht gefunden', 404, 'BUILDING_TYPE_NOT_FOUND');
+        }
+
+        if (bt.name === 'Rathaus') {
+            throw createServiceError(
+                'Das Rathaus wurde bereits beim Start gebaut.',
+                400,
+                'BUILDING_ALREADY_GRANTED'
+            );
+        }
+
+        const builtBuildings = await buildingRepo.findBuildingsByUser(userId, client);
+
+        const levelMeta = getLevelMeta(bt.name);
+        if (levelMeta) {
+            const builtLevels = getBuiltLevelSet(builtBuildings, levelMeta.baseName);
+
+            if (builtLevels.has(levelMeta.level)) {
+                throw createServiceError(`${bt.name} ist bereits gebaut.`, 400, 'BUILDING_ALREADY_BUILT');
+            }
+
+            if (levelMeta.level > 1 && !builtLevels.has(levelMeta.level - 1)) {
+                throw createServiceError(
+                    `Du musst zuerst ${levelMeta.baseName} Level ${levelMeta.level - 1} bauen.`,
+                    400,
+                    'BUILDING_PREREQUISITE_MISSING'
+                );
+            }
+        }
+
+        if (bt.category === 'military' || bt.category === 'government') {
+            const missingProductionChains = getMissingProductionChains(builtBuildings);
+            if (missingProductionChains.length > 0) {
+                throw createServiceError(
+                    `Für ${bt.category === 'military' ? 'Militär-' : 'Regierungs-'}gebäude brauchst du mindestens je ein Produktionsgebäude für alle Ressourcen. Fehlend: ${missingProductionChains.join(', ')}`,
+                    400,
+                    'BUILDING_RESOURCE_CHAIN_MISSING'
+                );
+            }
+        }
+
+        if (Number(bt.power_consumption) > 0) {
+            const strom = await economyService.getStromStatus(userId, client);
+            const neuerVerbrauch = strom.verbrauch + Number(bt.power_consumption) * quantity;
+            if (neuerVerbrauch > strom.produktion) {
+                throw createServiceError(
+                    'Nicht genug freier Strom für dieses Gebäude.',
+                    400,
+                    'BUILDING_NOT_ENOUGH_POWER'
+                );
+            }
+        }
+
+        const resources = await resourcesRepo.findByUserIdLocked(userId, client);
+        if (!resources) {
+            throw createServiceError('Ressourcen nicht gefunden', 404, 'RESOURCES_NOT_FOUND');
+        }
+
+        const totalGeld = Number(bt.money_cost) * quantity;
+        const totalStein = Number(bt.stone_cost) * quantity;
+        const totalStahl = Number(bt.steel_cost) * quantity;
+        const totalTreibstoff = Number(bt.fuel_cost) * quantity;
+
+        if (Number(resources.geld) < totalGeld) {
+            throw createServiceError(`Nicht genug Geld. Benötigt: ${totalGeld}`, 400, 'INSUFFICIENT_GELD');
+        }
+        if (Number(resources.stein) < totalStein) {
+            throw createServiceError(
+                `Nicht genug Stein. Benötigt: ${totalStein}`,
+                400,
+                'INSUFFICIENT_STEIN'
+            );
+        }
+        if (Number(resources.stahl) < totalStahl) {
+            throw createServiceError(
+                `Nicht genug Stahl. Benötigt: ${totalStahl}`,
+                400,
+                'INSUFFICIENT_STAHL'
+            );
+        }
+        if (Number(resources.treibstoff) < totalTreibstoff) {
+            throw createServiceError(
+                `Nicht genug Treibstoff. Benötigt: ${totalTreibstoff}`,
+                400,
+                'INSUFFICIENT_TREIBSTOFF'
+            );
+        }
+
+        await resourcesRepo.deductResources(
+            userId,
+            totalGeld,
+            totalStein,
+            totalStahl,
+            totalTreibstoff,
+            client
+        );
+
+        const label = quantity > 1 ? `${quantity}x ${bt.name}` : bt.name;
+
+        if (Number(bt.build_time_ticks) > 0) {
+            const existing = await buildingRepo.findExistingQueueEntry(userId, buildingTypeId, client);
+            if (existing) {
+                throw createServiceError(
+                    `${bt.name} ist bereits in der Bauwarteschlange.`,
+                    400,
+                    'BUILDING_ALREADY_QUEUED'
+                );
+            }
+
+            const auftrag = await buildingRepo.createQueueEntry(
+                userId,
+                buildingTypeId,
+                quantity,
+                bt.build_time_ticks,
+                client
+            );
+
+            const fertigStr = new Date(auftrag.fertig_am).toLocaleTimeString('de-DE', {
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+
+            return {
+                message: `${label} wird gebaut (fertig um ${fertigStr}).`,
+                auftrag,
+            };
+        }
+
+        await buildingRepo.upsertBuilding(userId, buildingTypeId, quantity, client);
+        return { message: `${label} erfolgreich gebaut.` };
     });
 }

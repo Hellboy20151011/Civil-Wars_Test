@@ -12,13 +12,22 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 ### Changed
 - `docs/Verbesserungs.md` – Abschnitt „8. Gameplay-Logik" ergänzt mit den bereits umgesetzten Punkten aus `Verbesserungen_V2.md` (Gebäude-Reihenfolge, Voraussetzungen für Militär-/Regierungsgebäude)
 - `docs/Vorgaben/Anpassungen.md` – von `docs/` nach `docs/Vorgaben/` verschoben (thematisch passend zu Buildings/Resources/Units)
+- `backend/routes/me.js` und `backend/services/me.service.js` – DB-/Transaktionslogik für den Spielerstatus in einen dedizierten Service ausgelagert; die Route bleibt auf Authentifizierung und HTTP-Response fokussiert
+- `backend/repositories/building.repository.js` – `TICK_MS` nutzt zentrale Konfiguration (`config.gameloop.tickIntervalMs`) statt direktem `process.env`-Zugriff
+- `backend/routes/auth.js` und `backend/services/auth.service.js` – Authentifizierungs- und Token-Flows (Register/Login/Refresh) in Service-Schicht verlagert; Route übernimmt primär Validation/Auth/HTTP-Mapping
+- `backend/routes/buildings.js` und `backend/services/buildings.service.js` – Bau-/Queue-/Status-Logik inkl. Transaktionen in Service-Schicht verlagert; Route reduziert auf Endpunkt-Verkabelung und Response-Mapping
+- `backend/routes/units.js` und `backend/services/units.service.js` – Fehlerbehandlung auf `createServiceError`-Muster umgestellt; Route nutzt jetzt einheitliches `if (error.status)` Catch-Pattern statt `error.status = 400 / next(error)`
+- `backend/routes/combat.js` und `backend/services/combat.service.js` – `launchAttack`-Validierung auf `createServiceError` mit semantischen Codes umgestellt (`NO_UNITS`, `SELF_ATTACK`, `ATTACKER_NOT_FOUND`, `DEFENDER_NOT_FOUND`, `MISSING_COORDINATES`, `UNIT_NOT_FOUND`, `UNIT_BUSY`, `INSUFFICIENT_UNITS`, `SAME_POSITION`); Route-Handler analog zu auth/buildings refaktoriert
 
 ### Fixed
 - `backend/scripts/free-port.js` – `no-useless-assignment` Lint-Fehler behoben: `freePortOnUnix` nutzt jetzt einen leeren `catch`-Block, sodass das initiale `undefined` beim Check `!output` gelesen wird
 - `backend/middleware/rateLimiters.js` – Rate-Limiter werden in `NODE_ENV=test` übersprungen (`skip`-Option), um 429-Fehler in E2E-Tests zu verhindern
 - `backend/middleware/rateLimiters.js` – Playwright-Requests werden außerhalb von `production` ebenfalls vom Rate-Limit ausgenommen, damit lokale API-E2E-Läufe am laufenden Dev-Server nicht durch 429 in Folgefehler (z. B. 401 wegen fehlendem Token) kippen
+- `frontend/scripts/shell.js` – `requestAnimationFrame` auf `globalThis.requestAnimationFrame(...)` umgestellt, damit Frontend-ESLint (`no-undef`) nicht mehr fehlschlägt
+- `backend/routes/me.js` – SSE-Initialisierungsfehler werden jetzt per `throw err` an den zentralen `errorHandler` delegiert statt mit direkter 500-JSON-Antwort beantwortet
 - `backend/routes/buildings.js` – Bau-Regeln für Level-Gebäude korrigiert: Gebäude mit Namensschema `Level X` erfordern jetzt zwingend das direkte Vorgängerlevel (`X-1`), dadurch sind Sprünge wie „Kaserne Level 2 ohne Level 1“ nicht mehr möglich
 - `backend/routes/buildings.js` – Für Kategorien `military` und `government` ist jetzt vor dem Bau mindestens eine Produktionskette pro Ressource erforderlich (Geld, Stein, Stahl, Treibstoff)
+- `backend/routes/auth.js` / `backend/services/auth.service.js` – Registrierungsflow speichert Refresh-Token jetzt innerhalb derselben DB-Transaktion wie User- und Startdaten (keine partielle Persistenz nach Commit)
 
 ### Changed
 - `backend/database/schemas/units.sql` – Kompletter Einheiten-Umbau: Spionage-Einheiten (Spion, SR-71 Blackbird, Spionagesatellit) entfernt; Infanterie (Soldat, Pionier, Minentaucher, Seal → Soldat, Panzergrenadier, Kampftaucher, Fallschirmjäger, Elitesoldat), Fahrzeuge (Jeep, Minenleger, Kampfpanzer, Panzerhaubitze → Luchs, Minenräumer, Leopard 2, Mobile Flak, Panzerhaubitze 2000), Marine (Torpedoboot, Fregatte, U-Boot, Flugzeugträger → Kreuzer, Zerstörer, Fregatte, U-Boot Typhoon, Flugzeugträger), Luftwaffe (Kampfhubschrauber, Kampfjet, Bomber, Transportflugzeug → Seahawk, Apache, Eurofighter, Mig-35, B2 Bomber), Verteidigung (MG-Stellung/Mine/Artillerie + Unterwassermine/Küstengeschützturm/Küstenartillerie + 2cm Flak/15cm Flak/Patriot-System – 9 Einheiten)

@@ -1,11 +1,10 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import pool from '../database/db.js';
 import { asyncWrapper } from '../middleware/asyncWrapper.js';
 import { apiLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from './auth.js';
 import { config } from '../config.js';
-import * as economyService from '../services/economy.service.js';
+import * as meService from '../services/me.service.js';
 import { openUserStream } from '../services/live-updates.service.js';
 
 const router = express.Router();
@@ -16,20 +15,8 @@ router.get(
     requireAuth,
     apiLimiter,
     asyncWrapper(async (req, res) => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            await economyService.applyProductionTicks(req.user.id, client);
-            await economyService.processFinishedQueue(req.user.id, client);
-            const status = await economyService.getSpielerStatus(req.user.id, client);
-            await client.query('COMMIT');
-            res.json(status);
-        } catch (err) {
-            await client.query('ROLLBACK');
-            throw err;
-        } finally {
-            client.release();
-        }
+        const status = await meService.getPlayerStatus(req.user.id);
+        res.json(status);
     })
 );
 
@@ -52,23 +39,14 @@ router.get(
 
         const closeStream = openUserStream(user.id, res);
 
-        // Initialen Status direkt nach Verbindungsaufbau senden.
-        const client = await pool.connect();
         try {
-            await client.query('BEGIN');
-            await economyService.applyProductionTicks(user.id, client);
-            await economyService.processFinishedQueue(user.id, client);
-            const status = await economyService.getSpielerStatus(user.id, client);
-            await client.query('COMMIT');
-
+            // Initialen Status direkt nach Verbindungsaufbau senden.
+            const payload = await meService.getStreamPayload(user.id);
             res.write(`event: status\n`);
-            res.write(`data: ${JSON.stringify({ status, serverTime: new Date().toISOString() })}\n\n`);
+            res.write(`data: ${JSON.stringify(payload)}\n\n`);
         } catch (err) {
-            await client.query('ROLLBACK');
             closeStream();
-            return res.status(500).json({ message: err.message });
-        } finally {
-            client.release();
+            throw err;
         }
 
         req.on('close', () => {

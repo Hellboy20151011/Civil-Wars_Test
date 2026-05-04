@@ -5,6 +5,7 @@
 import { hasEnoughResources, deductResources } from './buildings.service.js';
 import * as unitsRepo from '../repositories/units.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
+import { createServiceError } from './service-error.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Einheiten abrufen
@@ -29,7 +30,7 @@ export async function getUnitById(unitTypeId) {
 export async function startTraining(userId, unitTypeId, quantity = 1) {
     return withTransaction(async (client) => {
         const unitType = await unitsRepo.findTypeById(unitTypeId, client);
-        if (!unitType) throw new Error('Einheitentyp nicht gefunden');
+        if (!unitType) throw createServiceError('Einheitentyp nicht gefunden', 404, 'UNIT_TYPE_NOT_FOUND');
 
         const readyBuildingCount = await unitsRepo.findReadyBuildingCountByName(
             userId,
@@ -37,8 +38,10 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
             client
         );
         if (readyBuildingCount === 0) {
-            throw new Error(
-                `Gebäude '${unitType.building_requirement}' nicht gefunden oder noch in Konstruktion`
+            throw createServiceError(
+                `Gebäude '${unitType.building_requirement}' nicht gefunden oder noch in Konstruktion`,
+                400,
+                'BUILDING_REQUIRED'
             );
         }
 
@@ -49,7 +52,7 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
         };
 
         const hasResources = await hasEnoughResources(userId, totalCosts, client);
-        if (!hasResources) throw new Error('Nicht genug Ressourcen für Ausbildung');
+        if (!hasResources) throw createServiceError('Nicht genug Ressourcen für Ausbildung', 400, 'INSUFFICIENT_RESOURCES');
 
         await deductResources(userId, totalCosts, client);
 
@@ -78,7 +81,7 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
 export async function moveUnits(userId, userUnitId, destinationX, destinationY) {
     return withTransaction(async (client) => {
         const unit = await unitsRepo.findMovableUnit(userUnitId, userId, client);
-        if (!unit) throw new Error('Einheit nicht gefunden');
+        if (!unit) throw createServiceError('Einheit nicht gefunden', 404, 'UNIT_NOT_FOUND');
 
         const distance = Math.sqrt(
             Math.pow(destinationX - unit.location_x, 2) +
@@ -132,7 +135,7 @@ export async function attackUnits(attackingUnitId, targetUnitId) {
             unitsRepo.findDefenderUnit(targetUnitId, client),
         ]);
 
-        if (!attacker || !target) throw new Error('Einheit nicht gefunden');
+        if (!attacker || !target) throw createServiceError('Einheit nicht gefunden', 404, 'UNIT_NOT_FOUND');
 
         const baseDamage = attacker.attack_points;
         const defenseReduction = target.defense_points * 0.5;

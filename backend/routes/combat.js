@@ -26,7 +26,7 @@ router.post(
     requireAuth,
     apiLimiter,
     validateBody(attackSchema),
-    asyncWrapper(async (req, res, next) => {
+    asyncWrapper(async (req, res) => {
         const attackerId = req.user.id;
         const { defender_id, units } = req.body;
 
@@ -37,8 +37,8 @@ router.post(
                 data: result,
             });
         } catch (error) {
-            error.status = 400;
-            return next(error);
+            if (error.status) return res.status(error.status).json({ message: error.message });
+            throw error;
         }
     })
 );

@@ -1,7 +1,8 @@
 import pool from '../database/db.js';
+import { config } from '../config.js';
 import * as referenceDataRepo from './reference-data.repository.js';
 
-const TICK_MS = process.env.NODE_ENV === 'production' ? 10 * 60 * 1000 : 60 * 1000;
+const TICK_MS = config.gameloop.tickIntervalMs;
 
 // ── Gebäudetypen ──────────────────────────────────────────────────────────────
 
