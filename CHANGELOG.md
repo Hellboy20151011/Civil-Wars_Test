@@ -54,12 +54,42 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/services/service-error.js` – Utility `createServiceError(message, status, code)` für typisierte Service-Fehler
 - `backend/services/me.service.js` – Spielerstatus-Logik als dedizierter Service
 - `backend/services/service-error.js` – Utility `createServiceError` jetzt mit vollständigem Fehlercode-Katalog (JSDoc) für alle Auth-, Gebäude-, Einheiten- und Kampf-Codes
+- `backend/database/schemas/spy_missions.sql` – neue Tabellen `spy_missions` und `spy_mission_units`; Status-Enum: `traveling_to`, `spying`, `traveling_back`, `completed`, `aborted`
+- `backend/database/migrate_v3_espionage.sql` – Migrations-Skript für Spionage-Tabellen und Intel-Einheiten
+- `backend/repositories/spy-missions.repository.js` – vollständiges Repository für Spionage-Missionen: Erstellen, Tick-Abfragen, Berichte, Intel/Counter-Intel-Level, Zusammenfassungen
+- `backend/services/espionage.service.js` – Geschäftslogik für Spionage: `launchSpyMission`, `processArrivingSpyMissions`, `processReturningSpyMissions`, `getActiveMissions`, `getReports`, `getMissionPreview`; Erfolgsformel basiert auf Intel-/Counter-Intel-Level; 3 Detailstufen im Bericht
+- `backend/routes/espionage.js` – neue Routen: `POST /espionage/launch`, `GET /espionage/preview`, `GET /espionage/missions`, `GET /espionage/reports`
+- `frontend/pages/spionage.html` – neue Seite mit Tabs: laufende Missionen und Spionageberichte
+- `frontend/scripts/spionage.js` – lädt und rendert Missionen/Berichte; reagiert auf SSE-Event `spy-return`; Auto-Refresh alle 30 Sekunden
+- `frontend/pages/geheimdienstzentrum.html` – neue Seite zum Ausbilden von Geheimdiensteinheiten (`intel`-Kategorie: Spion, SR-71 Aufklärer, Spionagesatellit)
+- `frontend/scripts/geheimdienstzentrum.js` – lädt `intel`-Einheiten, zeigt Freischaltungsstatus je nach Geheimdienstzentrum-Level, ermöglicht Training per `/units/train`
+- `frontend/CSS/style.css` – neue Styles für Geheimdienstzentrum-Seite: `.gdh-level-info`, `.gdh-locked`, `.gdh-owned`
 
-### Changed
+### Fixed
 
-- `backend/services/live-updates.service.js` – neue Funktion `mountUserStream(userId, res)`: kapselt SSE-Header-Setup, Client-Registrierung und Initialstatus-Senden in einem Service-Aufruf
+- `backend/services/espionage.service.js` – `processArrivingSpyMissions` und `processReturningSpyMissions` verarbeiten jede Mission in einer eigenen Transaktion (Isolation), sodass ein Fehler bei einer Mission nicht alle anderen abbricht
+- `backend/services/espionage.service.js` – unbenutztes `bestUnitName`-Variablen entfernt
+- `backend/repositories/spy-missions.repository.js` – `is_under_construction` → `is_constructing` in `findIntelLevel`, `findCounterIntelLevel` und `findBuildingSummaryForReport`
+- `backend/repositories/spy-missions.repository.js` – `FOR UPDATE OF sm` aus `findArrivingMissions` und `findReturningMissions` entfernt (kein Effekt außerhalb einer Transaktion); stattdessen Status-Guard in `setMissionResult` (`AND status = 'traveling_to'`) und `completeMission` (`AND status = 'traveling_back'`) gegen Doppelverarbeitung
+- `backend/services/gameloop-scheduler.js` – `combatService.processArrivingMissions/processReturningMissions` und `espionageService.processArrivingSpyMissions/processReturningSpyMissions` werden im Tick aufgerufen
+- `backend/services/buildings.service.js` – Öl-Raffinerie kann nicht mehr ohne Ölpumpe gebaut werden; Verhältnis-Prüfung: max. 5 Öl-Raffinerien pro vorhandener Ölpumpe (`BUILDING_RATIO_EXCEEDED`)
+- `frontend/scripts/spionage.js` – Auto-Refresh der Missionsanzeige von 5s auf 2s verkürzt, damit Missionen schneller als "completed" angezeigt werden
+
+- `frontend/scripts/dashboard.js` – Dashboard vollständig überarbeitet: Gebäude-Übersicht nach Kategorie mit Anzahl-Badge, Einheiten-Übersicht nach Kategorie mit HP-Balken und „Unterwegs"-Badge, Bauwarteschlange mit Fortschrittsbalken und Countdown; Zweispalten-Layout; Countdown auf `requestAnimationFrame` umgestellt (kein Flackern mehr); Queue wird per SSE automatisch aktualisiert wenn ein Bau fertig ist
+- `frontend/CSS/style.css` – neue Dashboard-Styles: `.dash-columns`, `.dash-section`, `.dash-building-group`, `.dash-unit-row`, `.dash-hp-bar`, `.dash-progress-bar`, `.dash-queue-item`
+- `backend/repositories/spy-missions.repository.js` – `import { db }` → `import pool` (Exportname-Fix für `db.js`)
 - `backend/routes/me.js` – SSE-Handler nutzt `mountUserStream`; Route enthält nur noch Auth-Prüfung und `req.on('close')`-Wiring
-- `backend/services/buildings.service.js` – alle `throw new Error(...)` auf `createServiceError` mit stabilen Codes umgestellt (`BUILDING_TYPE_NOT_FOUND`, `BUILDING_NOT_FOUND`, `BUILDING_MAX_LEVEL`, `INSUFFICIENT_RESOURCES`, `INSUFFICIENT_POWER`)
+- `backend/services/buildings.service.js` – alle `throw new Error(...)` auf `createServiceError` mit stabilen Codes umgestellt
+- `backend/services/gameloop.js` – ruft `espionageService.processArrivingSpyMissions()` und `processReturningSpyMissions()` im Tick auf
+- `backend/server.js` – `/espionage`-Router registriert
+- `backend/middleware/validate.js` – `validateQuery(schema)` ergänzt (analog zu `validateBody`)
+- `backend/database/schemas/units.sql` – 3 neue Intel-Einheiten: `Spion`, `SR-71 Aufklärer`, `Spionagesatellit`
+- `backend/scripts/resetdb.js` – `spy_missions.sql` in Schema-Ladereihenfolge aufgenommen
+- `frontend/pages/karte.html` – altes `#attack-panel` durch 3 Panels ersetzt: `#action-panel` (Auswahl), `#attack-panel` (Angriff), `#spy-panel` (Spionage)
+- `frontend/scripts/karte.js` – Panel-Logik überarbeitet: `closeAllPanels()`, `openActionPanel()`, `openSpyPanel()` mit Live-Vorschau via `/espionage/preview`
+- `frontend/scripts/shell.js` – `Spionage` in Navigation; SSE-Handler für `spy_detected`, `spy_mission_update`, `spy_return`; `spy-return` Custom-Event für Spionage-Seite; Geheimdienstzentrum-Navlink wird dynamisch eingeblendet sobald Gebäude vorhanden; `renderSidebar` erhält `status` von `/me` nach dem Fetch
+- `frontend/vite.config.js` – `spionage` und `geheimdienstzentrum`-Seiten in Multi-Page-Build
+- `frontend/CSS/style.css` – Styles für `#action-panel`, `#spy-panel`, `.action-buttons`, `.spy-*`-Klassen für Spionage-Seite
 - `docs/Projektanalyse_2026-05-04.md` – Strukturverbesserungen als ✅ markiert
 - `docs/Verbesserungs.md` – Abschnitt „8. Gameplay-Logik" ergänzt; erledigte Punkte (Repository-Pattern, Performance, Frontend-Lint, Hot-Reload, OpenAPI, Logging, Tests) als ✅ markiert
 - `docs/Vorgaben/Anpassungen.md` – von `docs/` nach `docs/Vorgaben/` verschoben

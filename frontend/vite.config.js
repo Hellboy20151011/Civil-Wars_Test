@@ -24,6 +24,8 @@ export default defineConfig({
                 bauhof: path.resolve(rootDir, 'pages/Bauhof.html'),
                 militaer: path.resolve(rootDir, 'pages/militaer.html'),
                 karte: path.resolve(rootDir, 'pages/karte.html'),
+                spionage: path.resolve(rootDir, 'pages/spionage.html'),
+                geheimdienstzentrum: path.resolve(rootDir, 'pages/geheimdienstzentrum.html'),
             },
             output: {
                 entryFileNames: 'assets/[name]-[hash].js',

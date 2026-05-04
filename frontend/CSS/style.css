@@ -457,7 +457,218 @@ body {
   color: var(--danger);
 }
 
-/* ── Gebäude/Einheiten Zeilen ─────────────────────────── */
+/* ── Dashboard Zweispalten-Layout ─────────────────────── */
+.dash-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 700px) {
+  .dash-columns { grid-template-columns: 1fr; }
+}
+
+.dash-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Dashboard Sektion (Gebäude, Einheiten, Queue) ────── */
+.dash-section {
+  background: linear-gradient(180deg, #282828 0%, #202020 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.dash-section h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.dash-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 4px 0;
+  margin: 0;
+}
+
+/* ── Gebäude-Gruppe ───────────────────────────────────── */
+.dash-building-group {
+  margin-bottom: 8px;
+}
+
+.dash-building-group:last-child { margin-bottom: 0; }
+
+.dash-group-label {
+  font-size: 9px;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 0 2px;
+  border-bottom: 1px solid rgba(200,164,40,0.15);
+  margin-bottom: 3px;
+}
+
+.dash-building-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid #2a2a2a;
+  font-size: 11px;
+}
+
+.dash-building-row:last-child { border-bottom: none; }
+
+.dash-building-name {
+  color: var(--text-primary);
+}
+
+.dash-building-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ── Einheiten-Reihe ──────────────────────────────────── */
+.dash-unit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid #2a2a2a;
+  gap: 8px;
+}
+
+.dash-unit-row:last-child { border-bottom: none; }
+
+.dash-unit-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-unit-name {
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.dash-badge--moving {
+  background: rgba(59,130,246,0.2);
+  color: #93c5fd;
+  border: 1px solid rgba(59,130,246,0.3);
+}
+
+.dash-unit-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dash-unit-qty {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  min-width: 26px;
+  text-align: right;
+}
+
+.dash-hp-bar {
+  width: 48px;
+  height: 5px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.dash-hp-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.dash-hp-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  min-width: 26px;
+  text-align: right;
+}
+
+/* ── Bauwarteschlange ─────────────────────────────────── */
+.dash-queue-item {
+  padding: 7px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.dash-queue-item:last-child { border-bottom: none; }
+
+.dash-queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+
+.dash-queue-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dash-queue-time {
+  font-size: 11px;
+  color: var(--gold);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-progress-bar {
+  height: 6px;
+  background: #333;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.dash-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c8a428 0%, #e2be50 100%);
+  border-radius: 4px;
+  transition: width 1s linear;
+}
+
+.dash-queue-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+
 .building-type-row {
   display: flex;
   flex-direction: column;
@@ -1221,8 +1432,270 @@ body {
   min-height: 16px;
 }
 
+/* ── Aktions-Panel (Zwischenschritt: Angriff oder Spionage wählen) ───────────── */
+#action-panel {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  width: 280px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 16px;
+  z-index: 20;
+  display: none;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
 
-/* ── Gebäude-Sektion (Bauhof Detail) ──────────────────── */
+#action-panel h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#action-panel h3 button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+#action-info {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-buttons button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+#btn-open-attack {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+#btn-open-attack:hover:not(:disabled) { background: #991b1b; }
+#btn-open-attack:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+
+#btn-open-spy {
+  background: #1e3a5f;
+  color: #bae6fd;
+}
+#btn-open-spy:hover { background: #1d4ed8; }
+
+/* ── Spionage-Panel ─────────────────────────────────────────────────────────── */
+#spy-panel {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  width: 320px;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 16px;
+  z-index: 20;
+  display: none;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+#spy-panel h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#spy-panel h3 button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+#spy-preview-info {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+#btn-launch-spy {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  background: #1e3a5f;
+  color: #bae6fd;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+#btn-launch-spy:hover:not(:disabled) { background: #1d4ed8; }
+#btn-launch-spy:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+
+#spy-panel-msg {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  min-height: 16px;
+}
+
+/* ── Spionage-Seite ──────────────────────────────────────────────────────────── */
+.spy-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.spy-tab {
+  padding: 8px 18px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.spy-tab.active, .spy-tab:hover {
+  background: #1e3a5f;
+  color: #bae6fd;
+  border-color: #2563eb;
+}
+
+.spy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.spy-empty {
+  color: var(--text-dim);
+  padding: 20px;
+  text-align: center;
+}
+
+.spy-error {
+  color: #f87171;
+  padding: 10px;
+}
+
+/* ── Geheimdienstzentrum ──────────────────────────────────────────── */
+.gdh-level-info {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.gdh-locked {
+  opacity: 0.5;
+}
+
+.gdh-owned {
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.spy-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.spy-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.spy-card-icon { font-size: 18px; }
+
+.spy-card-header strong { flex: 1; color: var(--text-main); }
+
+.spy-card-date {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.spy-card-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.spy-card-status.traveling { background: #1e3a5f; color: #bae6fd; }
+.spy-card-status.returning { background: #14532d; color: #bbf7d0; }
+
+.spy-card-body, .spy-card-content, .spy-card-meta {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  line-height: 1.6;
+}
+
+.spy-card-meta {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.spy-card-content {
+  display: block;
+}
+
+.spy-card-content details { margin-top: 8px; }
+.spy-card-content summary { cursor: pointer; color: var(--text-main); }
+.spy-card-content ul { margin: 4px 0 0 16px; }
+
+.spy-report-fail {
+  color: #f87171;
+  padding: 4px 0;
+}
+
+.spy-caught { color: #f59e0b; font-weight: 600; }
+.spy-safe { color: #22c55e; font-weight: 600; }
+
+.spy-hint { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; }
+.spy-hint a { color: #60a5fa; }
+.spy-hint-small { font-size: 11px; color: var(--text-dim); }
+
+
 .my-buildings-section,
 .queue-section {
   background: var(--bg-raised);

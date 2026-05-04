@@ -78,6 +78,31 @@ ist bisher kaum durch Unit-Tests abgesichert.
 
 ---
 
+### ✅ P1 - Spionagesystem
+
+**Erledigt:** Vollständig implementiert – Backend + Frontend.
+
+- [x] DB-Schema `spy_missions` + `spy_mission_units` (status-Enum, JSONB report)
+- [x] 3 Intel-Einheiten: `Spion`, `SR-71 Aufklärer`, `Spionagesatellit`
+- [x] Repository `spy-missions.repository.js` mit allen DB-Zugriffen
+- [x] Service `espionage.service.js`: `launchSpyMission`, Tick-Verarbeitung, Berichte, Vorschau; Erfolgsformel mit Intel/Counter-Intel-Level; 3 Detailstufen
+- [x] Routen `/espionage`: launch, preview, missions, reports
+- [x] Gameloop-Tick: ankommende + zurückkehrende Spionage-Missionen
+- [x] SSE-Events: `spy_detected`, `spy_mission_update`, `spy_return`
+- [x] Frontend Karte: Aktions-Panel (Angriff / Spionage), Spionage-Panel mit Live-Vorschau
+- [x] Frontend Spionage-Seite: laufende Missionen + Berichte mit 3 Detailstufen
+- [x] Navigation: „Spionage"-Link in Sidebar
+
+### ✅ P0 - Dashboard verbessern
+
+**Erledigt:** Alle drei Punkte implementiert.
+
+- [x] Gebäude-Übersichtscontainer: Gebäude nach Kategorie gruppiert mit Anzahl-Badge
+- [x] Einheiten-Übersicht: Einheiten nach Kategorie mit HP-Balken und „Unterwegs"-Badge
+- [x] Bauwarteschlange: Fortschrittsbalken, verbleibende Zeit (Countdown), Fertigzeit
+  - [x] Fortschrittsbalken läuft nicht live mit
+  - Zeit flackert jede Sekunde
+
 ## Mittelfristig (nächster Sprint / nächste 2–4 Wochen)
 
 ### ✅ P1 – Docker Compose für lokale Entwicklung (Aufwand: M | Impact: 🟢 hoch)

@@ -5,6 +5,8 @@
 
 import { config } from '../config.js';
 import * as economyService from './economy.service.js';
+import * as combatService from './combat.service.js';
+import * as espionageService from './espionage.service.js';
 import * as playerRepo from '../repositories/player.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastUserStatusUpdate } from './live-updates.service.js';
@@ -61,6 +63,12 @@ export async function executeGameTick() {
         }
 
         tickLogger.info({ processedCount, totalUsers: users.length }, 'Tick completed');
+
+        // Kampf- und Spionage-Missionen global verarbeiten
+        await combatService.processArrivingMissions();
+        await combatService.processReturningMissions();
+        await espionageService.processArrivingSpyMissions();
+        await espionageService.processReturningSpyMissions();
     } catch (error) {
         tickLogger.error({ err: error }, 'Critical tick failure');
     } finally {

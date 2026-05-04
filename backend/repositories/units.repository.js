@@ -59,6 +59,31 @@ export async function findReadyBuildingCountByName(userId, buildingName, client 
     return Number(result.rows[0]?.count ?? 0);
 }
 
+export async function findUserUnitById(userUnitId, client = pool) {
+    const result = await client.query(
+        `SELECT uu.id,
+                uu.user_id,
+                uu.unit_type_id,
+                uu.quantity,
+                uu.health_percentage,
+                uu.is_moving,
+                uu.destination_x,
+                uu.destination_y,
+                uu.arrival_time,
+                ut.name,
+                ut.category,
+                ut.movement_speed,
+                ut.fuel_cost,
+                ut.attack_points,
+                ut.defense_points
+         FROM user_units uu
+         JOIN unit_types ut ON uu.unit_type_id = ut.id
+         WHERE uu.id = $1`,
+        [userUnitId]
+    );
+    return result.rows[0] ?? null;
+}
+
 export async function findUserUnitByType(userId, unitTypeId, client = pool) {
     const result = await client.query(
         'SELECT * FROM user_units WHERE user_id = $1 AND unit_type_id = $2',

@@ -40,8 +40,6 @@ export async function initShell(navLinks = []) {
   const auth = getAuth();
   if (!auth) return;
 
-  renderSidebar(navLinks);
-
   // /me lädt Ressourcen, Strom, Produktion und Gebäude in einem Request
   try {
     const res = await fetch(`${API_BASE_URL}/me`, {
@@ -49,10 +47,12 @@ export async function initShell(navLinks = []) {
     });
     if (!res.ok) throw new Error('Status-Abruf fehlgeschlagen');
     const status = await res.json();
+    renderSidebar(navLinks, status);
     renderResourceBar(status);
     renderProductionPanel(status);
     startLiveUpdates(auth.token);
   } catch (err) {
+    renderSidebar(navLinks, null);
     console.error(err);
     const bar = document.getElementById('resource-bar');
     if (bar) {
@@ -124,6 +124,41 @@ function startLiveUpdates(token) {
     }
   });
 
+  source.addEventListener('spy_detected', (event) => {
+    try {
+      const d = JSON.parse(event.data || '{}');
+      showToast(`🚨 Spion(e) entdeckt! ${d.spiesCaught} Spion(e) von ${d.originUsername} gefasst.`, 'warning');
+    } catch (err) {
+      console.error('SSE spy_detected parse error:', err);
+    }
+  });
+
+  source.addEventListener('spy_mission_update', (event) => {
+    try {
+      const d = JSON.parse(event.data || '{}');
+      if (d.status === 'aborted') {
+        showToast(`🕵️ Spionage bei ${d.targetUsername} fehlgeschlagen – alle Spione erwischt.`, 'danger');
+      } else {
+        const note = d.spiesCaught > 0 ? ` (${d.spiesCaught} erwischt)` : '';
+        showToast(`🕵️ Spionage bei ${d.targetUsername} abgeschlossen${note}. Spione kehren zurück.`, 'info');
+      }
+      globalThis.dispatchEvent(new globalThis.CustomEvent('spy-mission-update', { detail: d }));
+    } catch (err) {
+      console.error('SSE spy_mission_update parse error:', err);
+    }
+  });
+
+  source.addEventListener('spy_return', (event) => {
+    try {
+      const d = JSON.parse(event.data || '{}');
+      showToast(`🏠 Deine Spione von ${d.targetUsername} sind zurückgekehrt.`, 'success');
+      // Spionage-Seite live aktualisieren falls offen
+      globalThis.dispatchEvent(new globalThis.CustomEvent('spy-return', { detail: d }));
+    } catch (err) {
+      console.error('SSE spy_return parse error:', err);
+    }
+  });
+
   source.addEventListener('error', () => {
     // EventSource reconnectet automatisch.
   });
@@ -140,7 +175,7 @@ function stopLiveUpdates() {
   liveEventSourceToken = null;
 }
 
-function renderSidebar(navLinks) {
+function renderSidebar(navLinks, status) {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
 
@@ -149,11 +184,18 @@ function renderSidebar(navLinks) {
   const isMilitaerPage = currentPath === '/militaer.html' || currentPath === '/pages/militaer.html';
   const currentCategory = new URLSearchParams(window.location.search).get('category');
 
+  // Geheimdienstzentrum-Link nur wenn Gebäude vorhanden
+  const hasGdh = status?.buildings?.some(
+    (b) => b.name?.startsWith('Geheimdienstzentrum') && Number(b.anzahl) > 0
+  ) ?? false;
+
   const defaultLinks = [
     { label: 'Dashboard', href: '/pages/dashboard.html' },
     { label: 'Bauhof', href: '/pages/bauhof.html' },
     { label: 'Militär', href: '/pages/militaer.html' },
     { label: 'Karte', href: '/pages/karte.html' },
+    ...(hasGdh ? [{ label: 'Geheimdienstzentrum', href: '/pages/geheimdienstzentrum.html' }] : []),
+    { label: 'Spionage', href: '/pages/spionage.html' },
   ];
 
   const links = defaultLinks.concat(
@@ -230,9 +272,11 @@ function renderSidebar(navLinks) {
           (hrefLower === '/pages/dashboard.html' && currentPath === '/dashboard.html') ||
           (hrefLower === '/pages/bauhof.html' && currentPath === '/bauhof.html') ||
           (hrefLower === '/pages/militaer.html' && currentPath === '/militaer.html') ||
-          (hrefLower === '/pages/karte.html' && currentPath === '/karte.html')
+          (hrefLower === '/pages/karte.html' && currentPath === '/karte.html') ||
+          (hrefLower === '/pages/spionage.html' && currentPath === '/spionage.html') ||
+          (hrefLower === '/pages/geheimdienstzentrum.html' && currentPath === '/geheimdienstzentrum.html')
             ? 'is-active'
-            : '',
+            : ''
       })
     );
   });

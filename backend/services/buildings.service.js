@@ -314,7 +314,29 @@ export async function buildBuilding(userId, buildingTypeId, anzahl) {
             }
         }
 
-        if (Number(bt.power_consumption) > 0) {
+        // Öl-Raffinerie: max. 5 pro vorhandener Ölpumpe
+        if (bt.name === 'Öl-Raffinerie') {
+            const oelpumpen = builtBuildings.find((b) => b.name === 'Ölpumpe');
+            const pumpenCount = oelpumpen ? Number(oelpumpen.anzahl) : 0;
+            if (pumpenCount === 0) {
+                throw createServiceError(
+                    'Du benötigst mindestens eine Ölpumpe, bevor du eine Öl-Raffinerie bauen kannst.',
+                    400,
+                    'BUILDING_PREREQUISITE_MISSING'
+                );
+            }
+            const raffinerien = builtBuildings.find((b) => b.name === 'Öl-Raffinerie');
+            const raffinerieCurrent = raffinerien ? Number(raffinerien.anzahl) : 0;
+            if (raffinerieCurrent + quantity > pumpenCount * 5) {
+                throw createServiceError(
+                    `Du kannst maximal 5 Öl-Raffinerien pro Ölpumpe bauen. Ölpumpen: ${pumpenCount}, erlaubte Raffinerien: ${pumpenCount * 5}, bereits vorhanden: ${raffinerieCurrent}.`,
+                    400,
+                    'BUILDING_RATIO_EXCEEDED'
+                );
+            }
+        }
+
+
             const strom = await economyService.getStromStatus(userId, client);
             const neuerVerbrauch = strom.verbrauch + Number(bt.power_consumption) * quantity;
             if (neuerVerbrauch > strom.produktion) {
@@ -324,7 +346,7 @@ export async function buildBuilding(userId, buildingTypeId, anzahl) {
                     'BUILDING_NOT_ENOUGH_POWER'
                 );
             }
-        }
+        
 
         const resources = await resourcesRepo.findByUserIdLocked(userId, client);
         if (!resources) {

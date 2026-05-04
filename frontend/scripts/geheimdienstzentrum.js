@@ -1,0 +1,191 @@
+import { initShell, getAuth } from '/scripts/shell.js';
+import { API_BASE_URL } from '/scripts/config.js';
+import { el, render } from '/scripts/ui/component.js';
+
+const auth = getAuth();
+if (!auth) throw new Error('Nicht eingeloggt');
+
+const state = {
+    unitTypes: [],
+    myUnits: [],
+    myBuildings: [],
+    message: '',
+};
+
+async function apiFetch(path, options = {}) {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${auth.token}`,
+            ...options.headers,
+        },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(data.message || 'Fehler'), { status: res.status });
+    return data;
+}
+
+/** Höchstes vorhandenes Geheimdienstzentrum-Level (0 = keines) */
+function getGdhLevel(buildings) {
+    let max = 0;
+    for (const b of buildings) {
+        if (b.name?.startsWith('Geheimdienstzentrum') && Number(b.anzahl) > 0) {
+            const match = b.name.match(/Level\s*(\d+)/i);
+            if (match) max = Math.max(max, Number(match[1]));
+        }
+    }
+    return max;
+}
+
+/** Ob eine Einheit mit diesem building_requirement freigeschaltet ist */
+function isUnlocked(unitType, gdhLevel) {
+    const req = unitType.building_requirement ?? '';
+    const match = req.match(/Level\s*(\d+)/i);
+    if (!match) return gdhLevel >= 1;
+    return gdhLevel >= Number(match[1]);
+}
+
+function getUnitCostsText(ut) {
+    const parts = [];
+    if (ut.money_cost > 0) parts.push(`💰 ${Number(ut.money_cost).toLocaleString('de-DE')}`);
+    if (ut.steel_cost > 0) parts.push(`⚙️ ${Number(ut.steel_cost).toLocaleString('de-DE')}`);
+    if (ut.fuel_cost > 0) parts.push(`🛢️ ${Number(ut.fuel_cost).toLocaleString('de-DE')}`);
+    return parts.length > 0 ? parts.join('  ') : 'Kostenlos';
+}
+
+function buildUnitRow(unitType, container) {
+    const gdhLevel = getGdhLevel(state.myBuildings);
+    const unlocked = isUnlocked(unitType, gdhLevel);
+    const owned = state.myUnits.find((u) => u.unit_type_id === unitType.id || u.name === unitType.name);
+
+    const input = el('input', {
+        className: 'build-quantity-input',
+        attrs: {
+            type: 'number',
+            min: '1',
+            max: '999',
+            value: '1',
+            style: 'width:60px',
+            ...(unlocked ? {} : { disabled: '' }),
+        },
+    });
+
+    const button = el('button', {
+        className: 'primary-action',
+        text: unlocked ? (owned ? 'Weitere ausbilden' : 'Ausbilden') : `Benötigt: ${unitType.building_requirement}`,
+        attrs: unlocked ? {} : { disabled: '' },
+        on: unlocked ? {
+            click: async () => {
+                button.disabled = true;
+                input.disabled = true;
+
+                try {
+                    const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
+                    const result = await apiFetch('/units/train', {
+                        method: 'POST',
+                        body: JSON.stringify({ unit_type_id: unitType.id, quantity }),
+                    });
+
+                    state.message = result.message ?? '';
+                    [state.myUnits, state.myBuildings] = await Promise.all([
+                        apiFetch('/units/me'),
+                        apiFetch('/me').then((s) => s.buildings ?? []),
+                    ]);
+                    await initShell();
+                    renderPage(container);
+                } catch (err) {
+                    state.message = err.message;
+                    renderPage(container);
+                }
+            },
+        } : {},
+    });
+
+    const ownedText = owned ? `Vorhanden: ${owned.quantity ?? owned.anzahl ?? 0}` : 'Nicht vorhanden';
+
+    return el('div', {
+        className: `building-type-row${unlocked ? '' : ' gdh-locked'}`,
+        children: [
+            el('strong', { text: unitType.name }),
+            el('span', { className: 'build-cost', text: unitType.description ?? '' }),
+            el('span', { className: 'build-cost', text: getUnitCostsText(unitType) }),
+            el('span', {
+                className: 'build-cost',
+                text: `HP: ${unitType.hitpoints}  🥷 Intel  🛡️ ${unitType.defense_points}  ⚡ Ausb.: ${unitType.training_time_ticks} Tick(s)`,
+            }),
+            el('span', { className: 'build-cost gdh-owned', text: ownedText }),
+            el('div', {
+                attrs: { style: 'display:flex;gap:8px;align-items:center' },
+                children: [input, button],
+            }),
+        ],
+    });
+}
+
+function renderPage(container) {
+    if (!container) return;
+
+    const gdhLevel = getGdhLevel(state.myBuildings);
+    const nodes = [
+        el('h2', { text: '🕵️ Geheimdienstzentrum – Einheiten ausbilden' }),
+        el('p', {
+            className: 'gdh-level-info',
+            text: `Geheimdienstzentrum Level ${gdhLevel} – ${
+                gdhLevel >= 3 ? 'Alle Einheiten verfügbar' :
+                gdhLevel >= 2 ? 'Stufe 2 – SR-71 Aufklärer freigeschaltet' :
+                'Stufe 1 – Spion freigeschaltet'
+            }`,
+        }),
+    ];
+
+    if (state.message) {
+        nodes.push(el('p', { className: 'dash-message', text: state.message }));
+    }
+
+    const cardChildren = [el('h3', { text: 'Geheimdiensteinheiten' })];
+
+    for (const ut of state.unitTypes) {
+        cardChildren.push(buildUnitRow(ut, container));
+    }
+
+    nodes.push(
+        el('div', {
+            className: 'category-grid',
+            children: [el('article', { className: 'category-card', children: cardChildren })],
+        })
+    );
+
+    render(container, nodes);
+}
+
+async function init() {
+    const container = document.getElementById('Geheimdienstzentrum');
+    if (!container) return;
+
+    await initShell();
+
+    try {
+        const [unitTypes, myUnits, meStatus] = await Promise.all([
+            apiFetch('/units/types/category/intel'),
+            apiFetch('/units/me'),
+            apiFetch('/me'),
+        ]);
+
+        state.unitTypes = Array.isArray(unitTypes) ? unitTypes : (unitTypes.data ?? []);
+        state.myUnits = Array.isArray(myUnits) ? myUnits : (myUnits.units ?? []);
+        state.myBuildings = meStatus.buildings ?? [];
+
+        renderPage(container);
+    } catch (err) {
+        console.error(err);
+        render(container, [
+            el('p', {
+                text: `Fehler beim Laden: ${err.message}`,
+                attrs: { style: 'color:#f88' },
+            }),
+        ]);
+    }
+}
+
+init();

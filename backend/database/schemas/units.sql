@@ -77,4 +77,9 @@ INSERT INTO unit_types (name, category, building_requirement, description, money
 -- VERTEIDIGUNGSANLAGEN (Luftverteidigung)
 ('2cm Flak', 'defense', 'Luftverteidigung Level 1', 'Leichte Flugabwehrkanone zur Bekämpfung tief fliegender Luftfahrzeuge.', 32000, 65, 12, 0.5, 55, 16, 22, 0, 'Flugabwehr (Reichweite 4)', NULL),
 ('15cm Flak', 'defense', 'Luftverteidigung Level 2', 'Schwere Flugabwehrkanone mit großer Reichweite gegen Hochflugziele.', 110000, 260, 25, 2, 130, 32, 38, 0, 'Schwere Flugabwehr (Reichweite 7)', NULL),
-('Patriot-System', 'defense', 'Luftverteidigung Level 3', 'Hochmodernes Flugabwehr-Raketensystem zur Abwehr ballistischer Raketen und Kampfjets.', 550000, 1100, 120, 5, 220, 55, 65, 0, 'Raketenabwehr, Hochpräzisions-SAM', NULL);
+('Patriot-System', 'defense', 'Luftverteidigung Level 3', 'Hochmodernes Flugabwehr-Raketensystem zur Abwehr ballistischer Raketen und Kampfjets.', 550000, 1100, 120, 5, 220, 55, 65, 0, 'Raketenabwehr, Hochpräzisions-SAM', NULL),
+
+-- GEHEIMDIENST-EINHEITEN
+('Spion', 'intel', 'Geheimdienstzentrum Level 1', 'Verdeckter Agent für Aufklärung und Informationsbeschaffung hinter feindlichen Linien. Höhere Anzahl erhöht Erfolgswahrscheinlichkeit und Berichtdetail.', 50000, 0, 80, 2, 60, 0, 5, 5, 'Spionage, Tarnung', NULL),
+('SR-71 Aufklärer', 'intel', 'Geheimdienstzentrum Level 2', 'Hochgeschwindigkeits-Aufklärungsjet für schnelle und weitreichende Informationsbeschaffung.', 320000, 180, 650, 4, 80, 0, 8, 12, 'Schnelle Spionage, Luftaufklärung (Reichweite 20)', NULL),
+('Spionagesatellit', 'intel', 'Geheimdienstzentrum Level 3', 'Orbitales Aufklärungssystem mit nahezu garantierter Erfolgsrate und vollständigen Berichten.', 1200000, 500, 1200, 8, 100, 0, 12, 20, 'Vollständige Aufklärung, kaum abfangbar', NULL);

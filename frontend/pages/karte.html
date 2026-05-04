@@ -119,7 +119,20 @@
             <button id="btn-reset-view" title="Ansicht zurücksetzen">⊙</button>
           </div>
 
-          <!-- Angriffs-Panel (erscheint beim Klick auf einen anderen Spieler) -->
+          <!-- Aktions-Panel (erscheint beim Klick auf einen anderen Spieler) -->
+          <div id="action-panel" style="display:none">
+            <h3>
+              <span id="action-target-name"></span>
+              <button id="action-panel-close" title="Schließen">✕</button>
+            </h3>
+            <div class="action-info" id="action-info"></div>
+            <div class="action-buttons">
+              <button id="btn-open-attack" disabled title="Kampfsystem – kommt bald">⚔️ Angriff</button>
+              <button id="btn-open-spy">🕵️ Spionage</button>
+            </div>
+          </div>
+
+          <!-- Angriffs-Panel -->
           <div id="attack-panel" style="display:none">
             <h3>
               <span>⚔️ Angriff auf <span id="attack-target-name"></span></span>
@@ -129,6 +142,18 @@
             <div id="attack-units-list"></div>
             <button id="btn-launch-attack" disabled>Angriff starten</button>
             <div id="attack-panel-msg"></div>
+          </div>
+
+          <!-- Spionage-Panel -->
+          <div id="spy-panel" style="display:none">
+            <h3>
+              <span>🕵️ Spionage: <span id="spy-target-name"></span></span>
+              <button id="spy-panel-close" title="Schließen">✕</button>
+            </h3>
+            <div id="spy-preview-info" class="spy-preview"></div>
+            <div id="spy-units-list"></div>
+            <button id="btn-launch-spy" disabled>Spione entsenden</button>
+            <div id="spy-panel-msg"></div>
           </div>
           <div id="map-info">Lade Karte…</div>
           <div id="map-legend">

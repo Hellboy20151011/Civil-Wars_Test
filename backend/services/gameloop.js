@@ -8,6 +8,7 @@ import * as buildingRepo from '../repositories/building.repository.js';
 import * as unitsRepo from '../repositories/units.repository.js';
 import * as economyService from './economy.service.js';
 import * as combatService from './combat.service.js';
+import * as espionageService from './espionage.service.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { logger } from '../logger.js';
 
@@ -46,6 +47,10 @@ export async function executeTick() {
         // Kampf-Missionen global verarbeiten (missionsübergreifend, eigene Transaktionen)
         await combatService.processArrivingMissions();
         await combatService.processReturningMissions();
+
+        // Spionage-Missionen global verarbeiten
+        await espionageService.processArrivingSpyMissions();
+        await espionageService.processReturningSpyMissions();
 
         logger.info({ playersProcessed: users.length }, 'Tick executed successfully');
         return { success: true, playersProcessed: users.length };

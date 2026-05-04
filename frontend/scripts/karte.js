@@ -244,7 +244,7 @@ canvas.addEventListener('mouseleave', () => {
     draw();
 });
 
-// ── Klick auf Spieler → Angriffs-Panel öffnen ─────────────────────────────────
+// ── Klick auf Spieler → Aktions-Panel öffnen ──────────────────────────────────
 canvas.addEventListener('click', (e) => {
     if (isDragging) return;
     const rect = canvas.getBoundingClientRect();
@@ -258,11 +258,55 @@ canvas.addEventListener('click', (e) => {
     });
 
     if (found && found.id !== ownId) {
-        openAttackPanel(found);
+        openActionPanel(found);
     } else {
-        closeAttackPanel();
+        closeAllPanels();
     }
 });
+
+// ── Panel-Helfer ───────────────────────────────────────────────────────────────
+function closeAllPanels() {
+    document.getElementById('action-panel').style.display  = 'none';
+    document.getElementById('attack-panel').style.display  = 'none';
+    document.getElementById('spy-panel').style.display     = 'none';
+    clickedPlayer = null;
+}
+
+// ── Aktions-Panel ──────────────────────────────────────────────────────────────
+const actionPanel      = document.getElementById('action-panel');
+const actionTargetName = document.getElementById('action-target-name');
+const actionInfo       = document.getElementById('action-info');
+
+document.getElementById('action-panel-close').addEventListener('click', closeAllPanels);
+document.getElementById('btn-open-attack').addEventListener('click', () => {
+    actionPanel.style.display = 'none';
+    openAttackPanel(clickedPlayer);
+});
+document.getElementById('btn-open-spy').addEventListener('click', () => {
+    actionPanel.style.display = 'none';
+    openSpyPanel(clickedPlayer);
+});
+
+function openActionPanel(target) {
+    clickedPlayer = target;
+    actionTargetName.textContent = target.username;
+
+    const ownPlayer = players.find((p) => p.id === ownId);
+    const distance = ownPlayer
+        ? Math.sqrt(
+              Math.pow(target.koordinate_x - ownPlayer.koordinate_x, 2) +
+              Math.pow(target.koordinate_y - ownPlayer.koordinate_y, 2)
+          ).toFixed(1)
+        : '?';
+
+    actionInfo.innerHTML = `
+        <strong>Spieler:</strong> ${target.username}<br>
+        <strong>Position:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
+        <strong>Distanz:</strong> ${distance} Felder
+    `;
+
+    actionPanel.style.display = 'block';
+}
 
 // ── Angriffs-Panel ─────────────────────────────────────────────────────────────
 const attackPanel      = document.getElementById('attack-panel');
@@ -272,12 +316,7 @@ const attackUnitsList  = document.getElementById('attack-units-list');
 const btnLaunch        = document.getElementById('btn-launch-attack');
 const attackPanelMsg   = document.getElementById('attack-panel-msg');
 
-document.getElementById('attack-panel-close').addEventListener('click', closeAttackPanel);
-
-function closeAttackPanel() {
-    attackPanel.style.display = 'none';
-    clickedPlayer = null;
-}
+document.getElementById('attack-panel-close').addEventListener('click', closeAllPanels);
 
 async function openAttackPanel(target) {
     clickedPlayer = target;
@@ -378,11 +417,161 @@ btnLaunch.addEventListener('click', async () => {
         attackPanelMsg.textContent = `✓ Einheiten unterwegs – Ankunft in ~${mins} min`;
         showToast(`⚔️ Angriff auf ${clickedPlayer.username} gestartet! Ankunft in ~${mins} min.`, 'info');
 
-        setTimeout(closeAttackPanel, 3000);
+        setTimeout(closeAllPanels, 3000);
     } catch (err) {
         attackPanelMsg.style.color = '#f87171';
         attackPanelMsg.textContent = err.message;
         btnLaunch.disabled = false;
+    }
+});
+
+// ── Spionage-Panel ─────────────────────────────────────────────────────────────
+const spyPanel       = document.getElementById('spy-panel');
+const spyTargetName  = document.getElementById('spy-target-name');
+const spyPreviewInfo = document.getElementById('spy-preview-info');
+const spyUnitsList   = document.getElementById('spy-units-list');
+const btnLaunchSpy   = document.getElementById('btn-launch-spy');
+const spyPanelMsg    = document.getElementById('spy-panel-msg');
+
+document.getElementById('spy-panel-close').addEventListener('click', closeAllPanels);
+
+async function openSpyPanel(target) {
+    clickedPlayer = target;
+    spyTargetName.textContent = target.username;
+    spyPanel.style.display = 'block';
+    spyPreviewInfo.innerHTML = 'Geheimdiensteinheiten werden geladen…';
+    spyUnitsList.innerHTML = '';
+    btnLaunchSpy.disabled = true;
+    spyPanelMsg.textContent = '';
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/units/me`, {
+            headers: { Authorization: `Bearer ${auth.token}` },
+        });
+        if (!res.ok) throw new Error('Einheiten konnten nicht geladen werden');
+        const data = await res.json();
+        const intelUnits = (Array.isArray(data) ? data : (data.units ?? [])).filter(
+            (u) => u.category === 'intel' && u.quantity > 0 && !u.is_moving
+        );
+
+        if (intelUnits.length === 0) {
+            spyPreviewInfo.innerHTML = `
+                <div style="color:#f59e0b;padding:8px 0">
+                    Keine Geheimdiensteinheiten verfügbar.<br>
+                    <small>Baue ein <strong>Geheimdienstzentrum Level 1</strong> und bilde <strong>Spione</strong> aus.</small>
+                </div>`;
+            return;
+        }
+
+        const ownPlayer = players.find((p) => p.id === ownId);
+        const distance = ownPlayer
+            ? Math.sqrt(
+                  Math.pow(target.koordinate_x - ownPlayer.koordinate_x, 2) +
+                  Math.pow(target.koordinate_y - ownPlayer.koordinate_y, 2)
+              ).toFixed(1)
+            : '?';
+
+        spyPreviewInfo.innerHTML = `
+            <strong>Ziel:</strong> ${target.username} (${target.koordinate_x}, ${target.koordinate_y})<br>
+            <strong>Distanz:</strong> ${distance} Felder<br>
+            <small style="color:#94a3b8">Mehr Spione = höhere Erfolgswahrscheinlichkeit und detailliertere Berichte.</small>
+        `;
+
+        spyUnitsList.innerHTML = '';
+        for (const u of intelUnits) {
+            const row = document.createElement('div');
+            row.className = 'attack-unit-row';
+            row.innerHTML = `
+                <span class="attack-unit-name">${u.name}</span>
+                <span class="attack-unit-avail">/${u.quantity}</span>
+                <input
+                    class="attack-unit-qty"
+                    type="number"
+                    min="0"
+                    max="${u.quantity}"
+                    value="0"
+                    data-unit-id="${u.id}"
+                />
+            `;
+            spyUnitsList.appendChild(row);
+        }
+
+        spyUnitsList.addEventListener('input', updateSpyPreview);
+
+        async function updateSpyPreview() {
+            const inputs = [...spyUnitsList.querySelectorAll('.attack-unit-qty')];
+            const any = inputs.some((inp) => parseInt(inp.value, 10) > 0);
+            btnLaunchSpy.disabled = !any;
+
+            if (!any) return;
+
+            const unitIds = inputs
+                .filter((inp) => parseInt(inp.value, 10) > 0)
+                .map((inp) => inp.dataset.unitId)
+                .join(',');
+
+            try {
+                const r = await fetch(
+                    `${API_BASE_URL}/espionage/preview?target_id=${target.id}&unit_ids=${unitIds}`,
+                    { headers: { Authorization: `Bearer ${auth.token}` } }
+                );
+                if (!r.ok) return;
+                const d = await r.json();
+                const p = d.data;
+                spyPreviewInfo.innerHTML = `
+                    <strong>Ziel:</strong> ${p.targetUsername} (${p.targetCoords.x}, ${p.targetCoords.y})<br>
+                    <strong>Distanz:</strong> ${p.distance} Felder<br>
+                    <strong>Reisezeit:</strong> ~${p.travelMinutes} min<br>
+                    <strong>Treibstoffbedarf:</strong> ${p.fuelCost.toLocaleString()} L<br>
+                    <strong>Geschätzte Erfolgsrate:</strong> ${p.estimatedSuccessRate}%<br>
+                    <small style="color:#94a3b8">Geschätzt – variiert je nach Gegenspionage des Ziels.</small>
+                `;
+            } catch {
+                // Vorschau nicht kritisch
+            }
+        }
+
+    } catch (err) {
+        spyPreviewInfo.innerHTML = `<div style="color:#f87171">${err.message}</div>`;
+    }
+}
+
+btnLaunchSpy.addEventListener('click', async () => {
+    if (!clickedPlayer) return;
+
+    const unitInputs = [...spyUnitsList.querySelectorAll('.attack-unit-qty')];
+    const units = unitInputs
+        .map((inp) => ({ user_unit_id: parseInt(inp.dataset.unitId, 10), quantity: parseInt(inp.value, 10) }))
+        .filter((u) => u.quantity > 0);
+
+    if (units.length === 0) return;
+
+    btnLaunchSpy.disabled = true;
+    spyPanelMsg.textContent = 'Spione werden entsandt…';
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/espionage/launch`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${auth.token}`,
+            },
+            body: JSON.stringify({ target_id: Number(clickedPlayer.id), units }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message ?? 'Fehler beim Starten der Spionage');
+
+        const eta = new Date(data.data.arrivalTime);
+        const mins = Math.round((eta - Date.now()) / 60000);
+        spyPanelMsg.style.color = '#22c55e';
+        spyPanelMsg.textContent = `✓ Spione unterwegs – Ankunft in ~${mins} min`;
+        showToast(`🕵️ Spione zu ${clickedPlayer.username} entsandt! Ankunft in ~${mins} min.`, 'info');
+
+        setTimeout(closeAllPanels, 3000);
+    } catch (err) {
+        spyPanelMsg.style.color = '#f87171';
+        spyPanelMsg.textContent = err.message;
+        btnLaunchSpy.disabled = false;
     }
 });
 
