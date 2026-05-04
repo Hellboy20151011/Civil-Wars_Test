@@ -47,12 +47,11 @@ function freePortOnUnix(targetPort) {
     try {
         output = run(`lsof -ti tcp:${targetPort}`);
     } catch {
-        console.log(`[free-port] Port ${targetPort} ist bereits frei oder lsof nicht verfuegbar.`);
-        return;
+        // lsof nicht verfuegbar – Port gilt als frei
     }
 
     if (!output) {
-        console.log(`[free-port] Port ${targetPort} ist bereits frei.`);
+        console.log(`[free-port] Port ${targetPort} ist bereits frei oder lsof nicht verfuegbar.`);
         return;
     }
 

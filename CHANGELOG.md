@@ -9,6 +9,10 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ## [Unreleased]
 
+### Fixed
+- `backend/scripts/free-port.js` – `no-useless-assignment` Lint-Fehler behoben: `freePortOnUnix` nutzt jetzt einen leeren `catch`-Block, sodass das initiale `undefined` beim Check `!output` gelesen wird
+- `backend/middleware/rateLimiters.js` – Rate-Limiter werden in `NODE_ENV=test` übersprungen (`skip`-Option), um 429-Fehler in E2E-Tests zu verhindern
+
 ### Added
 - `backend/database/schemas/combat_missions.sql` – neue Tabellen `combat_missions` und `combat_mission_units` für distanzbasierte Kampf-Missionen zwischen Spielern; unterstützt Lebenszyklus `traveling_to → in_combat → traveling_back → completed`
 - `backend/repositories/combat-missions.repository.js` – Repository für Kampf-Missionen: Erstellen, Tick-Abfragen (ankommend/zurückkehrend), Status-Updates, Einheiten-Verwaltung, Spieler-Dashboard und Kampfhistorie

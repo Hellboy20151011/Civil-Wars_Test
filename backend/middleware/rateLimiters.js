@@ -7,6 +7,7 @@ export const authLimiter = rateLimit({
     max: config.rateLimit.authMax,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => config.nodeEnv === 'test',
     message: { message: 'Zu viele Anfragen. Bitte später erneut versuchen.' },
 });
 
@@ -16,5 +17,6 @@ export const apiLimiter = rateLimit({
     max: config.rateLimit.apiMax,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => config.nodeEnv === 'test',
     message: { message: 'Zu viele Anfragen.' },
 });
