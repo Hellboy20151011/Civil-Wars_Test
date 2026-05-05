@@ -11,6 +11,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Added
 
+- `docs/Projektanalyse_2026-05-05.md` – tiefes Architektur- & Qualitäts-Review mit Top-10-Prioritätenliste
+
 - `backend/database/schemas/combat_missions.sql` – neue Tabellen `combat_missions` und `combat_mission_units` für distanzbasierte Kampf-Missionen zwischen Spielern; unterstützt Lebenszyklus `traveling_to → in_combat → traveling_back → completed`
 - `backend/repositories/combat-missions.repository.js` – Repository für Kampf-Missionen: Erstellen, Tick-Abfragen (ankommend/zurückkehrend), Status-Updates, Einheiten-Verwaltung, Spieler-Dashboard und Kampfhistorie
 - `backend/services/combat.service.js` – Kampf-Service: `launchAttack()`, `processArrivingMissions()`, `processReturningMissions()` für das Tick-System
