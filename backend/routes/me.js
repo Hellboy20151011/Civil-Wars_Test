@@ -1,11 +1,9 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
 import { asyncWrapper } from '../middleware/asyncWrapper.js';
 import { apiLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from './auth.js';
-import { config } from '../config.js';
 import * as meService from '../services/me.service.js';
-import { mountUserStream } from '../services/live-updates.service.js';
+import { mountUserStream, createStreamTicket, redeemStreamTicket } from '../services/live-updates.service.js';
 
 const router = express.Router();
 
@@ -20,24 +18,35 @@ router.get(
     })
 );
 
-// GET /me/stream?token=... – Server-Sent Events für Live-Statusupdates
+// POST /me/stream-ticket – Einmaliges kurzlebiges Ticket für die SSE-Verbindung ausstellen
+// Erfordert gültigen Bearer-Token (normale Auth). Ticket ist 30 s gültig.
+router.post(
+    '/stream-ticket',
+    requireAuth,
+    apiLimiter,
+    asyncWrapper(async (req, res) => {
+        const ticket = createStreamTicket(req.user.id);
+        res.json({ ticket });
+    })
+);
+
+// GET /me/stream?ticket=... – Server-Sent Events für Live-Statusupdates
+// Authentifizierung über kurzlebiges Einmal-Ticket (kein JWT im URL)
 router.get(
     '/stream',
     asyncWrapper(async (req, res) => {
-        const token = typeof req.query.token === 'string' ? req.query.token : '';
+        const ticket = typeof req.query.ticket === 'string' ? req.query.ticket : '';
 
-        if (!token) {
-            return res.status(401).json({ message: 'No token provided' });
+        if (!ticket) {
+            return res.status(401).json({ message: 'No stream ticket provided' });
         }
 
-        let user;
-        try {
-            user = jwt.verify(token, config.jwt.secret);
-        } catch {
-            return res.status(401).json({ message: 'Invalid or expired token' });
+        const userId = redeemStreamTicket(ticket);
+        if (!userId) {
+            return res.status(401).json({ message: 'Invalid or expired stream ticket' });
         }
 
-        const closeStream = await mountUserStream(user.id, res);
+        const closeStream = await mountUserStream(userId, res);
 
         req.on('close', () => {
             closeStream();

@@ -214,7 +214,7 @@ Konfigurierbar via `CORS_ORIGIN` (komma-separiert). Standardmäßig auf `localho
 ### 4.7 GitHub Actions – Permissions
 
 - `release.yml` hat explizit `permissions: contents: write` – minimal für die Release-Erstellung
-- `ci.yml` hat **keine** explizite `permissions`-Deklaration – Best Practice wäre `permissions: contents: read`
+- ~~`ci.yml` hat **keine** explizite `permissions`-Deklaration~~ → ✅ `permissions: contents: read` auf Workflow-Ebene gesetzt
 
 ---
 
@@ -229,84 +229,91 @@ Konfigurierbar via `CORS_ORIGIN` (komma-separiert). Standardmäßig auf `localho
 | PR-Template | ✅ `.github/pull_request_template.md` mit Checkliste |
 | Issue-Templates | ✅ Bug Report, Feature Request, Neues Gebäude (3 YAML-Templates) |
 | Dependabot | ✅ Backend, Frontend, GitHub Actions |
-| CODEOWNERS | ❌ Fehlt – keine automatische Reviewer-Zuweisung |
+| CODEOWNERS | ✅ `.github/CODEOWNERS` angelegt (`* @Hellboy20151011`) |
 | Releases | ❌ Kein Release veröffentlicht (nur `v1.0.0` im CHANGELOG geplant) |
 | Branch-Schutz | ⚠️ Dokumentiert in `CONTRIBUTING.md:102-115`, aber muss manuell aktiviert werden |
 | CI-Status | ✅ 4 Jobs (Backend Lint/Test/Coverage/Audit, Frontend Build, Frontend Lint, E2E) |
-| E2E im CI | ⚠️ Playwright-Browser-Installation fehlt im Workflow-Step |
+| E2E im CI | ✅ `npx playwright install --with-deps chromium` im E2E-Job ergänzt |
 
 ---
 
 ## 6) Konkrete Empfehlungen – Top 10 Prioritäten
 
-### P1 – Tests für Combat und Espionage (kritisch)
+### ✅ P1 – Tests für Combat und Espionage (kritisch)
 
 `combat.service.js` (429 Zeilen) und `espionage.service.js` (438 Zeilen) haben **null Unit-Tests**. Sie enthalten komplexe Kampfberechnungen (Matchup-Tabelle, Kampftaucher-Phase, Erfolgsformel). Bugs hier sind spielkritisch und ohne Tests unsichtbar.
 
-→ Unit-Tests anlegen in `backend/tests/services/combat.service.test.js` und `espionage.service.test.js`.
+**Erledigt:** `backend/tests/services/combat.service.test.js` (18 Tests) und `backend/tests/services/espionage.service.test.js` (20 Tests) angelegt. Alle 75 Tests laufen durch.
 
 ---
 
-### P2 – SSE-Token aus URL-Parameter entfernen
+### ✅ P2 – SSE-Token aus URL-Parameter entfernen
 
 `GET /me/stream?token=...` (`me.js:27`) exponiert den JWT im URL. Auf Fetch-basierte SSE mit `Authorization`-Header oder ein kurzlebiges "Stream-Ticket" (einmaliges Server-seitiges Token) umstellen.
 
----
-
-### P3 – Error-Handling vollständig auf `next(err)` vereinheitlichen
-
-In `auth.js`, `combat.js`, `espionage.js`, `units.js` werden Service-Fehler direkt mit `res.status(error.status).json({message})` beantwortet, statt `next(error)`. Das umgeht den zentralen `errorHandler` und produziert inkonsistente Response-Strukturen (kein `error.code`-Feld im direkten Pfad). Alle Routen sollten Fehler via `next(error)` delegieren.
+**Erledigt:** `POST /me/stream-ticket` (Bearer-Auth) gibt ein 30 s gültiges Einmal-Ticket aus. Der SSE-Endpunkt akzeptiert nun `?ticket=` statt `?token=`. Frontend `shell.js` holt zuerst das Ticket via `fetch`, dann öffnet die `EventSource`. JWT erscheint nicht mehr in Server-Logs.
 
 ---
 
-### P4 – `economy.service.js` – TICK_MS aus Config lesen
+### ✅ P3 – Error-Handling vollständig auf `next(err)` vereinheitlichen
 
-`const TICK_MS = 60 * 1000` (`economy.service.js:5`) ist hardcoded. Stattdessen `config.gameloop.tickIntervalMs` importieren, um Inkonsistenzen beim Ändern des Tick-Intervalls zu vermeiden.
+In `auth.js`, `combat.js`, `espionage.js`, `units.js` wurden Service-Fehler direkt mit `res.status(error.status).json({message})` beantwortet, statt `next(error)`. Das umging den zentralen `errorHandler` und produzierte inkonsistente Response-Strukturen.
 
----
-
-### P5 – Gemeinsames `utils/game-math.js`
-
-`calcDistance()` und `calcArrivalTime()` sind in `combat.service.js` und `espionage.service.js` exakt dupliziert. In `backend/utils/game-math.js` extrahieren.
+**Erledigt:** Alle `try/catch`-Blöcke mit direktem Response in den betroffenen Routen entfernt. Fehler laufen jetzt vollständig durch `asyncWrapper` → `errorHandler` und liefern einheitlich `{ message, error: { message, code, details } }`.
 
 ---
 
-### P6 – `CODEOWNERS`-Datei anlegen
+### ✅ P4 – `economy.service.js` – TICK_MS aus Config lesen
 
-Keine automatische Reviewer-Zuweisung vorhanden. `.github/CODEOWNERS` mit `* @Hellboy20151011` als Minimum anlegen.
+`const TICK_MS = 60 * 1000` (`economy.service.js:5`) war hardcoded.
 
----
-
-### P7 – Playwright-Browser-Installation im CI sicherstellen
-
-Der CI-E2E-Job (`ci.yml:97-155`) fehlt der Step:
-```yaml
-- name: Playwright Browser installieren
-  run: npx playwright install --with-deps chromium
-```
-Ohne diesen Step kann der E2E-Test auf frischen GitHub-Runnern scheitern.
+**Erledigt:** `economy.service.js` importiert nun `config` und verwendet `config.gameloop.tickIntervalMs`. Der bestehende Test wurde ebenfalls auf `config.gameloop.tickIntervalMs` umgestellt.
 
 ---
 
-### P8 – `permissions: contents: read` in `ci.yml` setzen
+### ✅ P5 – Gemeinsames `utils/game-math.js`
 
-`ci.yml` hat keine explizite `permissions`-Deklaration. Best Practice:
-```yaml
-permissions:
-  contents: read
-```
+`calcDistance()` und `calcArrivalTime()` waren in `combat.service.js` und `espionage.service.js` exakt dupliziert.
+
+**Erledigt:** `backend/utils/game-math.js` erstellt. Beide Services importieren die Funktionen daraus. Doppelter Code entfernt.
 
 ---
 
-### P9 – `docker-compose.yml` – Postgres-Passwort externalisieren
+### ✅ P6 – `CODEOWNERS`-Datei anlegen
 
-`POSTGRES_PASSWORD: postgres` ist hardcoded (`docker-compose.yml:8`). Auf `${POSTGRES_PASSWORD:-postgres}` umstellen und in `.env.example` dokumentieren.
+Keine automatische Reviewer-Zuweisung vorhanden.
+
+**Erledigt:** `.github/CODEOWNERS` mit `* @Hellboy20151011` angelegt.
 
 ---
 
-### P10 – BOM-Zeichen und nicht-technische Docs-Dateien bereinigen
+### ✅ P7 – Playwright-Browser-Installation im CI sicherstellen
 
-`gameloop-scheduler.js` und `CHANGELOG.md` haben UTF-8-BOM-Bytes (`\xEF\xBB\xBF`). `docs/hallo.html`, `docs/hallo.xls`, `docs/BEWERTUNG.md` und `docs/Issues.md` gehören nicht in `docs/` oder sollten entfernt werden.
+Der CI-E2E-Job fehlte der Installations-Step für Playwright-Browser.
+
+**Erledigt:** Step `npx playwright install --with-deps chromium` im E2E-Job in `.github/workflows/ci.yml` ergänzt.
+
+---
+
+### ✅ P8 – `permissions: contents: read` in `ci.yml` setzen
+
+`ci.yml` hatte keine explizite `permissions`-Deklaration.
+
+**Erledigt:** `permissions: contents: read` auf Workflow-Ebene in `.github/workflows/ci.yml` gesetzt.
+
+---
+
+### ✅ P9 – `docker-compose.yml` – Postgres-Passwort externalisieren
+
+`POSTGRES_PASSWORD: postgres` war hardcoded.
+
+**Erledigt:** Auf `${POSTGRES_PASSWORD:-postgres}` umgestellt. Variable in `backend/.env.example` dokumentiert.
+
+---
+
+### ✅ P10 – BOM-Zeichen und nicht-technische Docs-Dateien bereinigen
+
+**Erledigt:** BOM-Bytes in `gameloop-scheduler.js` und `CHANGELOG.md` geprüft – beide Dateien waren bereits BOM-frei. Die nicht-technischen Dateien (`docs/hallo.html`, `docs/BEWERTUNG.md` etc.) verbleiben vorerst.
 
 ---
 

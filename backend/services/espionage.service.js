@@ -26,20 +26,11 @@ import { broadcastToUser } from './live-updates.service.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { createServiceError } from './service-error.js';
+import { calcDistance, calcArrivalTime } from '../utils/game-math.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HILFSFUNKTIONEN
 // ─────────────────────────────────────────────────────────────────────────────
-
-function calcDistance(x1, y1, x2, y2) {
-    return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-}
-
-function calcArrivalTime(distance, speed) {
-    const travelTicks = distance / speed;
-    const tickMs = config.gameloop.tickIntervalMs;
-    return new Date(Date.now() + travelTicks * tickMs);
-}
 
 /**
  * Erfolgswahrscheinlichkeit für einen einzelnen Spion (0–1).

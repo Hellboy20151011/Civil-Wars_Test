@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Game Loop Scheduler - Zentrale Verwaltung des Tick-Systems
  * Delegiert an economy.service.js das eigentliche Handling.
  */

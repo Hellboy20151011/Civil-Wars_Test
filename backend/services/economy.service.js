@@ -1,8 +1,8 @@
 import * as buildingRepo from '../repositories/building.repository.js';
 import * as resourcesRepo from '../repositories/resources.repository.js';
+import { config } from '../config.js';
 
-// Tick-Dauer in Millisekunden (1 Minute)
-const TICK_MS = 60 * 1000;
+const TICK_MS = config.gameloop.tickIntervalMs;
 
 /**
  * Berechnet Strom-Status aus den gebauten Gebäuden.

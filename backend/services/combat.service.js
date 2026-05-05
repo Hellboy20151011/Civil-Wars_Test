@@ -13,9 +13,9 @@ import * as playerRepo from '../repositories/player.repository.js';
 import * as unitsRepo from '../repositories/units.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastToUser } from './live-updates.service.js';
-import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { createServiceError } from './service-error.js';
+import { calcDistance, calcArrivalTime } from '../utils/game-math.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KAMPF-MATCHUP-TABELLE
@@ -75,29 +75,12 @@ function getMatchup(attackerCategory, attackerUnitName, defenderCategory) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Euklidische Distanz zwischen zwei Koordinaten (in Gittereinheiten).
- */
-function calcDistance(x1, y1, x2, y2) {
-    return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-}
-
-/**
  * Langsamste Einheit einer Liste bestimmt die Bewegungsgeschwindigkeit des Verbands.
  * @param {Array<{ movement_speed: number }>} unitTypes
  * @returns {number} Felder pro Tick
  */
 function slowestSpeed(unitTypes) {
     return Math.min(...unitTypes.map((u) => Number(u.movement_speed)));
-}
-
-/**
- * Ankunftszeit aus Distanz und Geschwindigkeit berechnen.
- * Formel: travelTicks = distance / speed  → ms = travelTicks * tickIntervalMs
- */
-function calcArrivalTime(distance, speed) {
-    const travelTicks = distance / speed;
-    const tickMs = config.gameloop.tickIntervalMs;
-    return new Date(Date.now() + travelTicks * tickMs);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

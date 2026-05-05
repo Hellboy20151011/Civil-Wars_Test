@@ -6,6 +6,7 @@ vi.mock('../../repositories/resources.repository.js');
 
 import * as buildingRepo from '../../repositories/building.repository.js';
 import * as resourcesRepo from '../../repositories/resources.repository.js';
+import { config } from '../../config.js';
 import {
     getStromStatus,
     getProductionPerTick,
@@ -13,7 +14,7 @@ import {
     processFinishedQueue,
 } from '../../services/economy.service.js';
 
-const TICK_MS = 60 * 1000;
+const TICK_MS = config.gameloop.tickIntervalMs;
 
 beforeEach(() => {
     vi.clearAllMocks();

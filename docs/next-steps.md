@@ -278,6 +278,16 @@ Aktuell wird nur ein kurzlebiges JWT ohne Refresh-Token verwendet.
 
 ### P2 – Kampfsystem implementieren (Aufwand: XL | Impact: 🟢 sehr hoch)
 
+### ✅ P1 – Unit-Tests für Combat & Espionage Service (P1 aus Projektanalyse 2026-05-05)
+
+**Erledigt:** `backend/tests/services/combat.service.test.js` (18 Tests) und
+`backend/tests/services/espionage.service.test.js` (20 Tests) angelegt.
+
+- [x] Matchup-Logik, Kampftaucher-Sonderregel, alle Fehler-Codes getestet
+- [x] Espionage: Validierung, Erfolgsformel, Missions-Lebenszyklus, Preview-Funktion
+
+---
+
 Das Spiel hat Einheiten, aber kein Kampfsystem. Laut `docs/Issues.md` und
 `docs/Units.md` ist das ein geplantes Kernfeature.
 

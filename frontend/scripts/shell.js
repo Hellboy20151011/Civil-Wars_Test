@@ -78,7 +78,22 @@ function startLiveUpdates(token) {
     liveEventSource = null;
   }
 
-  const streamUrl = `${API_BASE_URL}/me/stream?token=${encodeURIComponent(token)}`;
+  // Kurzlebiges Einmal-Ticket vom Server holen (JWT bleibt im Authorization-Header)
+  let ticket;
+  try {
+    const ticketRes = await fetch(`${API_BASE_URL}/me/stream-ticket`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!ticketRes.ok) throw new Error('Ticket-Anfrage fehlgeschlagen');
+    const ticketData = await ticketRes.json();
+    ticket = ticketData.ticket;
+  } catch (err) {
+    console.error('SSE-Ticket konnte nicht abgerufen werden:', err);
+    return;
+  }
+
+  const streamUrl = `${API_BASE_URL}/me/stream?ticket=${encodeURIComponent(ticket)}`;
   const source = new EventSource(streamUrl);
 
   source.addEventListener('status', (event) => {

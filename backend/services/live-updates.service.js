@@ -5,6 +5,49 @@ async function getMeService() {
     return _meService;
 }
 
+// ─── Stream-Tickets (kurzlebige Einmal-Token für SSE-Verbindungen) ────────────
+// Map<ticket, { userId, expiresAt }>
+const streamTickets = new Map();
+const TICKET_TTL_MS = 30_000; // 30 Sekunden gültig
+
+/**
+ * Erstellt ein kurzlebiges einmaliges Ticket für eine SSE-Verbindung.
+ * Das Ticket darf nur einmal eingelöst werden.
+ * @param {number} userId
+ * @returns {string} ticket
+ */
+export function createStreamTicket(userId) {
+    // Zufälliges Ticket aus 32 Byte hex
+    const ticket = Array.from(
+        { length: 32 },
+        () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
+    ).join('');
+    streamTickets.set(ticket, { userId, expiresAt: Date.now() + TICKET_TTL_MS });
+    return ticket;
+}
+
+/**
+ * Löst ein Ticket ein und gibt die userId zurück, oder null wenn ungültig/abgelaufen.
+ * Tickets können nur einmal eingelöst werden.
+ * @param {string} ticket
+ * @returns {number|null}
+ */
+export function redeemStreamTicket(ticket) {
+    const entry = streamTickets.get(ticket);
+    if (!entry) return null;
+    streamTickets.delete(ticket); // Einmalig einlösen
+    if (Date.now() > entry.expiresAt) return null;
+    return entry.userId;
+}
+
+// Abgelaufene Tickets regelmäßig bereinigen
+setInterval(() => {
+    const now = Date.now();
+    for (const [ticket, entry] of streamTickets.entries()) {
+        if (now > entry.expiresAt) streamTickets.delete(ticket);
+    }
+}, 60_000);
+
 const sseClientsByUser = new Map();
 
 function writeSseEvent(response, event, data) {

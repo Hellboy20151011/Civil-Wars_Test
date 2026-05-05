@@ -32,15 +32,8 @@ router.post(
     authLimiter,
     validateBody(registerSchema),
     asyncWrapper(async (req, res) => {
-        try {
-            const payload = await authService.registerUser(req.body);
-            res.status(201).json(payload);
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({ message: error.message });
-            }
-            throw error;
-        }
+        const payload = await authService.registerUser(req.body);
+        res.status(201).json(payload);
     })
 );
 
@@ -50,15 +43,8 @@ router.post(
     authLimiter,
     validateBody(loginSchema),
     asyncWrapper(async (req, res) => {
-        try {
-            const payload = await authService.loginUser(req.body);
-            res.status(200).json(payload);
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({ message: error.message });
-            }
-            throw error;
-        }
+        const payload = await authService.loginUser(req.body);
+        res.status(200).json(payload);
     })
 );
 
@@ -67,15 +53,8 @@ router.post(
     authLimiter,
     validateBody(refreshSchema),
     asyncWrapper(async (req, res) => {
-        try {
-            const payload = await authService.refreshAuthToken({ refreshToken: req.body.refresh_token });
-            res.status(200).json(payload);
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({ message: error.message });
-            }
-            throw error;
-        }
+        const payload = await authService.refreshAuthToken({ refreshToken: req.body.refresh_token });
+        res.status(200).json(payload);
     })
 );
 

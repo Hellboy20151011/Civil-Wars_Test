@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
@@ -10,6 +10,28 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 ## [Unreleased]
 
 ### Added
+
+- `backend/utils/game-math.js` – gemeinsame Hilfsfunktionen `calcDistance()` und `calcArrivalTime()` (P5: DRY-Refactor aus combat/espionage)
+- `backend/tests/services/combat.service.test.js` – 18 Unit-Tests für combat.service.js (P1: Matchup-Logik, Kampftaucher-Sonderregel, Fehlerbehandlung, Rückkehr-Abschluss)
+- `backend/tests/services/espionage.service.test.js` – 20 Unit-Tests für espionage.service.js (P1: Missions-Validierung, Erfolgsformel, Berichte, Preview)
+- `.github/CODEOWNERS` – automatische Reviewer-Zuweisung für alle Pull Requests (P6)
+
+### Changed
+
+- `backend/services/economy.service.js` – `TICK_MS` wird jetzt aus `config.gameloop.tickIntervalMs` gelesen statt hardcoded 60 s (P4)
+- `backend/services/combat.service.js` – `calcDistance`/`calcArrivalTime` durch Import aus `utils/game-math.js` ersetzt; unbenutzten `config`-Import entfernt (P5)
+- `backend/services/espionage.service.js` – `calcDistance`/`calcArrivalTime` durch Import aus `utils/game-math.js` ersetzt (P5)
+- `backend/services/live-updates.service.js` – Stream-Ticket-System hinzugefügt: `createStreamTicket()` und `redeemStreamTicket()` für kurzlebige SSE-Einmal-Token (P2)
+- `backend/routes/me.js` – SSE-Authentifizierung von JWT-im-URL auf `POST /me/stream-ticket` + `?ticket=` umgestellt; JWT-Import entfernt (P2)
+- `backend/routes/auth.js` – direkte `res.status(error.status).json(...)` durch `next(err)` via `asyncWrapper` ersetzt (P3)
+- `backend/routes/combat.js` – direkte Fehlerantworten durch Weitergabe an `errorHandler` über `asyncWrapper` ersetzt (P3)
+- `backend/routes/espionage.js` – direkte Fehlerantworten durch Weitergabe an `errorHandler` über `asyncWrapper` ersetzt (P3)
+- `backend/routes/units.js` – direkte Fehlerantworten durch Weitergabe an `errorHandler` über `asyncWrapper` ersetzt (P3)
+- `frontend/scripts/shell.js` – `startLiveUpdates()` holt nun zuerst ein kurzlebiges Ticket via `POST /me/stream-ticket` statt den JWT im URL zu übergeben (P2)
+- `.github/workflows/ci.yml` – `permissions: contents: read` auf Workflow-Ebene gesetzt (P8); Playwright-Browser-Installation `npx playwright install --with-deps chromium` im E2E-Job ergänzt (P7)
+- `docker-compose.yml` – `POSTGRES_PASSWORD` auf `${POSTGRES_PASSWORD:-postgres}` umgestellt (P9)
+- `backend/.env.example` – `POSTGRES_PASSWORD`-Hinweis für Docker Compose ergänzt (P9)
+- `backend/tests/services/economy.service.test.js` – `TICK_MS` wird jetzt aus `config.gameloop.tickIntervalMs` importiert statt hardcoded
 
 - `docs/Projektanalyse_2026-05-05.md` – tiefes Architektur- & Qualitäts-Review mit Top-10-Prioritätenliste
 

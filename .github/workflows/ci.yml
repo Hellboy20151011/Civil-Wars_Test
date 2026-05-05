@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Lint & Test (Backend)
@@ -141,6 +144,9 @@ jobs:
 
       - name: Abhängigkeiten installieren
         run: npm ci
+
+      - name: Playwright Browser installieren
+        run: npx playwright install --with-deps chromium
 
       - name: Datenbank einrichten
         run: node scripts/resetdb.js

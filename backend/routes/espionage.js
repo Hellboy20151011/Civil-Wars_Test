@@ -39,16 +39,11 @@ router.post(
         const spyPlayerId = req.user.id;
         const { target_id, units } = req.body;
 
-        try {
-            const result = await espionageService.launchSpyMission(spyPlayerId, target_id, units);
-            res.status(201).json({
-                message: `Spionage-Mission gestartet! Spione kommen in ${result.arrivalTime.toISOString()} an.`,
-                data: result,
-            });
-        } catch (error) {
-            if (error.status) return res.status(error.status).json({ message: error.message });
-            throw error;
-        }
+        const result = await espionageService.launchSpyMission(spyPlayerId, target_id, units);
+        res.status(201).json({
+            message: `Spionage-Mission gestartet! Spione kommen in ${result.arrivalTime.toISOString()} an.`,
+            data: result,
+        });
     })
 );
 
@@ -58,17 +53,12 @@ router.get(
     requireAuth,
     validateQuery(previewSchema),
     asyncWrapper(async (req, res) => {
-        try {
-            const preview = await espionageService.getMissionPreview(
-                req.user.id,
-                req.query.target_id,
-                req.query.unit_ids
-            );
-            res.json({ data: preview });
-        } catch (error) {
-            if (error.status) return res.status(error.status).json({ message: error.message });
-            throw error;
-        }
+        const preview = await espionageService.getMissionPreview(
+            req.user.id,
+            req.query.target_id,
+            req.query.unit_ids
+        );
+        res.json({ data: preview });
     })
 );
 

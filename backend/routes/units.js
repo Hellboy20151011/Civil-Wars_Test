@@ -82,17 +82,12 @@ router.post(
         const userId = req.user.id;
         const { unit_type_id, quantity } = req.body;
 
-        try {
-            const result = await unitsService.startTraining(userId, unit_type_id, quantity);
-            res.json({
-                success: true,
-                message: `${quantity}x ${result.unit} wird ausgebildet`,
-                data: result,
-            });
-        } catch (error) {
-            if (error.status) return res.status(error.status).json({ message: error.message });
-            throw error;
-        }
+        const result = await unitsService.startTraining(userId, unit_type_id, quantity);
+        res.json({
+            success: true,
+            message: `${quantity}x ${result.unit} wird ausgebildet`,
+            data: result,
+        });
     })
 );
 
@@ -109,22 +104,17 @@ router.post(
         const userId = req.user.id;
         const { user_unit_id, destination_x, destination_y } = req.body;
 
-        try {
-            const result = await unitsService.moveUnits(
-                userId,
-                user_unit_id,
-                destination_x,
-                destination_y
-            );
-            res.json({
-                success: true,
-                message: `Einheit bewegt sich zum Ziel (${destination_x}, ${destination_y})`,
-                data: result,
-            });
-        } catch (error) {
-            if (error.status) return res.status(error.status).json({ message: error.message });
-            throw error;
-        }
+        const result = await unitsService.moveUnits(
+            userId,
+            user_unit_id,
+            destination_x,
+            destination_y
+        );
+        res.json({
+            success: true,
+            message: `Einheit bewegt sich zum Ziel (${destination_x}, ${destination_y})`,
+            data: result,
+        });
     })
 );
 
@@ -140,17 +130,12 @@ router.post(
     asyncWrapper(async (req, res) => {
         const { attacking_unit_id, target_unit_id } = req.body;
 
-        try {
-            const result = await unitsService.attackUnits(attacking_unit_id, target_unit_id);
-            res.json({
-                success: true,
-                message: `Angriff erfolgreich! ${result.actualDamage.toFixed(2)} Schaden verursacht`,
-                data: result,
-            });
-        } catch (error) {
-            if (error.status) return res.status(error.status).json({ message: error.message });
-            throw error;
-        }
+        const result = await unitsService.attackUnits(attacking_unit_id, target_unit_id);
+        res.json({
+            success: true,
+            message: `Angriff erfolgreich! ${result.actualDamage.toFixed(2)} Schaden verursacht`,
+            data: result,
+        });
     })
 );
 

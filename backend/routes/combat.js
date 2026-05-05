@@ -30,16 +30,11 @@ router.post(
         const attackerId = req.user.id;
         const { defender_id, units } = req.body;
 
-        try {
-            const result = await combatService.launchAttack(attackerId, defender_id, units);
-            res.status(201).json({
-                message: `Angriff gestartet! Einheiten kommen in ${result.arrivalTime.toISOString()} an.`,
-                data: result,
-            });
-        } catch (error) {
-            if (error.status) return res.status(error.status).json({ message: error.message });
-            throw error;
-        }
+        const result = await combatService.launchAttack(attackerId, defender_id, units);
+        res.status(201).json({
+            message: `Angriff gestartet! Einheiten kommen in ${result.arrivalTime.toISOString()} an.`,
+            data: result,
+        });
     })
 );
 
