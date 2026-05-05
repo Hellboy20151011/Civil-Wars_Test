@@ -16,6 +16,11 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/tests/services/espionage.service.test.js` – 20 Unit-Tests für espionage.service.js (P1: Missions-Validierung, Erfolgsformel, Berichte, Preview)
 - `.github/CODEOWNERS` – automatische Reviewer-Zuweisung für alle Pull Requests (P6)
 
+### Fixed
+
+- `.github/workflows/ci.yml` – `actions/checkout` und `actions/setup-node` von nicht-existenter `@v6` auf stabile `@v4` korrigiert (CI-Fehler behoben)
+- `.github/workflows/release.yml` – gleiche Korrektur wie `ci.yml`
+
 ### Changed
 
 - `backend/services/economy.service.js` – `TICK_MS` wird jetzt aus `config.gameloop.tickIntervalMs` gelesen statt hardcoded 60 s (P4)
