@@ -180,9 +180,12 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 
 - `backend/tests/services/units.service.test.js` – 19 Tests: Getter, `startTraining`, `moveUnits`, `arriveAtDestination`, `attackUnits`
 - `backend/tests/services/gameloop-scheduler.test.js` – 7 Tests: `executeGameTick`, `getTickStats`, `startGameLoop`
+- `backend/tests/services/buildings.service.test.js` – 27 Tests: Bau, Upgrade, Queue, Ressourcen- und Stromprüfungen
+- `backend/tests/services/combat.service.test.js` – 18 Tests: Matchups, Sonderregeln, Missions-Rückkehr
+- `backend/tests/services/espionage.service.test.js` – 20 Tests: Missionsvalidierung, Berichte, Vorschau
 - Alle Abhängigkeiten (Repositories, DB-Pool, config) werden via `vi.mock()` ersetzt; Tests laufen ohne laufende DB.
 - `backend/tests/services/economy.service.test.js` war bereits vorhanden (11 Tests).
-- Gesamt: **37 Tests**, alle grün.
+- Gesamt: **102 Tests**, alle grün.
 
 ---
 
@@ -192,7 +195,8 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 
 - `npm run test:coverage` erzeugt einen Abdeckungsbericht (Text + LCOV) in `backend/coverage/`.
 - `backend/vitest.config.js` definiert Schwellen: Statements/Lines/Functions ≥80 %, Branches ≥60 %.
-- Aktuell erreicht: Statements 88 %, Branches 89 %, Functions 87 %, Lines 88 %.
+- `backend/services/buildings.service.js` ist nicht mehr von der Coverage ausgeschlossen.
+- Aktuell erreicht: Statements 80.22 %, Branches 72.88 %, Functions 80.18 %, Lines 80.52 %.
 - CI-Workflow führt `npm run test:coverage` nach den Unit-Tests aus.
 
 ---
@@ -436,7 +440,7 @@ Zusätzlich dokumentiert: `BREAKING CHANGE`-Hinweis im PR-Titel, Tag-Schema
 ### ✅ 10.3 GitHub Release Workflow
 
 **Umgesetzt:** `.github/workflows/release.yml` – triggert auf Git-Tag-Push (`v*.*.*`),
-führt Tests aus und erstellt einen GitHub-Release.
+führt Lint, Unit-Tests, Playwright-Browser-Installation, DB-Reset, E2E-Tests und danach den GitHub-Release aus.
 
 ---
 

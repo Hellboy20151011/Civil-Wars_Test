@@ -288,15 +288,17 @@ Aktuell wird nur ein kurzlebiges JWT ohne Refresh-Token verwendet.
 
 ---
 
-Das Spiel hat Einheiten, aber kein Kampfsystem. Laut `docs/Issues.md` und
-`docs/Units.md` ist das ein geplantes Kernfeature.
+### ✅ P1 – Kampfsystem implementiert (Aufwand: L | Impact: 🔴 hoch)
+
+**Erledigt:** Distanzbasiertes Kampfsystem mit Missions-Lebenszyklus, Matchup-Tabelle,
+Kampftaucher-Sonderregel, Historie und SSE-Benachrichtigungen ist implementiert.
 
 **Aufgaben:**
 
-- [ ] Kampf-Mechanik definieren (Rundenbasiert / Echtzeit-Simulation pro Tick).
-- [ ] `backend/services/combat.service.js` implementieren.
-- [ ] Zugehörige Route, Repository und Schema anlegen.
-- [ ] Frontend-Darstellung für Angriffs-/Verteidigungsresultate.
+- [x] Kampf-Mechanik pro Tick definieren.
+- [x] `backend/services/combat.service.js` implementieren.
+- [x] Zugehörige Route, Repository und Schema anlegen.
+- [x] Frontend-Darstellung für Angriffs-/Verteidigungsresultate.
 
 ---
 

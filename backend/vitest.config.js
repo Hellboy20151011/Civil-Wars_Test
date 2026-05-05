@@ -12,8 +12,6 @@ export default defineConfig({
             reportsDirectory: './coverage',
             include: ['services/**/*.js'],
             exclude: [
-                'services/buildings.service.js',
-                'services/gameloop.js',
                 'services/live-updates.service.js',
             ],
             thresholds: {

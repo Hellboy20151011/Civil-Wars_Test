@@ -71,6 +71,14 @@ app.get('/karte.html', (req, res) => {
     res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/karte.html'));
 });
 
+app.get('/spionage.html', (req, res) => {
+    res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/spionage.html'));
+});
+
+app.get('/geheimdienstzentrum.html', (req, res) => {
+    res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/geheimdienstzentrum.html'));
+});
+
 // Zentraler Error-Handler (muss nach allen Routen stehen)
 app.use(errorHandler);
 

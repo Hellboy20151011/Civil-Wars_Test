@@ -59,8 +59,59 @@ jobs:
           NODE_ENV: test
         run: npm test
 
+      - name: Playwright Browser installieren
+        working-directory: backend
+        run: npx playwright install --with-deps chromium
+
+      - name: Datenbank neu aufsetzen
+        working-directory: backend
+        env:
+          DB_USER: postgres
+          DB_HOST: localhost
+          DB_NAME: civil_wars_test
+          DB_PASSWORD: postgres
+          DB_PORT: 5432
+          JWT_SECRET: test_secret_for_ci_only_minimum_32_chars
+          JWT_EXPIRES_IN: 7d
+          NODE_ENV: test
+        run: node scripts/resetdb.js
+
+      - name: Backend starten
+        working-directory: backend
+        env:
+          DB_USER: postgres
+          DB_HOST: localhost
+          DB_NAME: civil_wars_test
+          DB_PASSWORD: postgres
+          DB_PORT: 5432
+          JWT_SECRET: test_secret_for_ci_only_minimum_32_chars
+          JWT_EXPIRES_IN: 7d
+          NODE_ENV: test
+          PORT: 3000
+          CORS_ORIGIN: http://localhost:3000
+        run: node server.js &
+
+      - name: Warten bis Backend bereit ist
+        working-directory: backend
+        run: npx wait-on http://localhost:3000/health --timeout 15000
+
+      - name: E2E Tests ausführen
+        working-directory: backend
+        env:
+          DB_USER: postgres
+          DB_HOST: localhost
+          DB_NAME: civil_wars_test
+          DB_PASSWORD: postgres
+          DB_PORT: 5432
+          JWT_SECRET: test_secret_for_ci_only_minimum_32_chars
+          JWT_EXPIRES_IN: 7d
+          NODE_ENV: test
+          PORT: 3000
+          CORS_ORIGIN: http://localhost:3000
+        run: npm run test:e2e
+
       - name: GitHub Release erstellen
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           body_path: CHANGELOG.md

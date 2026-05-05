@@ -14,3 +14,10 @@ CREATE TABLE IF NOT EXISTS users (
 	failed_login_attempts INTEGER NOT NULL DEFAULT 0,
 	locked_until TIMESTAMPTZ
 );
+
+ALTER TABLE users
+	DROP CONSTRAINT IF EXISTS users_coordinates_unique;
+
+ALTER TABLE users
+	ADD CONSTRAINT users_coordinates_unique
+	UNIQUE (koordinate_x, koordinate_y);

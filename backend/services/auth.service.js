@@ -44,52 +44,59 @@ export async function registerUser({ username, email, password }) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    return withTransaction(async (client) => {
-        let koordinateX;
-        let koordinateY;
-        let versuche = 0;
-        const maxVersuche = 50;
+    let versuche = 0;
+    const maxVersuche = 50;
 
-        do {
-            if (versuche >= maxVersuche) {
-                throw createServiceError(
-                    'Kein freier Koordinatenplatz verfügbar',
-                    503,
-                    'MAP_NO_FREE_SLOT'
+    while (versuche < maxVersuche) {
+        const koordinateX = Math.floor(Math.random() * config.map.gridSize) + 1;
+        const koordinateY = Math.floor(Math.random() * config.map.gridSize) + 1;
+        versuche++;
+
+        try {
+            return await withTransaction(async (client) => {
+                const newUser = await playerRepo.create(
+                    username,
+                    email,
+                    hashedPassword,
+                    koordinateX,
+                    koordinateY,
+                    client
                 );
+
+                await resourcesRepo.initForUser(newUser.id, client);
+
+                const rathaus = await buildingRepo.findTypeByName('Rathaus', client);
+                if (rathaus) {
+                    await buildingRepo.upsertBuilding(newUser.id, rathaus.id, 1, client);
+                }
+
+                const token = signAuthToken(newUser);
+                const refreshToken = await issueRefreshToken(newUser.id, client);
+
+                return {
+                    message: 'User registered successfully',
+                    token,
+                    refresh_token: refreshToken,
+                    user: newUser,
+                };
+            });
+        } catch (error) {
+            const isCoordinateConflict =
+                error?.code === '23505' && error?.constraint === 'users_coordinates_unique';
+
+            if (isCoordinateConflict) {
+                continue;
             }
 
-            koordinateX = Math.floor(Math.random() * config.map.gridSize) + 1;
-            koordinateY = Math.floor(Math.random() * config.map.gridSize) + 1;
-            versuche++;
-        } while (await playerRepo.findByKoordinaten(koordinateX, koordinateY, client));
-
-        const newUser = await playerRepo.create(
-            username,
-            email,
-            hashedPassword,
-            koordinateX,
-            koordinateY,
-            client
-        );
-
-        await resourcesRepo.initForUser(newUser.id, client);
-
-        const rathaus = await buildingRepo.findTypeByName('Rathaus', client);
-        if (rathaus) {
-            await buildingRepo.upsertBuilding(newUser.id, rathaus.id, 1, client);
+            throw error;
         }
+    }
 
-        const token = signAuthToken(newUser);
-        const refreshToken = await issueRefreshToken(newUser.id, client);
-
-        return {
-            message: 'User registered successfully',
-            token,
-            refresh_token: refreshToken,
-            user: newUser,
-        };
-    });
+    throw createServiceError(
+        'Kein freier Koordinatenplatz verfügbar',
+        503,
+        'MAP_NO_FREE_SLOT'
+    );
 }
 
 export async function loginUser({ username, password }) {
@@ -110,8 +117,7 @@ export async function loginUser({ username, password }) {
 
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
-        await playerRepo.incrementFailedLogin(user.id);
-        const newCount = user.failed_login_attempts + 1;
+        const newCount = await playerRepo.incrementFailedLogin(user.id);
         if (newCount >= config.security.maxFailedLogins) {
             const lockedUntil = new Date(Date.now() + config.security.lockoutDurationMs);
             await playerRepo.lockAccount(user.id, lockedUntil);

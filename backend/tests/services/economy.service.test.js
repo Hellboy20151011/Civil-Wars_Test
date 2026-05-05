@@ -12,6 +12,7 @@ import {
     getProductionPerTick,
     applyProductionTicks,
     processFinishedQueue,
+    getSpielerStatus,
 } from '../../services/economy.service.js';
 
 const TICK_MS = config.gameloop.tickIntervalMs;
@@ -159,5 +160,46 @@ describe('processFinishedQueue', () => {
         const count = await processFinishedQueue(1, {});
         expect(count).toBe(2);
         expect(buildingRepo.deleteFinishedQueueEntries).toHaveBeenCalledWith(1, {});
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getSpielerStatus
+// ---------------------------------------------------------------------------
+describe('getSpielerStatus', () => {
+    it('gibt aggregierten Spielerstatus zurück', async () => {
+        const fakeResources = { geld: 1000, stein: 200, stahl: 50, treibstoff: 30, strom: 0 };
+        const fakeBuildings = [
+            {
+                power_production: 20, power_consumption: 5, anzahl: 2,
+                money_production: 500, stone_production: 10, steel_production: 5,
+                fuel_production: 0, population: 50,
+            },
+        ];
+        const fakeQueue = [{ id: 1, building_type_id: 3 }];
+
+        resourcesRepo.findByUserId.mockResolvedValue(fakeResources);
+        buildingRepo.findBuildingsByUser.mockResolvedValue(fakeBuildings);
+        buildingRepo.findQueueByUser.mockResolvedValue(fakeQueue);
+
+        const result = await getSpielerStatus(1, {});
+
+        expect(result.resources).toEqual(fakeResources);
+        expect(result.buildings).toEqual(fakeBuildings);
+        expect(result.queue).toEqual(fakeQueue);
+        expect(result.strom).toMatchObject({ produktion: 40, verbrauch: 10, frei: 30 });
+        expect(result.production).toMatchObject({ geld: 1000, stein: 20 });
+        expect(result.bevoelkerung).toBe(100); // 50 population × 2 anzahl
+    });
+
+    it('gibt Null-Ressourcen zurück wenn Ressourcen nicht gefunden', async () => {
+        resourcesRepo.findByUserId.mockResolvedValue(null);
+        buildingRepo.findBuildingsByUser.mockResolvedValue([]);
+        buildingRepo.findQueueByUser.mockResolvedValue([]);
+
+        const result = await getSpielerStatus(99, {});
+
+        expect(result.resources).toEqual({ geld: 0, stein: 0, stahl: 0, treibstoff: 0, strom: 0 });
+        expect(result.bevoelkerung).toBe(0);
     });
 });

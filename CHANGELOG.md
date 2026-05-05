@@ -14,6 +14,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/utils/game-math.js` – gemeinsame Hilfsfunktionen `calcDistance()` und `calcArrivalTime()` (P5: DRY-Refactor aus combat/espionage)
 - `backend/tests/services/combat.service.test.js` – 18 Unit-Tests für combat.service.js (P1: Matchup-Logik, Kampftaucher-Sonderregel, Fehlerbehandlung, Rückkehr-Abschluss)
 - `backend/tests/services/espionage.service.test.js` – 20 Unit-Tests für espionage.service.js (P1: Missions-Validierung, Erfolgsformel, Berichte, Preview)
+- `backend/tests/services/buildings.service.test.js` – 27 Unit-Tests für buildings.service.js (Bau, Upgrade, Queue, Ressourcen- und Stromprüfungen)
+- `backend/tests/services/auth.service.test.js` – 12 Unit-Tests für register/login/refresh inkl. Koordinaten-Retry, Lockout- und Refresh-Token-Pfaden
+- `backend/tests/services/me.service.test.js` – 2 Unit-Tests für Status- und Stream-Payload-Aufbau
 - `.github/CODEOWNERS` – automatische Reviewer-Zuweisung für alle Pull Requests (P6)
 
 ### Fixed
@@ -23,20 +26,32 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Changed
 
+- `.github/workflows/release.yml` – GitHub-Release nutzt jetzt `softprops/action-gh-release@v2` und führt vor dem Release zusätzlich Playwright-E2E-Tests aus
+- `backend/database/schemas/users.sql` – Unique-Constraint `users_coordinates_unique` für `(koordinate_x, koordinate_y)` ergänzt
+- `backend/database/migrate_v4_user_coordinates.sql` – Migration für den neuen Koordinaten-Unique-Constraint ergänzt
 - `backend/services/economy.service.js` – `TICK_MS` wird jetzt aus `config.gameloop.tickIntervalMs` gelesen statt hardcoded 60 s (P4)
 - `backend/services/combat.service.js` – `calcDistance`/`calcArrivalTime` durch Import aus `utils/game-math.js` ersetzt; unbenutzten `config`-Import entfernt (P5)
 - `backend/services/espionage.service.js` – `calcDistance`/`calcArrivalTime` durch Import aus `utils/game-math.js` ersetzt (P5)
+- `backend/services/gameloop.js` – ungenutzte, redundante Alt-Implementierung entfernt; aktiver Tick verbleibt in `gameloop-scheduler.js`
 - `backend/services/live-updates.service.js` – Stream-Ticket-System hinzugefügt: `createStreamTicket()` und `redeemStreamTicket()` für kurzlebige SSE-Einmal-Token (P2)
 - `backend/routes/me.js` – SSE-Authentifizierung von JWT-im-URL auf `POST /me/stream-ticket` + `?ticket=` umgestellt; JWT-Import entfernt (P2)
 - `backend/routes/auth.js` – direkte `res.status(error.status).json(...)` durch `next(err)` via `asyncWrapper` ersetzt (P3)
 - `backend/routes/combat.js` – direkte Fehlerantworten durch Weitergabe an `errorHandler` über `asyncWrapper` ersetzt (P3)
 - `backend/routes/espionage.js` – direkte Fehlerantworten durch Weitergabe an `errorHandler` über `asyncWrapper` ersetzt (P3)
+- `backend/tests/services/economy.service.test.js` – 2 Tests für `getSpielerStatus` ergänzt; Coverage auf 100 % aller Metriken gebracht
+- `backend/tests/services/combat.service.test.js` – 6 Tests für Matchup-Sonderfälle ergänzt (immune branch, Panzergrenadier, Fregatte, counter_unit-Bonus, setUnitHealth, null quantity_returned); Branch-Coverage auf 95 % verbessert
+- `backend/tests/services/espionage.service.test.js` – 5 Tests ergänzt: SR-71/Satellit-Bonus, Low/Medium-Detail-Bericht, vollständiger Bericht mit Einheitenliste, Fehlerbehandlung in processReturningSpyMissions; Statement-Coverage auf 99 %, Line-Coverage auf 100 %
 - `backend/routes/units.js` – direkte Fehlerantworten durch Weitergabe an `errorHandler` über `asyncWrapper` ersetzt (P3)
+- `backend/server.js` – explizite HTML-Routen für `spionage.html` und `geheimdienstzentrum.html` ergänzt
 - `frontend/scripts/shell.js` – `startLiveUpdates()` holt nun zuerst ein kurzlebiges Ticket via `POST /me/stream-ticket` statt den JWT im URL zu übergeben (P2)
 - `.github/workflows/ci.yml` – `permissions: contents: read` auf Workflow-Ebene gesetzt (P8); Playwright-Browser-Installation `npx playwright install --with-deps chromium` im E2E-Job ergänzt (P7)
 - `docker-compose.yml` – `POSTGRES_PASSWORD` auf `${POSTGRES_PASSWORD:-postgres}` umgestellt (P9)
 - `backend/.env.example` – `POSTGRES_PASSWORD`-Hinweis für Docker Compose ergänzt (P9)
 - `backend/tests/services/economy.service.test.js` – `TICK_MS` wird jetzt aus `config.gameloop.tickIntervalMs` importiert statt hardcoded
+- `backend/vitest.config.js` – `buildings.service.js` wieder in die Coverage aufgenommen; Gesamt-Coverage liegt nun bei 93.17 % Statements, 80.76 % Branches, 92.79 % Functions und 94.63 % Lines
+- `backend/tests/services/gameloop-scheduler.test.js` – um Guard-, Fehler- und Intervall-Pfade erweitert; `gameloop-scheduler.js` jetzt bei 100 % Branch-Coverage
+- `backend/repositories/player.repository.js` und `backend/services/auth.service.js` – fehlgeschlagene Logins zählen atomisch via `UPDATE ... RETURNING`; Registrierung fängt Koordinatenkonflikte per Retry auf
+- `docs/Projektanalyse_2026-05-05.md` und `docs/next-steps.md` – veraltete Review- und Roadmap-Einträge an den aktuellen Umsetzungsstand angepasst
 
 - `docs/Projektanalyse_2026-05-05.md` – tiefes Architektur- & Qualitäts-Review mit Top-10-Prioritätenliste
 

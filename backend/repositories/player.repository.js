@@ -64,10 +64,15 @@ export async function updateLastLogin(id, client = pool) {
 }
 
 export async function incrementFailedLogin(id, client = pool) {
-    await client.query(
-        'UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = $1',
+    const result = await client.query(
+        `UPDATE users
+         SET failed_login_attempts = failed_login_attempts + 1
+         WHERE id = $1
+         RETURNING failed_login_attempts`,
         [id]
     );
+
+    return Number(result.rows[0]?.failed_login_attempts ?? 0);
 }
 
 export async function lockAccount(id, lockedUntil, client = pool) {

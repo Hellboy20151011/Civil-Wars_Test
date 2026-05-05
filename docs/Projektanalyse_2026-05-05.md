@@ -80,7 +80,7 @@ pino / pino-http          (strukturiertes Logging)
 
 Die Tick-Sicherung ist solide: `gameLoopActive`-Flag verhindert gleichzeitige Ausführung (`gameloop-scheduler.js:27-29`). Jede Mission wird in einer eigenen Transaktion verarbeitet; ein Fehler bei einer Mission bricht andere nicht ab.
 
-**SSE-Live-Updates:** `live-updates.service.js` verwaltet einen `Map<userId, Set<Response>>`. Heartbeats alle 25 Sekunden. Token-Übergabe via URL-Parameter (`/me/stream?token=...`), was eine Sicherheitsschwäche ist (Logs/Proxies können den Token sehen – mehr in Abschnitt 4).
+**SSE-Live-Updates:** `live-updates.service.js` verwaltet einen `Map<userId, Set<Response>>`. Heartbeats alle 25 Sekunden. Die Stream-Authentifizierung läuft jetzt über `POST /me/stream-ticket` mit einem kurzlebigen Einmal-Ticket; der JWT wird nicht mehr als URL-Parameter übertragen.
 
 ### 2.4 Schnittstellen / Modularität
 
@@ -93,17 +93,13 @@ Die Tick-Sicherung ist solide: `gameLoopActive`-Flag verhindert gleichzeitige Au
 
 **Schwächen:**
 
-- **Doppelter Code:** `calcDistance()` und `calcArrivalTime()` sind identisch in `combat.service.js:80-101` und `espionage.service.js:34-42` definiert. Könnten in ein gemeinsames `utils/game-math.js` extrahiert werden.
+- **Tick-Komplexität bleibt hoch:** Der zentrale Tick sitzt jetzt konsolidiert in `gameloop-scheduler.js`. Die frühere redundante Alt-Datei `gameloop.js` wurde entfernt, aber der Scheduler bleibt ein wachsender Hotspot für weitere Entkopplung.
 
-- **`economy.service.js:5` – Hardcoded TICK_MS:**
-  ```js
-  const TICK_MS = 60 * 1000; // hardcoded 1 Minute
-  ```
-  Der konfigurierbare Wert `config.gameloop.tickIntervalMs` wird in `gameloop-scheduler.js` verwendet, aber `economy.service.js` ignoriert die Konfiguration. In Produktion (10 min Tick) würden damit immer 10 Ticks pro Tick verbucht – de facto korrekt, da `ticks = Math.floor(elapsed / TICK_MS)` die tatsächliche Produktionsgranularität beschreibt, aber inkonsistent zur restlichen Konfiguration.
+**Kürzlich behoben:**
 
-- **Error-Handling-Inkonsistenz:** Die Konvention besagt `next(err)` für alle Serverfehler. Tatsächlich fangen mehrere Routen `error.status`-Fehler direkt ab und antworten mit `res.status(error.status).json(...)` (`auth.js:39-40`, `combat.js:40`, `espionage.js:49`). Das führt zu leicht unterschiedlichen Response-Strukturen (zentral: `{ message, error: { message, code, details } }`, direkt: nur `{ message }`).
-
-- **`gameloop.js` und `gameloop-scheduler.js` koexistieren:** `gameloop.js` ist ein Überbleibsel (enthält `executeTick()` und `initializeNewPlayer()`). Der Scheduler (`gameloop-scheduler.js`) ist die aktive Implementierung. Diese Redundanz könnte Verwirrung stiften.
+- Die frühere Duplizierung von `calcDistance()` und `calcArrivalTime()` wurde in `backend/utils/game-math.js` extrahiert.
+- `economy.service.js` liest `TICK_MS` jetzt aus `config.gameloop.tickIntervalMs` statt aus einem Hardcode.
+- Das Error-Handling in `auth.js`, `combat.js`, `espionage.js` und `units.js` wurde auf den zentralen `errorHandler` vereinheitlicht.
 
 ### 2.5 Fehlerbehandlung / Logging
 
@@ -140,9 +136,10 @@ Die Tick-Sicherung ist solide: `gameLoopActive`-Flag verhindert gleichzeitige Au
 
 **Fehlende Tests:**
 - `combat.service.js` (429 Zeilen!) und `espionage.service.js` (438 Zeilen!) haben **keine** Unit-Tests. Sie enthalten komplexe Kampfberechnungen (Matchup-Tabelle, Kampftaucher-Phase, Erfolgsformel).
-- `buildings.service.js` ist explizit aus der Coverage ausgeschlossen (`vitest.config.js:15`) – trotz 429 Zeilen Kernlogik.
 - `auth.service.js` hat keine direkten Unit-Tests (nur E2E-abgedeckt).
 - Keine Frontend-Tests.
+
+**Update:** `combat.service.js`, `espionage.service.js`, `buildings.service.js` und zentrale Pfade in `auth.service.js` haben inzwischen Unit-Tests; `buildings.service.js` ist nicht mehr aus der Coverage ausgeschlossen.
 
 **Test-Qualität:** Die vorhandenen Unit-Tests sind gut strukturiert (Mocks für Repositories, klare Assertions). Die E2E-Tests decken realistische Flows ab (Register → Login → Token-Rotation → Auth-Guard).
 
@@ -319,7 +316,7 @@ Der CI-E2E-Job fehlte der Installations-Step für Playwright-Browser.
 
 ## Weitere Refactor-Vorschläge
 
-- **`gameloop.js` aufräumen:** `initializeNewPlayer()` nach `auth.service.js` integrieren und `gameloop.js` entfernen oder umbenennen, um die Redundanz mit `gameloop-scheduler.js` aufzulösen.
-- **Coverage-Ausschluss für `buildings.service.js` überdenken:** Mit 429 Zeilen Kernlogik für Gebäudevoraussetzungen, Verhältnis-Checks und Queue-Management sollte dieser Service Coverage haben.
+- **Erledigt:** `gameloop.js` wurde entfernt; aktive Tick-Logik verbleibt in `gameloop-scheduler.js`.
+- **Erledigt:** `buildings.service.js` ist wieder in der Coverage und mit Unit-Tests abgesichert.
 - **Ressourcen-Cap einführen:** Ein `max_amount`-Feld in `building_types` (als Lager-Kapazität) würde unbegrenztes Ressourcen-Akkumulieren verhindern.
 - **Frontend-Tests:** Für `karte.js` (600 Zeilen Canvas-Logik) und `dashboard.js` (375 Zeilen) wären zumindest Vitest-Browser-Tests sinnvoll.
