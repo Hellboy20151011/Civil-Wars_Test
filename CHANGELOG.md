@@ -50,6 +50,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/tests/services/economy.service.test.js` – `TICK_MS` wird jetzt aus `config.gameloop.tickIntervalMs` importiert statt hardcoded
 - `backend/vitest.config.js` – `buildings.service.js` wieder in die Coverage aufgenommen; Gesamt-Coverage liegt nun bei 93.17 % Statements, 80.76 % Branches, 92.79 % Functions und 94.63 % Lines
 - `backend/tests/services/gameloop-scheduler.test.js` – um Guard-, Fehler- und Intervall-Pfade erweitert; `gameloop-scheduler.js` jetzt bei 100 % Branch-Coverage
+- `backend/tests/services/auth.service.test.js`, `backend/tests/services/buildings.service.test.js`, `backend/tests/services/combat.service.test.js`, `backend/tests/services/espionage.service.test.js`, `backend/tests/services/gameloop-scheduler.test.js` – zusätzliche Branch-Tests für bisher ungetroffene Fehler- und Randpfade ergänzt; aktuelle Backend-Gesamt-Coverage: 99.04 % Statements, 91.95 % Branches, 98.19 % Functions, 99.82 % Lines
 - `backend/repositories/player.repository.js` und `backend/services/auth.service.js` – fehlgeschlagene Logins zählen atomisch via `UPDATE ... RETURNING`; Registrierung fängt Koordinatenkonflikte per Retry auf
 - `docs/Projektanalyse_2026-05-05.md` und `docs/next-steps.md` – veraltete Review- und Roadmap-Einträge an den aktuellen Umsetzungsstand angepasst
 
