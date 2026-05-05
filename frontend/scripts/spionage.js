@@ -4,6 +4,8 @@ import { API_BASE_URL } from '/scripts/config.js';
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
+const missionCountdowns = new Map();
+
 // ── Tab-Navigation ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.spy-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -14,10 +16,43 @@ document.querySelectorAll('.spy-tab').forEach((btn) => {
     });
 });
 
+function formatTimeLeft(targetDate) {
+    const ms = new Date(targetDate) - Date.now();
+    if (ms <= 0) return 'Wird verarbeitet...';
+    const totalSec = Math.ceil(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+}
+
+function clearCountdownMap() {
+    missionCountdowns.clear();
+}
+
+function addCountdownNode(node, isoTime) {
+    const id = node.dataset.countdownId;
+    if (!id) return;
+    missionCountdowns.set(id, { node, isoTime });
+}
+
+function tickCountdowns() {
+    for (const { node, isoTime } of missionCountdowns.values()) {
+        node.textContent = formatTimeLeft(isoTime);
+    }
+}
+
+function missionTimeField(mission) {
+    return mission.status === 'traveling_back' ? mission.return_time : mission.arrival_time;
+}
+
 // ── Daten laden ────────────────────────────────────────────────────────────────
 
 async function loadMissions() {
     const list = document.getElementById('missions-list');
+    clearCountdownMap();
     try {
         const res = await fetch(`${API_BASE_URL}/espionage/missions`, {
             headers: { Authorization: `Bearer ${auth.token}` },
@@ -33,12 +68,9 @@ async function loadMissions() {
 
         list.innerHTML = '';
         for (const m of missions) {
-            const eta = new Date(m.arrival_time);
-            const secsLeft = Math.max(0, Math.round((eta - Date.now()) / 1000));
-            const timeLabel = secsLeft >= 60
-                ? `~${Math.round(secsLeft / 60)} min`
-                : secsLeft > 0 ? `${secsLeft} s` : 'Wird verarbeitet…';
             const isReturning = m.status === 'traveling_back';
+            const targetTime = missionTimeField(m);
+            const counterId = `spy-${m.id}`;
 
             const card = document.createElement('div');
             card.className = 'spy-card';
@@ -51,11 +83,15 @@ async function loadMissions() {
                 <div class="spy-card-body">
                     <span>📍 Ziel: (${m.target_kx}, ${m.target_ky})</span>
                     <span>👥 Spione: ${m.spies_sent}</span>
-                    <span>⏱ ${isReturning ? 'Rückkunft' : 'Ankunft'}: ${timeLabel}</span>
+                    <span>⏱ ${isReturning ? 'Rueckkunft' : 'Ankunft'}: <strong data-countdown-id="${counterId}"></strong></span>
                 </div>
             `;
             list.appendChild(card);
+            const node = card.querySelector(`[data-countdown-id="${counterId}"]`);
+            if (node && targetTime) addCountdownNode(node, targetTime);
         }
+
+        tickCountdowns();
     } catch (err) {
         list.innerHTML = `<div class="spy-error">${err.message}</div>`;
     }
@@ -181,5 +217,6 @@ window.addEventListener('spy-mission-update', () => {
 await initShell();
 await Promise.all([loadMissions(), loadReports()]);
 
-// Auto-Refresh alle 2 Sekunden für schnelleres Feedback bei "Wird verarbeitet…"
-setInterval(loadMissions, 2_000);
+// Sekundengenaues Countdown-Ticking + zyklischer Sync mit Serverdaten
+setInterval(tickCountdowns, 1_000);
+setInterval(loadMissions, 10_000);

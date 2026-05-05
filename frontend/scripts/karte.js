@@ -344,12 +344,12 @@ async function openAttackPanel(target) {
 
     // Eigene Einheiten laden
     try {
-        const res = await fetch(`${API_BASE_URL}/units`, {
+        const res = await fetch(`${API_BASE_URL}/units/me`, {
             headers: { Authorization: `Bearer ${auth.token}` },
         });
         if (!res.ok) throw new Error('Einheiten konnten nicht geladen werden');
         const data = await res.json();
-        const units = (data.units ?? []).filter((u) => u.quantity > 0 && !u.is_moving);
+        const units = (Array.isArray(data) ? data : (data.units ?? [])).filter((u) => u.quantity > 0 && !u.is_moving);
 
         if (units.length === 0) {
             attackUnitsList.innerHTML = '<div style="color:#64748b;padding:6px 0">Keine verfügbaren Einheiten.</div>';

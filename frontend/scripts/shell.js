@@ -66,7 +66,7 @@ export async function initShell(navLinks = []) {
   }
 }
 
-function startLiveUpdates(token) {
+async function startLiveUpdates(token) {
   if (!token) return;
 
   if (liveEventSource && liveEventSourceToken === token) {
@@ -113,6 +113,7 @@ function startLiveUpdates(token) {
       const eta = new Date(d.arrivalTime);
       const mins = Math.round((eta - Date.now()) / 60000);
       showToast(`⚔️ Eingehender Angriff von ${d.attackerUsername}! Ankunft in ~${mins} min.`, 'danger');
+      globalThis.dispatchEvent(new globalThis.CustomEvent('combat-incoming', { detail: d }));
     } catch (err) {
       console.error('SSE combat_incoming parse error:', err);
     }
@@ -125,6 +126,7 @@ function startLiveUpdates(token) {
         ? `⚔️ Kampf gegen ${d.defenderUsername}: Sieg! Einheiten kehren zurück.`
         : `⚔️ Kampf gegen ${d.defenderUsername}: Niederlage. Einheiten kehren zurück.`;
       showToast(msg, d.attackerWon ? 'success' : 'warning');
+      globalThis.dispatchEvent(new globalThis.CustomEvent('combat-result', { detail: d }));
     } catch (err) {
       console.error('SSE combat_result parse error:', err);
     }
@@ -134,6 +136,7 @@ function startLiveUpdates(token) {
     try {
       const d = JSON.parse(event.data || '{}');
       showToast(`🏠 Deine Einheiten aus dem Angriff auf ${d.defenderUsername} sind heimgekehrt.`, 'info');
+      globalThis.dispatchEvent(new globalThis.CustomEvent('combat-return', { detail: d }));
     } catch (err) {
       console.error('SSE combat_return parse error:', err);
     }
@@ -209,6 +212,7 @@ function renderSidebar(navLinks, status) {
     { label: 'Bauhof', href: '/pages/bauhof.html' },
     { label: 'Militär', href: '/pages/militaer.html' },
     { label: 'Karte', href: '/pages/karte.html' },
+    { label: 'Kämpfe', href: '/pages/kampf.html' },
     ...(hasGdh ? [{ label: 'Geheimdienstzentrum', href: '/pages/geheimdienstzentrum.html' }] : []),
     { label: 'Spionage', href: '/pages/spionage.html' },
   ];

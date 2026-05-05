@@ -122,7 +122,7 @@ export async function findReportsByUser(userId, limit = 20, client = pool) {
          FROM spy_missions sm
          JOIN users tu ON tu.id = sm.target_id
          WHERE sm.spy_id = $1
-           AND sm.status IN ('completed', 'aborted')
+           AND sm.status IN ('traveling_back', 'completed', 'aborted')
          ORDER BY sm.created_at DESC
          LIMIT $2`,
         [userId, limit]

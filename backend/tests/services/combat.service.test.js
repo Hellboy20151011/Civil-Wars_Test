@@ -387,7 +387,7 @@ describe('Matchup-Sonderfälle', () => {
         expect(combatResult.attackerWon).toBe(false);
     });
 
-    it('Panzergrenadier gegen Fahrzeug erhält 0.8 Matchup-Bonus', async () => {
+    it('Panzergrenadier gegen Luchs verwendet unit-vs-unit Multiplikator 1.1', async () => {
         combatMissionsRepo.findArrivingMissions.mockResolvedValue([{ ...baseMission, id: 12 }]);
         combatMissionsRepo.findMissionUnits.mockResolvedValue([
             {
@@ -398,7 +398,7 @@ describe('Matchup-Sonderfälle', () => {
         ]);
         unitsRepo.findCombatUnitsByUser.mockResolvedValue([
             {
-                id: 50, unit_name: 'Panzer', category: 'vehicle',
+                id: 50, unit_name: 'Luchs', category: 'vehicle',
                 quantity: 2, defense_points: 10, health_percentage: 100,
             },
         ]);
@@ -407,11 +407,11 @@ describe('Matchup-Sonderfälle', () => {
 
         const call = combatMissionsRepo.updateMissionAfterCombat.mock.calls[0];
         const combatResult = call[2];
-        // Panzergrenadier vs vehicle: 0.8 multiplier → attackPower = 12 * 4 * 1.0 * 0.8 = 38.4
-        expect(combatResult.attackPower).toBeCloseTo(38.4, 1);
+        // Panzergrenadier vs Luchs: 1.1 Multiplikator (JSON) → attackPower = 12 * 4 * 1.0 * 1.1 = 52.8
+        expect(combatResult.attackPower).toBeCloseTo(52.8, 1);
     });
 
-    it('Fregatte kann Luft-Einheiten angreifen (0.8 Sonderregel)', async () => {
+    it('Fregatte gegen Eurofighter verwendet unit-vs-unit Multiplikator 0.8', async () => {
         combatMissionsRepo.findArrivingMissions.mockResolvedValue([{ ...baseMission, id: 13 }]);
         combatMissionsRepo.findMissionUnits.mockResolvedValue([
             {
@@ -422,7 +422,7 @@ describe('Matchup-Sonderfälle', () => {
         ]);
         unitsRepo.findCombatUnitsByUser.mockResolvedValue([
             {
-                id: 60, unit_name: 'Kampfjet', category: 'air',
+                id: 60, unit_name: 'Eurofighter', category: 'air',
                 quantity: 2, defense_points: 8, health_percentage: 100,
             },
         ]);
@@ -431,22 +431,22 @@ describe('Matchup-Sonderfälle', () => {
 
         const call = combatMissionsRepo.updateMissionAfterCombat.mock.calls[0];
         const combatResult = call[2];
-        // Fregatte vs air: 0.8 multiplier → attackPower = 20 * 1 * 1.0 * 0.8 = 16
+        // Fregatte vs Eurofighter: 0.8 Multiplikator (JSON) → attackPower = 20 * 1 * 1.0 * 0.8 = 16
         expect(combatResult.attackPower).toBeCloseTo(16, 1);
     });
 
-    it('counter_unit Bonus +30% wenn Konter-Einheit vorhanden', async () => {
+    it('Soldat gegen Panzergrenadier verwendet unit-vs-unit Multiplikator 1.5', async () => {
         combatMissionsRepo.findArrivingMissions.mockResolvedValue([{ ...baseMission, id: 14 }]);
         combatMissionsRepo.findMissionUnits.mockResolvedValue([
             {
-                id: 5, user_unit_id: 1, unit_name: 'Infanterist',
+                id: 5, user_unit_id: 1, unit_name: 'Soldat',
                 category: 'infantry', quantity_sent: 4,
-                attack_points: 10, health_percentage: 100, counter_unit: 'Schütze', movement_speed: 2,
+                attack_points: 10, health_percentage: 100, counter_unit: null, movement_speed: 3,
             },
         ]);
         unitsRepo.findCombatUnitsByUser.mockResolvedValue([
             {
-                id: 70, unit_name: 'Schütze', category: 'infantry',
+                id: 70, unit_name: 'Panzergrenadier', category: 'infantry',
                 quantity: 3, defense_points: 8, health_percentage: 100,
             },
         ]);
@@ -455,24 +455,25 @@ describe('Matchup-Sonderfälle', () => {
 
         const call = combatMissionsRepo.updateMissionAfterCombat.mock.calls[0];
         const combatResult = call[2];
-        // infantry vs infantry = 1.0 multiplier, counter_unit bonus = 1.3
-        // attackPower = 10 * 4 * 1.0 * 1.0 * 1.3 = 52
-        expect(combatResult.attackPower).toBeCloseTo(52, 1);
+        // Soldat vs Panzergrenadier: 1.5 Multiplikator (JSON)
+        // attackPower = 10 * 4 * 1.0 * 1.5 = 60
+        expect(combatResult.attackPower).toBeCloseTo(60, 1);
     });
 
     it('Verteidiger verliert alle Einheiten → setUnitHealth wird aufgerufen', async () => {
         combatMissionsRepo.findArrivingMissions.mockResolvedValue([{ ...baseMission, id: 15 }]);
         combatMissionsRepo.findMissionUnits.mockResolvedValue([
             {
-                id: 6, user_unit_id: 1, unit_name: 'Panzer',
+                id: 6, user_unit_id: 1, unit_name: 'Leopard 2',
                 category: 'vehicle', quantity_sent: 5,
                 attack_points: 50, health_percentage: 100, counter_unit: null, movement_speed: 1,
             },
         ]);
         // defense_points: 0 → defensePower = 0 → defenderCasualtyRate = 1 → all units lost
+        // Leopard 2 vs Luchs = 1.6 (JSON) → canBeHit = true
         unitsRepo.findCombatUnitsByUser.mockResolvedValue([
             {
-                id: 80, unit_name: 'Infanterist', category: 'infantry',
+                id: 80, unit_name: 'Luchs', category: 'vehicle',
                 quantity: 2, defense_points: 0, health_percentage: 100,
             },
         ]);

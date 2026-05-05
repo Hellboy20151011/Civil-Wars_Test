@@ -9,8 +9,22 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ## [Unreleased]
 
+### Fixed
+
+- `backend/services/combat.service.js` – Angreifer gewann nicht gegen verteidigerlosen Spieler: Bei leerer `activeDefs`-Liste blieb `attackPower = 0`, was zu fälschlicher Niederlage führte. Frühzeitiger Sieg-Pfad eingefügt, der automatisch Sieg + 0 Verluste zurückliefert wenn der Verteidiger keine Einheiten hat.
+- `backend/services/combat.service.js` – Falscher Funktionsaufruf `resolveMission` (existiert nicht) im no-defenders-Pfad korrigiert zu `updateMissionAfterCombat`.
+- `frontend/scripts/spionage.js` – Reisezeit-Countdown auf sekundengenaues Ticking umgestellt (analog zu Kämpfen), inklusive korrektem Zeitfeld je Missionsstatus (`arrival_time`/`return_time`) für flüssigere Anzeige.
+
 ### Added
 
+- `backend/services/combat.service.js` + `backend/repositories/building.repository.js` – Plünderungsmechanik nach gewonnenem Kampf: 25 % der Unterkunfts- und Ressourcenproduktionsgebäude (inkl. Kraftwerke) des Verteidigers werden zerstört. Mindestens 1 Gebäude jedes Typs bleibt erhalten. Kraftwerke werden zuletzt entfernt und nur so weit, dass kein Stromdefizit beim Verteidiger entsteht. Ergebnis wird als `plunderedBuildings` im Kampfbericht gespeichert.
+- `backend/repositories/combat-missions.repository.js` – Kampfberichte werden jetzt direkt nach dem Kampf sichtbar (`status IN ('traveling_back', 'completed')` statt nur `'completed'`); Sortierung auf `arrival_time` umgestellt
+- `backend/repositories/spy-missions.repository.js` – Spionageberichte werden direkt nach Ankunft sichtbar (`status IN ('traveling_back', 'completed', 'aborted')`)
+- `frontend/scripts/kampf.js` + `frontend/scripts/kampfbericht.js` – Berichtsdatum zeigt jetzt den Kampfzeitpunkt (`arrival_time`) statt der Rückkehrzeit; `kampfbericht.js` zeigt neuen Abschnitt „Geplünderte Gebäude" mit Anzahl zerstörter und verbleibender Gebäude – granulare 29×29 Einheit-vs-Einheit-Multiplikatortabelle für das Kampfsystem (ersetzt die kategorie-basierten Hardcodes)
+- `frontend/pages/kampf.html` – neue Kampfseite mit Tabs für laufende Kämpfe und Kampfberichte
+- `frontend/scripts/kampf.js` – Frontend-Logik für Missionslisten, Live-Countdowns und Berichtsanzeige aus `/combat/missions`, `/combat/incoming` und `/combat/history`
+- `frontend/pages/kampfbericht.html` – neue Detailseite für einen einzelnen Kampfbericht
+- `frontend/scripts/kampfbericht.js` – lädt und rendert Detaildaten eines Kampfberichts inkl. Einheitenvergleich
 - `backend/utils/game-math.js` – gemeinsame Hilfsfunktionen `calcDistance()` und `calcArrivalTime()` (P5: DRY-Refactor aus combat/espionage)
 - `backend/tests/services/combat.service.test.js` – 18 Unit-Tests für combat.service.js (P1: Matchup-Logik, Kampftaucher-Sonderregel, Fehlerbehandlung, Rückkehr-Abschluss)
 - `backend/tests/services/espionage.service.test.js` – 20 Unit-Tests für espionage.service.js (P1: Missions-Validierung, Erfolgsformel, Berichte, Preview)
@@ -26,6 +40,11 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Changed
 
+- `frontend/scripts/bauhof.js` und `frontend/CSS/style.css` – Bauhof-Rubrikansicht rendert Gebäudetypen jetzt als einzelne Karten mit Gebäudebild, Typ-Beschreibung, Strombedarf sowie maximal baubarer Anzahl (in Klammern) basierend auf verfügbarem Strom und Ressourcen
+- `backend/services/combat.service.js` – Matchup-Logik auf unit-vs-unit-Tabelle (`combat-matchups.json`) umgestellt; `MATCHUP`-Konstante, `getMatchup()` und Counter-Bonus-Hardcode entfernt; neue `getUnitMatchup()`-Funktion liest direkt Einheit-Namen aus der JSON
+- `backend/routes/combat.js` – neuer Endpoint `GET /combat/history/:missionId` für Detailansicht eines einzelnen Kampfberichts
+- `backend/repositories/combat-missions.repository.js` und `backend/services/combat.service.js` – Einzelabfrage für Kampfberichte ergänzt; Kampfergebnis enthält bei `attackerUnits` jetzt zusätzlich `sent` und `losses`
+- `frontend/scripts/shell.js` – Sidebar um Navigationseintrag `Kämpfe` erweitert und Combat-SSE-Events als CustomEvents (`combat-incoming`, `combat-result`, `combat-return`) für Seiten-Refresh weitergereicht
 - `.github/workflows/release.yml` – GitHub-Release nutzt jetzt `softprops/action-gh-release@v2` und führt vor dem Release zusätzlich Playwright-E2E-Tests aus
 - `backend/database/schemas/users.sql` – Unique-Constraint `users_coordinates_unique` für `(koordinate_x, koordinate_y)` ergänzt
 - `backend/database/migrate_v4_user_coordinates.sql` – Migration für den neuen Koordinaten-Unique-Constraint ergänzt
@@ -112,6 +131,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Fixed
 
+- `frontend/scripts/bauhof.js` und `frontend/CSS/style.css` – klickbare Maximal-Bauzahl `(x)` im Bauhof als separates UI-Element umgesetzt; Klick übernimmt den Maximalwert zuverlässig ins Anzahlfeld ohne sofortigen Bau
+- `frontend/scripts/bauhof.js` und `frontend/CSS/style.css` – Bauhof aktualisiert Maximal-Bauzahl nach einem Bauauftrag sofort ohne Seiten-Refresh (lokale Status-Aktualisierung + `no-store` Fetch für frische `/me`-Daten) und markiert die aktualisierte `(max)`-Anzeige kurz visuell
 - `backend/services/espionage.service.js` – `processArrivingSpyMissions` und `processReturningSpyMissions` verarbeiten jede Mission in einer eigenen Transaktion (Isolation), sodass ein Fehler bei einer Mission nicht alle anderen abbricht
 - `backend/services/espionage.service.js` – unbenutztes `bestUnitName`-Variablen entfernt
 - `backend/repositories/spy-missions.repository.js` – `is_under_construction` → `is_constructing` in `findIntelLevel`, `findCounterIntelLevel` und `findBuildingSummaryForReport`

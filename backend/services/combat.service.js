@@ -8,6 +8,7 @@
  *   3. processReturningMissions() – Tick-System: Einheiten sind zurück → Mengen angepasst, Mission abgeschlossen
  */
 
+import * as buildingRepo from '../repositories/building.repository.js';
 import * as combatMissionsRepo from '../repositories/combat-missions.repository.js';
 import * as playerRepo from '../repositories/player.repository.js';
 import * as unitsRepo from '../repositories/units.repository.js';
@@ -15,59 +16,124 @@ import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastToUser } from './live-updates.service.js';
 import { logger } from '../logger.js';
 import { createServiceError } from './service-error.js';
+import { createRequire } from 'module';
 import { calcDistance, calcArrivalTime } from '../utils/game-math.js';
 
+const require = createRequire(import.meta.url);
+const MATCHUPS = require('../data/combat-matchups.json');
+
 // ─────────────────────────────────────────────────────────────────────────────
-// KAMPF-MATCHUP-TABELLE
+// PLÜNDERUNGS-LOGIK
 // ─────────────────────────────────────────────────────────────────────────────
+
+const PLUNDER_RATE = 0.25; // 25 % der Gebäude werden zerstört/geplündert
+
+// Pro Ölpumpe dürfen maximal 5 Öl-Raffinerien betrieben werden
+const MAX_RAFFINERIEN_PER_PUMPE = 5;
 
 /**
- * Welche Kategorie kann welche angreifen und mit welchem Multiplikator?
- * 0 = Angriff nicht möglich (hartes System).
+ * Zerstört einen Teil der Unterkunfts- und Ressourcenproduktionsgebäude des Verteidigers.
+ * Regeln:
+ *   - Nur Gebäude der Kategorie 'housing' und 'infrastructure' mit Produktion/Verbrauch
+ *   - Mindestens 1 Gebäude jedes Typs bleibt erhalten
+ *   - Ölpumpe/Öl-Raffinerie-Verhältnis: max. 5 Raffinerien pro Pumpe nach Plünderung
+ *   - Kraftwerke werden zuletzt entfernt, um kein Stromdefizit beim Verteidiger auszulösen
  *
- *  infantry → infantry 1.0 | vehicle 0.5 | defense 0.6
- *  vehicle  → infantry 1.2 | vehicle 1.0 | defense 0.9
- *  ship     → infantry 0.8 | ship    1.0 | defense 1.0
- *  air      → infantry 1.5 | vehicle 1.2 | ship 1.0 | air 1.0 | defense 1.0
- *  defense  → passiv (greift nie an)
- *
- * Sonderregeln (per unit_name):
- *  - Fregatte      → kann auch Luft angreifen (0.8)
- *  - Panzergrenadier → vehicle bekommt 0.8 statt 0.5
- *  - Kampftaucher    → vehicle bekommt 0.8 statt 0.5;
- *                      PLUS Vorbereitungsphase: neutralisiert alle defense-Einheiten des Gegners
+ * @param {number} defenderId
+ * @param {import('pg').PoolClient} client
+ * @returns {Promise<Array<{ name: string, removed: number, remaining: number }>>}
  */
-const MATCHUP = {
-    infantry: { infantry: 1.0, vehicle: 0.5, defense: 0.6 },
-    vehicle:  { infantry: 1.2, vehicle: 1.0, defense: 0.9 },
-    ship:     { infantry: 0.8, ship:    1.0, defense: 1.0 },
-    air:      { infantry: 1.5, vehicle: 1.2, ship: 1.0, air: 1.0, defense: 1.0 },
-    defense:  {}, // passiv
-};
+async function _plunderBuildings(defenderId, client) {
+    const buildings = await buildingRepo.findBuildingsByUser(defenderId, client);
 
-/**
- * Gibt den Matchup-Multiplikator zurück.
- * @param {string} attackerCategory
- * @param {string|null} attackerUnitName  – null erlaubt (keine Sonderregel)
- * @param {string} defenderCategory
- * @returns {number} 0 = Angriff nicht möglich
- */
-function getMatchup(attackerCategory, attackerUnitName, defenderCategory) {
-    // Sonderfall: Fregatte greift auch Luft an
-    if (attackerUnitName === 'Fregatte' && defenderCategory === 'air') return 0.8;
+    // Plünderable Gebäude: housing + infrastructure mit Ressourcenproduktion oder -verbrauch
+    const plunderable = buildings.filter(
+        (b) =>
+            b.category === 'housing' ||
+            (b.category === 'infrastructure' &&
+                (Number(b.power_production) > 0 ||
+                    Number(b.power_consumption) > 0 ||
+                    Number(b.stone_production) > 0 ||
+                    Number(b.steel_production) > 0 ||
+                    Number(b.fuel_production) > 0 ||
+                    Number(b.money_production) > 0))
+    );
 
-    const base = MATCHUP[attackerCategory]?.[defenderCategory] ?? 0;
-    if (base === 0) return 0;
-
-    // Sonderfall: Panzergrenadier + Kampftaucher sind besser gegen Fahrzeuge
-    if (
-        (attackerUnitName === 'Panzergrenadier' || attackerUnitName === 'Kampftaucher') &&
-        defenderCategory === 'vehicle'
-    ) {
-        return 0.8;
+    // ── Schritt 1: Entfernungsplan erstellen (ohne Kraftwerke) ────────────────
+    // Map: building.id → { b, toRemove }
+    const plan = new Map();
+    for (const b of plunderable.filter((b) => Number(b.power_production) <= 0)) {
+        const count = Number(b.anzahl);
+        const toRemove = Math.min(Math.floor(count * PLUNDER_RATE), count - 1);
+        plan.set(b.id, { b, toRemove });
     }
 
-    return base;
+    // ── Schritt 2: Ölpumpe / Öl-Raffinerie Gleichgewicht sicherstellen ───────
+    // Constraint nach Plünderung: raffinerien_remaining <= pumpen_remaining * MAX_RAFFINERIEN_PER_PUMPE
+    const pumpenEntry = buildings.find((b) => b.name === 'Ölpumpe');
+    const raffinerieEntry = buildings.find((b) => b.name === 'Öl-Raffinerie');
+    if (pumpenEntry && raffinerieEntry) {
+        const pumpenCount = Number(pumpenEntry.anzahl);
+        const raffinerieCount = Number(raffinerieEntry.anzahl);
+        const pumpenRemoval = plan.get(pumpenEntry.id)?.toRemove ?? 0;
+        const raffinerieRemoval = plan.get(raffinerieEntry.id)?.toRemove ?? 0;
+
+        const pumpenAfter = pumpenCount - pumpenRemoval;
+        const raffinerieAfter = raffinerieCount - raffinerieRemoval;
+        const maxRaffinerien = pumpenAfter * MAX_RAFFINERIEN_PER_PUMPE;
+
+        if (raffinerieAfter > maxRaffinerien) {
+            // Zusätzliche Raffinerien entfernen, aber mindestens 1 behalten
+            const newRaffinerieAfter = Math.max(1, maxRaffinerien);
+            const newRaffinerieRemoval = raffinerieCount - newRaffinerieAfter;
+            plan.set(raffinerieEntry.id, { b: raffinerieEntry, toRemove: newRaffinerieRemoval });
+        }
+    }
+
+    // ── Schritt 3: Nicht-Kraftwerk-Gebäude entfernen ──────────────────────────
+    const plunderLog = [];
+    for (const { b, toRemove } of plan.values()) {
+        if (toRemove <= 0) continue;
+        await buildingRepo.removeUserBuildingsByType(defenderId, b.id, toRemove, client);
+        plunderLog.push({ name: b.name, removed: toRemove, remaining: Number(b.anzahl) - toRemove });
+    }
+
+    // ── Schritt 4: Kraftwerke – Strom-Sicherheitscheck ───────────────────────
+    // Aktuell nach obigen Entfernungen lesen (Verbrauch ist gesunken)
+    for (const b of plunderable.filter((b) => Number(b.power_production) > 0)) {
+        const count = Number(b.anzahl);
+        let toRemove = Math.min(Math.floor(count * PLUNDER_RATE), count - 1);
+        if (toRemove <= 0) continue;
+
+        const { production, consumption } = await buildingRepo.findPowerSummaryByUser(defenderId, client);
+        const powerPerUnit = Number(b.power_production);
+        // Maximal entfernbar ohne Defizit: floor((prod - cons) / powerPerUnit)
+        const maxRemovable = Math.floor((Number(production) - Number(consumption)) / powerPerUnit);
+        toRemove = Math.min(toRemove, Math.max(0, maxRemovable), count - 1);
+        if (toRemove <= 0) continue;
+
+        await buildingRepo.removeUserBuildingsByType(defenderId, b.id, toRemove, client);
+        plunderLog.push({ name: b.name, removed: toRemove, remaining: count - toRemove });
+    }
+
+    return plunderLog;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KAMPF-MATCHUP-TABELLE  (unit-vs-unit aus combat-matchups.json)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Gibt den Einheit-vs-Einheit-Multiplikator zurück.
+ * Quelle: backend/data/combat-matchups.json
+ * @param {string} attackerName  – unit_name des Angreifers
+ * @param {string} defenderName  – unit_name des Verteidigers
+ * @returns {number} 0 = Angriff nicht möglich ("x" oder unbekannte Kombination)
+ */
+function getUnitMatchup(attackerName, defenderName) {
+    const val = MATCHUPS[attackerName]?.[defenderName];
+    if (!val || val === 'x') return 0;
+    return parseFloat(val.replace(',', '.'));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,8 +182,9 @@ export async function launchAttack(attackerId, defenderId, units) {
         // Einheiten validieren + Daten laden
         const unitRecords = [];
         for (const entry of units) {
-            const unit = await unitsRepo.findMovableUnit(entry.userUnitId, attackerId, client);
-            if (!unit) throw createServiceError(`Einheit ${entry.userUnitId} nicht gefunden oder gehört nicht dir`, 404, 'UNIT_NOT_FOUND');
+            const userUnitId = entry.userUnitId ?? entry.user_unit_id;
+            const unit = await unitsRepo.findMovableUnit(userUnitId, attackerId, client);
+            if (!unit) throw createServiceError(`Einheit ${userUnitId} nicht gefunden oder gehört nicht dir`, 404, 'UNIT_NOT_FOUND');
             if (unit.is_moving) throw createServiceError(`Einheit ${unit.id} ist bereits unterwegs`, 409, 'UNIT_BUSY');
             if (unit.quantity < entry.quantity) {
                 throw createServiceError(`Nicht genug Einheiten (vorhanden: ${unit.quantity}, gefordert: ${entry.quantity})`, 400, 'INSUFFICIENT_UNITS');
@@ -220,42 +287,89 @@ async function _resolveCombat(mission, client) {
         logger.info({ missionId: mission.id }, 'Kampftaucher: Küstenverteidigung neutralisiert');
     }
 
-    // ── Phase 2: Effektive Angriffskraft (Matchup-gewichtet) ─────────────────
-    // Alle Verteidiger-Kategorien die noch Einheiten haben
+    // ── Phase 2: Effektive Angriffskraft (unit-vs-unit-Matchup) ────────────────
     const activeDefs = defenderUnits.filter((u) => u.quantity > 0);
-    const defCats = [...new Set(activeDefs.map((u) => u.category))];
 
-    const attackerCats = [...new Set(missionUnits.map((u) => u.category))];
+    // Kein Verteidiger → automatischer Sieg für den Angreifer
+    if (activeDefs.length === 0) {
+        const attackPower = 1;
+        const defensePower = 0;
+        const attackerWon = true;
+        const attackerCasualtyRate = 0;
+        const defenderCasualtyRate = 0;
+
+        const attackerResults = [];
+        for (const mu of missionUnits) {
+            attackerResults.push({
+                missionUnitId: mu.id,
+                userUnitId: mu.user_unit_id,
+                unitName: mu.unit_name,
+                sent: mu.quantity_sent,
+                survived: mu.quantity_sent,
+                losses: 0,
+            });
+            await combatMissionsRepo.setMissionUnitReturned(mu.id, mu.quantity_sent, client);
+        }
+
+        const returnSpeed = slowestSpeed(missionUnits.length > 0 ? missionUnits : [{ movement_speed: 1 }]);
+        const returnTime = calcArrivalTime(mission.distance, returnSpeed);
+
+        const plunderedBuildings = await _plunderBuildings(mission.defender_id, client);
+
+        const combatResult = {
+            attackerWon,
+            attackPower,
+            defensePower,
+            attackerCasualtyRate,
+            defenderCasualtyRate,
+            kampftaucherUsed: hasKampftaucher,
+            attackerUnits: attackerResults,
+            defenderUnits: [],
+            plunderedBuildings,
+            resolvedAt: new Date().toISOString(),
+        };
+
+        await combatMissionsRepo.updateMissionAfterCombat(mission.id, 'traveling_back', combatResult, returnTime, client);
+        logger.info({ missionId: mission.id, plunderedBuildings }, 'Combat resolved: attacker won (no defenders)');
+        broadcastToUser(mission.attacker_id, 'combat_result', {
+            missionId: mission.id,
+            attackerWon,
+            attackerUsername: mission.attacker_username,
+            defenderUsername: mission.defender_username,
+            returnTime: returnTime.toISOString(),
+        });
+        broadcastToUser(mission.defender_id, 'combat_result', {
+            missionId: mission.id,
+            attackerWon,
+            attackerUsername: mission.attacker_username,
+            defenderUsername: mission.defender_username,
+            returnTime: returnTime.toISOString(),
+        });
+        return;
+    }
 
     let attackPower = 0;
     for (const u of missionUnits) {
         if (!u.quantity_sent) continue;
 
-        // Welche Defender-Kategorien kann diese Einheit angreifen?
-        const reachable = defCats.filter((cat) => getMatchup(u.category, u.unit_name, cat) > 0);
+        // Welche Defender-Einheiten kann diese Einheit angreifen?
+        const reachable = activeDefs.filter((d) => getUnitMatchup(u.unit_name, d.unit_name) > 0);
         if (reachable.length === 0) continue; // Kann niemanden treffen → kein Beitrag
 
-        // Durchschnitts-Multiplikator über alle erreichbaren Kategorien
+        // Durchschnitts-Multiplikator über alle erreichbaren Defender-Einheiten
         const avgMult =
-            reachable.reduce((sum, cat) => sum + getMatchup(u.category, u.unit_name, cat), 0) /
+            reachable.reduce((sum, d) => sum + getUnitMatchup(u.unit_name, d.unit_name), 0) /
             reachable.length;
 
-        // Counter-Bonus: +30 % wenn diese Einheit eine ihrer Konter-Einheiten bekämpft
-        const counterBonus = u.counter_unit &&
-            activeDefs.some((d) => d.unit_name === u.counter_unit)
-            ? 1.3
-            : 1.0;
-
-        attackPower +=
-            u.attack_points * u.quantity_sent * (u.health_percentage / 100) * avgMult * counterBonus;
+        attackPower += u.attack_points * u.quantity_sent * (u.health_percentage / 100) * avgMult;
     }
 
     // ── Phase 3: Effektive Verteidigungskraft ─────────────────────────────────
     // Nur Einheiten zählen, die von mindestens einem Angreifer getroffen werden können
     let defensePower = 0;
     for (const u of activeDefs) {
-        const canBeHit = attackerCats.some((cat) => getMatchup(cat, null, u.category) > 0);
-        if (!canBeHit) continue; // Immun (z.B. Hubschrauber gegen reine Infanterie)
+        const canBeHit = missionUnits.some((a) => getUnitMatchup(a.unit_name, u.unit_name) > 0);
+        if (!canBeHit) continue; // Immun – kein Angreifer kann diese Einheit treffen
         defensePower += u.defense_points * u.quantity * (u.health_percentage / 100);
     }
 
@@ -269,7 +383,15 @@ async function _resolveCombat(mission, client) {
     const attackerResults = [];
     for (const mu of missionUnits) {
         const survived = Math.floor(mu.quantity_sent * (1 - attackerCasualtyRate));
-        attackerResults.push({ missionUnitId: mu.id, userUnitId: mu.user_unit_id, survived, unitName: mu.unit_name });
+        const losses = Math.max(0, mu.quantity_sent - survived);
+        attackerResults.push({
+            missionUnitId: mu.id,
+            userUnitId: mu.user_unit_id,
+            unitName: mu.unit_name,
+            sent: mu.quantity_sent,
+            survived,
+            losses,
+        });
         await combatMissionsRepo.setMissionUnitReturned(mu.id, survived, client);
     }
 
@@ -277,7 +399,7 @@ async function _resolveCombat(mission, client) {
     // Nur Einheiten die angreifbar waren bekommen Verluste; immune bleiben unberührt
     const defenderResults = [];
     for (const du of defenderUnits) {
-        const canBeHit = attackerCats.some((cat) => getMatchup(cat, null, du.category) > 0);
+        const canBeHit = missionUnits.some((a) => getUnitMatchup(a.unit_name, du.unit_name) > 0);
         const losses = canBeHit ? Math.floor(du.quantity * defenderCasualtyRate) : 0;
         const remaining = du.quantity - losses;
         await unitsRepo.setUserUnitQuantity(du.id, remaining, client);
@@ -289,6 +411,9 @@ async function _resolveCombat(mission, client) {
     const returnSpeed = slowestSpeed(missionUnits.length > 0 ? missionUnits : [{ movement_speed: 1 }]);
     const returnTime = calcArrivalTime(mission.distance, returnSpeed);
 
+    // ── Plünderung bei Sieg ───────────────────────────────────────────────────
+    const plunderedBuildings = attackerWon ? await _plunderBuildings(mission.defender_id, client) : [];
+
     // ── Ergebnis persistieren ─────────────────────────────────────────────────
     const combatResult = {
         attackerWon,
@@ -299,6 +424,7 @@ async function _resolveCombat(mission, client) {
         kampftaucherUsed: hasKampftaucher,
         attackerUnits: attackerResults,
         defenderUnits: defenderResults,
+        plunderedBuildings,
         resolvedAt: new Date().toISOString(),
     };
 
@@ -384,4 +510,8 @@ export async function getIncomingAttacks(userId) {
 
 export async function getMissionHistory(userId) {
     return combatMissionsRepo.findMissionHistory(userId);
+}
+
+export async function getMissionHistoryEntry(userId, missionId) {
+    return combatMissionsRepo.findMissionHistoryEntry(userId, missionId);
 }

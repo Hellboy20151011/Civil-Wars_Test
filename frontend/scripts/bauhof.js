@@ -38,11 +38,23 @@ const CATEGORIES = [
   },
 ];
 
+const BUILDING_IMAGE_BY_NAME = {
+  Wohnhaus: '/assets/images/categories/unterkünfte.jpg',
+  Reihenhaus: '/assets/images/categories/unterkünfte.jpg',
+  Mehrfamilienhaus: '/assets/images/categories/unterkünfte.jpg',
+  Hochhaus: '/assets/images/categories/unterkünfte.jpg',
+};
+
 const bauhofState = {
   selectedCategory: null,
   types: [],
   buildings: [],
   queue: [],
+  highlightMaxForBuildingId: null,
+  playerStatus: {
+    resources: {},
+    strom: { frei: 0 },
+  },
   message: '',
 };
 
@@ -83,6 +95,7 @@ function changeCategory(categoryKey, pushHistory = true) {
 // ── Hilfsfunktion: API-Call ───────────────────────────────
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE_URL}${path}`, {
+    cache: 'no-store',
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -102,6 +115,105 @@ function getBuildCostsText(bt) {
   if (bt.steel_cost > 0) costs.push(`⚙️ ${Number(bt.steel_cost).toLocaleString('de-DE')}`);
   if (bt.fuel_cost > 0) costs.push(`🛢️ ${Number(bt.fuel_cost).toLocaleString('de-DE')}`);
   return costs.length > 0 ? costs.join('  ') : 'Kostenlos';
+}
+
+function getPlayerResources() {
+  return bauhofState.playerStatus?.resources ?? {};
+}
+
+function getFreePower() {
+  return Number(bauhofState.playerStatus?.strom?.frei ?? 0);
+}
+
+function formatMaxBuildable(value) {
+  return Number.isFinite(value) ? value.toLocaleString('de-DE') : '∞';
+}
+
+// Spezielle Obergrenzen durch Gebäude-Ratio-Regeln (z. B. 5 Öl-Raffinerien pro Ölpumpe)
+const BUILDING_RATIO_CAPS = [
+  {
+    building: 'Öl-Raffinerie',
+    requires: 'Ölpumpe',
+    ratio: 5,
+  },
+];
+
+function getBuiltCount(name) {
+  const entry = bauhofState.buildings.find((b) => b.name === name);
+  return entry ? Number(entry.anzahl ?? 0) : 0;
+}
+
+function getRatioCap(bt) {
+  const rule = BUILDING_RATIO_CAPS.find((r) => r.building === bt.name);
+  if (!rule) return Infinity;
+  const providerCount = getBuiltCount(rule.requires);
+  const currentCount = getBuiltCount(bt.name);
+  return Math.max(0, providerCount * rule.ratio - currentCount);
+}
+
+function getMaxBuildableByResourcesAndPower(bt) {
+  const resources = getPlayerResources();
+  const limits = [];
+
+  const resourceChecks = [
+    { available: Number(resources.geld ?? 0), cost: Number(bt.money_cost ?? 0) },
+    { available: Number(resources.stein ?? 0), cost: Number(bt.stone_cost ?? 0) },
+    { available: Number(resources.stahl ?? 0), cost: Number(bt.steel_cost ?? 0) },
+    { available: Number(resources.treibstoff ?? 0), cost: Number(bt.fuel_cost ?? 0) },
+  ];
+
+  resourceChecks.forEach(({ available, cost }) => {
+    if (cost > 0) {
+      limits.push(Math.floor(available / cost));
+    }
+  });
+
+  const powerCost = Number(bt.power_consumption ?? 0);
+  if (powerCost > 0) {
+    limits.push(Math.floor(getFreePower() / powerCost));
+  }
+
+  const ratioCap = getRatioCap(bt);
+  if (Number.isFinite(ratioCap)) {
+    limits.push(ratioCap);
+  }
+
+  if (limits.length === 0) return Infinity;
+  return Math.max(0, Math.min(...limits));
+}
+
+function getBuildingImage(bt, category) {
+  return BUILDING_IMAGE_BY_NAME[bt.name] || category?.image || '/assets/images/categories/unterkünfte.jpg';
+}
+
+function applyLocalBuildCost(bt, quantity) {
+  const current = bauhofState.playerStatus ?? { resources: {}, strom: { frei: 0 } };
+  const resources = { ...(current.resources ?? {}) };
+  const strom = { ...(current.strom ?? { frei: 0 }) };
+
+  resources.geld = Math.max(0, Number(resources.geld ?? 0) - Number(bt.money_cost ?? 0) * quantity);
+  resources.stein = Math.max(0, Number(resources.stein ?? 0) - Number(bt.stone_cost ?? 0) * quantity);
+  resources.stahl = Math.max(0, Number(resources.stahl ?? 0) - Number(bt.steel_cost ?? 0) * quantity);
+  resources.treibstoff = Math.max(
+    0,
+    Number(resources.treibstoff ?? 0) - Number(bt.fuel_cost ?? 0) * quantity
+  );
+
+  strom.frei = Math.max(0, Number(strom.frei ?? 0) - Number(bt.power_consumption ?? 0) * quantity);
+
+  bauhofState.playerStatus = {
+    ...current,
+    resources,
+    strom,
+  };
+
+  // Gebäudezähler lokal aktualisieren, damit Ratio-Caps sofort stimmen
+  const existingEntry = bauhofState.buildings.find((b) => b.name === bt.name);
+  if (existingEntry) {
+    existingEntry.anzahl = Number(existingEntry.anzahl ?? 0) + quantity;
+  } else {
+    bauhofState.buildings = [...bauhofState.buildings, { ...bt, anzahl: quantity }];
+  }
 }
 
 function buildCategoryOverviewCard(category, typesForCategory) {
@@ -139,43 +251,66 @@ function buildCategoryOverviewCard(category, typesForCategory) {
   });
 }
 
-function buildBuildingRow(bt, container) {
+function buildBuildingCard(bt, category, container) {
   const owned = bauhofState.buildings.find((b) => Number(b.id) === Number(bt.id));
   const inQueue = bauhofState.queue.find((q) => q.building_type_id === bt.id);
+  const maxBuildable = getMaxBuildableByResourcesAndPower(bt);
+  const maxBuildableLabel = formatMaxBuildable(maxBuildable);
+  const numericMax = Number.isFinite(maxBuildable) ? Math.max(0, maxBuildable) : 999;
+  const unavailable = numericMax === 0;
+  const powerCost = Number(bt.power_consumption ?? 0);
+
+  const statusText = inQueue ? 'In Warteschlange…' : owned ? 'Weiteren bauen' : 'Bauen';
 
   const input = el('input', {
     className: 'build-quantity-input',
     attrs: {
       type: 'number',
       min: '1',
-      max: '999',
+      max: String(Math.max(1, numericMax)),
       value: '1',
       placeholder: 'Anzahl',
-      style: 'width:60px;padding:4px 6px;border-radius:3px;border:1px solid #aaa',
     },
   });
 
   const button = el('button', {
     className: 'primary-action',
-    text: inQueue ? 'In Warteschlange…' : owned ? 'Weiteren bauen' : 'Bauen',
+    text: statusText,
     dataset: { buildId: bt.id },
-    attrs: { disabled: inQueue ? 'true' : null },
+    attrs: { disabled: inQueue || unavailable ? 'true' : null },
     on: {
       click: async () => {
         button.disabled = true;
         input.disabled = true;
 
         try {
-          const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
+          if (numericMax <= 0) {
+            bauhofState.message = 'Nicht genügend Ressourcen oder Strom für dieses Gebäude.';
+            renderCategories(container);
+            syncSidebarCategorySelection();
+            return;
+          }
+
+          const quantity = Math.max(1, Math.min(numericMax, Number(input.value) || 1));
           const result = await apiFetch('/buildings/build', {
             method: 'POST',
             body: JSON.stringify({ building_type_id: bt.id, anzahl: quantity }),
           });
 
           bauhofState.message = result.message ?? '';
+          applyLocalBuildCost(bt, quantity);
+
           const updated = await apiFetch('/buildings/me');
           bauhofState.buildings = updated.buildings ?? [];
           bauhofState.queue = updated.queue ?? [];
+          bauhofState.highlightMaxForBuildingId = bt.id;
+
+          try {
+            const status = await apiFetch('/me');
+            bauhofState.playerStatus = status;
+          } catch {
+            // Lokale Aktualisierung bleibt bestehen, wenn /me temporär nicht antwortet.
+          }
 
           await initShell();
           renderCategories(container);
@@ -189,47 +324,58 @@ function buildBuildingRow(bt, container) {
     },
   });
 
+  const maxBuildableControl = el('button', {
+    className: `max-buildable-link${bauhofState.highlightMaxForBuildingId === bt.id ? ' max-buildable-link--flash' : ''}`,
+    text: `(${maxBuildableLabel})`,
+    attrs: {
+      type: 'button',
+      title: 'Maximalen Wert in das Anzahlfeld übernehmen',
+      disabled: unavailable ? 'true' : null,
+    },
+    on: {
+      click: () => {
+        if (numericMax <= 0) return;
+        input.value = String(numericMax);
+      },
+    },
+  });
+
   if (inQueue) {
     input.disabled = true;
   }
 
-  return el('div', {
-    className: 'building-type-row',
+  if (unavailable) {
+    input.disabled = true;
+  }
+
+  return el('article', {
+    className: 'building-card',
     children: [
-      el('strong', { text: bt.name }),
+      el('img', {
+        className: 'building-card-image',
+        attrs: {
+          src: getBuildingImage(bt, category),
+          alt: `${bt.name} Gebäude`,
+        },
+      }),
+      el('h4', { text: bt.name }),
+      el('p', {
+        className: 'building-card-description',
+        text: bt.description || 'Keine Beschreibung verfügbar.',
+      }),
       el('span', {
         className: 'build-cost',
         text: getBuildCostsText(bt),
       }),
+      el('span', {
+        className: 'build-power',
+        text: `⚡ ${powerCost.toLocaleString('de-DE')} (max ${maxBuildableLabel})`,
+      }),
       el('div', {
-        attrs: { style: 'display:flex;gap:8px;align-items:center' },
-        children: [input, button],
+        className: 'building-card-actions',
+        children: [input, maxBuildableControl, button],
       }),
     ],
-  });
-}
-
-function buildSelectedCategoryCard(category, catBuildings, container) {
-  const children = [];
-
-  if (category.image) {
-    children.push(
-      el('img', {
-        className: 'category-image',
-        attrs: { src: category.image, alt: `${category.title} Vorschau` },
-      })
-    );
-  }
-
-  children.push(el('h3', { text: category.title }), el('p', { text: category.description }));
-
-  catBuildings.forEach((bt) => {
-    children.push(buildBuildingRow(bt, container));
-  });
-
-  return el('article', {
-    className: 'category-card',
-    children,
   });
 }
 
@@ -287,11 +433,19 @@ function renderCategories(container) {
     const catBuildings = types.filter((t) => t.category === key && t.name !== 'Rathaus');
     if (catBuildings.length === 0) return;
 
-    gridChildren.push(buildSelectedCategoryCard(category, catBuildings, container));
+    catBuildings.forEach((bt) => {
+      gridChildren.push(buildBuildingCard(bt, category, container));
+    });
   });
 
   nodes.push(el('div', { className: 'category-grid', children: gridChildren }));
   render(container, nodes);
+
+  if (bauhofState.highlightMaxForBuildingId !== null) {
+    setTimeout(() => {
+      bauhofState.highlightMaxForBuildingId = null;
+    }, 0);
+  }
 }
 
 function attachSidebarCategoryInterception() {
@@ -322,14 +476,16 @@ async function init() {
   attachSidebarCategoryInterception();
 
   try {
-    const [buildData, types] = await Promise.all([
+    const [buildData, types, status] = await Promise.all([
       apiFetch('/buildings/me'),
       apiFetch('/buildings/types'),
+      apiFetch('/me'),
     ]);
 
     bauhofState.buildings = buildData.buildings ?? [];
     bauhofState.queue = buildData.queue ?? [];
     bauhofState.types = types;
+    bauhofState.playerStatus = status;
     bauhofState.selectedCategory = getSelectedCategory();
 
     renderCategories(container);

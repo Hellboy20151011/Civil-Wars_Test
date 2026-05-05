@@ -9,12 +9,12 @@ import * as combatService from '../services/combat.service.js';
 const router = express.Router();
 
 const attackSchema = z.object({
-    defender_id: z.number().int().positive('defender_id muss eine positive Zahl sein'),
+    defender_id: z.coerce.number().int().positive('defender_id muss eine positive Zahl sein'),
     units: z
         .array(
             z.object({
-                user_unit_id: z.number().int().positive(),
-                quantity: z.number().int().min(1),
+                user_unit_id: z.coerce.number().int().positive(),
+                quantity: z.coerce.number().int().min(1),
             })
         )
         .min(1, 'Mindestens eine Einheit erforderlich'),
@@ -65,6 +65,25 @@ router.get(
     asyncWrapper(async (req, res) => {
         const history = await combatService.getMissionHistory(req.user.id);
         res.json({ data: history });
+    })
+);
+
+// GET /combat/history/:missionId – Einzelner Kampfbericht
+router.get(
+    '/history/:missionId',
+    requireAuth,
+    asyncWrapper(async (req, res) => {
+        const missionId = Number(req.params.missionId);
+        if (!Number.isInteger(missionId) || missionId <= 0) {
+            return res.status(400).json({ message: 'missionId muss eine positive Zahl sein' });
+        }
+
+        const entry = await combatService.getMissionHistoryEntry(req.user.id, missionId);
+        if (!entry) {
+            return res.status(404).json({ message: 'Kampfbericht nicht gefunden' });
+        }
+
+        res.json({ data: entry });
     })
 );
 

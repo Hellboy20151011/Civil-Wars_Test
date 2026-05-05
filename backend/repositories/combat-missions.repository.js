@@ -191,10 +191,31 @@ export async function findMissionHistory(userId, limit = 20, client = pool) {
          JOIN users a ON a.id = cm.attacker_id
          JOIN users d ON d.id = cm.defender_id
          WHERE (cm.attacker_id = $1 OR cm.defender_id = $1)
-           AND cm.status = 'completed'
-         ORDER BY cm.return_time DESC
+           AND cm.status IN ('traveling_back', 'completed')
+         ORDER BY cm.arrival_time DESC
          LIMIT $2`,
         [userId, limit]
     );
     return result.rows;
+}
+
+/**
+ * Einzelnen Kampfbericht fuer einen Spieler laden.
+ * Zugriff nur wenn Spieler Angreifer oder Verteidiger der Mission war.
+ */
+export async function findMissionHistoryEntry(userId, missionId, client = pool) {
+    const result = await client.query(
+        `SELECT cm.id, cm.status, cm.distance, cm.arrival_time, cm.return_time, cm.result,
+                cm.attacker_id, cm.defender_id,
+                a.username AS attacker_username,
+                d.username AS defender_username
+         FROM combat_missions cm
+         JOIN users a ON a.id = cm.attacker_id
+         JOIN users d ON d.id = cm.defender_id
+         WHERE cm.id = $1
+           AND (cm.attacker_id = $2 OR cm.defender_id = $2)
+           AND cm.status IN ('traveling_back', 'completed')`,
+        [missionId, userId]
+    );
+    return result.rows[0] ?? null;
 }

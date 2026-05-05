@@ -261,6 +261,25 @@ export async function findFinishedQueueEntries(userId, client = pool) {
     return result.rows;
 }
 
+/**
+ * Entfernt genau `count` fertige Gebäude eines bestimmten Typs eines Spielers.
+ * Wird beim Plündern nach einem gewonnenen Kampf verwendet.
+ */
+export async function removeUserBuildingsByType(userId, buildingTypeId, count, client = pool) {
+    await client.query(
+        `DELETE FROM user_buildings
+         WHERE id IN (
+             SELECT id FROM user_buildings
+             WHERE user_id = $1
+               AND building_type_id = $2
+               AND is_constructing = FALSE
+             ORDER BY id
+             LIMIT $3
+         )`,
+        [userId, buildingTypeId, count]
+    );
+}
+
 export async function deleteFinishedQueueEntries(userId, client = pool) {
     const result = await client.query(
         `UPDATE user_buildings

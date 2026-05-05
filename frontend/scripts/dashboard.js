@@ -321,7 +321,20 @@ async function renderDashboard() {
 	const stopCountdowns = startCountdowns(container);
 
 	// ── SSE: Queue automatisch aktualisieren wenn Bau fertig ─────────────────
-	const streamUrl = `${API_BASE_URL}/me/stream?token=${encodeURIComponent(auth.token)}`;
+	let ticket;
+	try {
+		const ticketRes = await fetch(`${API_BASE_URL}/me/stream-ticket`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${auth.token}` },
+		});
+		if (!ticketRes.ok) throw new Error('Ticket-Anfrage fehlgeschlagen');
+		const ticketData = await ticketRes.json();
+		ticket = ticketData.ticket;
+	} catch (err) {
+		console.error('SSE-Ticket konnte nicht abgerufen werden:', err);
+		return;
+	}
+	const streamUrl = `${API_BASE_URL}/me/stream?ticket=${encodeURIComponent(ticket)}`;
 	const source = new EventSource(streamUrl);
 	let lastQueueLength = status.queue?.length ?? 0;
 
