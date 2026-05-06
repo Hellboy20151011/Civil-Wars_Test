@@ -6,6 +6,14 @@ import { hasEnoughResources, deductResources } from './buildings.service.js';
 import * as unitsRepo from '../repositories/units.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { createServiceError } from './service-error.js';
+import * as researchService from './research.service.js';
+
+function getDefenseResearchRequirementLevel(buildingRequirement) {
+    const match = String(buildingRequirement ?? '').match(/Level\s*(\d+)/i);
+    const parsed = Number(match?.[1] ?? 1);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.min(3, Math.max(1, parsed));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Einheiten abrufen
@@ -32,17 +40,29 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
         const unitType = await unitsRepo.findTypeById(unitTypeId, client);
         if (!unitType) throw createServiceError('Einheitentyp nicht gefunden', 404, 'UNIT_TYPE_NOT_FOUND');
 
-        const readyBuildingCount = await unitsRepo.findReadyBuildingCountByName(
-            userId,
-            unitType.building_requirement,
-            client
-        );
-        if (readyBuildingCount === 0) {
-            throw createServiceError(
-                `Gebäude '${unitType.building_requirement}' nicht gefunden oder noch in Konstruktion`,
-                400,
-                'BUILDING_REQUIRED'
+        if (unitType.category === 'defense') {
+            const requiredLevel = getDefenseResearchRequirementLevel(unitType.building_requirement);
+            const availableLevel = await researchService.getDefenseResearchLevel(userId, client);
+            if (availableLevel < requiredLevel) {
+                throw createServiceError(
+                    `Verteidigungsforschung Level ${requiredLevel} erforderlich`,
+                    400,
+                    'RESEARCH_REQUIRED'
+                );
+            }
+        } else {
+            const readyBuildingCount = await unitsRepo.findReadyBuildingCountByName(
+                userId,
+                unitType.building_requirement,
+                client
             );
+            if (readyBuildingCount === 0) {
+                throw createServiceError(
+                    `Gebäude '${unitType.building_requirement}' nicht gefunden oder noch in Konstruktion`,
+                    400,
+                    'BUILDING_REQUIRED'
+                );
+            }
         }
 
         const totalCosts = {

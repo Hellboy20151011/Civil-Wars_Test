@@ -77,6 +77,13 @@ export const config = {
         ),
     },
 
+    frontend: {
+        preferDist: parseBoolean(
+            process.env.FRONTEND_PREFER_DIST,
+            (process.env.NODE_ENV || 'development') === 'production'
+        ),
+    },
+
     map: {
         // Koordinatenbereich: 1–MAP_GRID_SIZE (Standard: 999 → ~998 000 mögliche Positionen)
         gridSize: Number(process.env.MAP_GRID_SIZE) || 999,

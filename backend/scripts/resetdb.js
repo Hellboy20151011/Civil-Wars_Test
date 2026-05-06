@@ -52,6 +52,7 @@ const schemaFilesInOrder = [
     'user_units.sql',
     'combat_missions.sql',
     'spy_missions.sql',
+    'research.sql',
 ];
 
 for (const schemaFile of schemaFilesInOrder) {

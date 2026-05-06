@@ -1,222 +1,200 @@
-import { initShell, getAuth } from '/scripts/shell.js';
+import { initShell, getAuth, refreshShellStatus } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
-const missionCountdowns = new Map();
+const container = document.getElementById('spionage-planung');
 
-// ── Tab-Navigation ─────────────────────────────────────────────────────────────
-document.querySelectorAll('.spy-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.spy-tab').forEach((b) => b.classList.remove('active'));
-        document.querySelectorAll('.spy-section').forEach((s) => (s.style.display = 'none'));
-        btn.classList.add('active');
-        document.getElementById(`tab-${btn.dataset.tab}`).style.display = '';
+function getTargetId() {
+    const id = Number(new URLSearchParams(window.location.search).get('target_id'));
+    return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+async function apiGet(path) {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
     });
-});
-
-function formatTimeLeft(targetDate) {
-    const ms = new Date(targetDate) - Date.now();
-    if (ms <= 0) return 'Wird verarbeitet...';
-    const totalSec = Math.ceil(ms / 1000);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    if (h > 0) return `${h}h ${m}m ${s}s`;
-    if (m > 0) return `${m}m ${s}s`;
-    return `${s}s`;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Abruf fehlgeschlagen');
+    return data;
 }
 
-function clearCountdownMap() {
-    missionCountdowns.clear();
+async function apiPost(path, body) {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Aktion fehlgeschlagen');
+    return data;
 }
 
-function addCountdownNode(node, isoTime) {
-    const id = node.dataset.countdownId;
-    if (!id) return;
-    missionCountdowns.set(id, { node, isoTime });
-}
-
-function tickCountdowns() {
-    for (const { node, isoTime } of missionCountdowns.values()) {
-        node.textContent = formatTimeLeft(isoTime);
-    }
-}
-
-function missionTimeField(mission) {
-    return mission.status === 'traveling_back' ? mission.return_time : mission.arrival_time;
-}
-
-// ── Daten laden ────────────────────────────────────────────────────────────────
-
-async function loadMissions() {
-    const list = document.getElementById('missions-list');
-    clearCountdownMap();
-    try {
-        const res = await fetch(`${API_BASE_URL}/espionage/missions`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-        });
-        if (!res.ok) throw new Error('Missionen konnten nicht geladen werden');
-        const data = await res.json();
-        const missions = data.data ?? [];
-
-        if (missions.length === 0) {
-            list.innerHTML = '<div class="spy-empty">Keine laufenden Missionen.</div>';
-            return;
-        }
-
-        list.innerHTML = '';
-        for (const m of missions) {
-            const isReturning = m.status === 'traveling_back';
-            const targetTime = missionTimeField(m);
-            const counterId = `spy-${m.id}`;
-
-            const card = document.createElement('div');
-            card.className = 'spy-card';
-            card.innerHTML = `
-                <div class="spy-card-header">
-                    <span class="spy-card-icon">${isReturning ? '🏠' : '🕵️'}</span>
-                    <strong>${isReturning ? 'Rückkehr von' : 'Mission zu'}: ${m.target_username}</strong>
-                    <span class="spy-card-status ${isReturning ? 'returning' : 'traveling'}">${isReturning ? 'Kehrt zurück' : 'Reist zum Ziel'}</span>
-                </div>
-                <div class="spy-card-body">
-                    <span>📍 Ziel: (${m.target_kx}, ${m.target_ky})</span>
-                    <span>👥 Spione: ${m.spies_sent}</span>
-                    <span>⏱ ${isReturning ? 'Rueckkunft' : 'Ankunft'}: <strong data-countdown-id="${counterId}"></strong></span>
-                </div>
-            `;
-            list.appendChild(card);
-            const node = card.querySelector(`[data-countdown-id="${counterId}"]`);
-            if (node && targetTime) addCountdownNode(node, targetTime);
-        }
-
-        tickCountdowns();
-    } catch (err) {
-        list.innerHTML = `<div class="spy-error">${err.message}</div>`;
-    }
-}
-
-async function loadReports() {
-    const list = document.getElementById('reports-list');
-    try {
-        const res = await fetch(`${API_BASE_URL}/espionage/reports`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-        });
-        if (!res.ok) throw new Error('Berichte konnten nicht geladen werden');
-        const data = await res.json();
-        const reports = data.data ?? [];
-
-        if (reports.length === 0) {
-            list.innerHTML = '<div class="spy-empty">Noch keine Berichte vorhanden.</div>';
-            return;
-        }
-
-        list.innerHTML = '';
-        for (const r of reports) {
-            const card = renderReport(r);
-            list.appendChild(card);
-        }
-    } catch (err) {
-        list.innerHTML = `<div class="spy-error">${err.message}</div>`;
-    }
-}
-
-function renderReport(r) {
-    const card = document.createElement('div');
-    card.className = 'spy-card';
-    const report = r.report ?? {};
-    const date = new Date(r.created_at).toLocaleString('de-DE');
-
-    let contentHtml;
-
-    if (!report.success) {
-        contentHtml = `<div class="spy-report-fail">
-            ❌ Alle Spione wurden erwischt (${report.spiesCaught ?? r.spies_sent} gefangen).<br>
-            Keine Informationen gesammelt.
-        </div>`;
-    } else {
-        const detail = report.detail ?? 'low';
-        const caughtNote = report.spiesCaught > 0
-            ? `<span class="spy-caught">${report.spiesCaught} Spion(e) erwischt</span>`
-            : '<span class="spy-safe">Keine Spione erwischt</span>';
-
-        if (detail === 'low') {
-            const cats = (report.buildings?.categories ?? []).join(', ');
-            contentHtml = `
-                <p>${caughtNote}</p>
-                <p><strong>Gebäudekategorien erkannt:</strong> ${cats || '–'}</p>
-                <p class="spy-hint-small">Mehr Spione für detailliertere Berichte entsenden.</p>
-            `;
-        } else if (detail === 'medium') {
-            const bldgs = Object.entries(report.buildings ?? {})
-                .map(([cat, cnt]) => `${cat}: ${cnt}`)
-                .join(', ');
-            const unitCats = (report.units?.categories ?? []).join(', ');
-            contentHtml = `
-                <p>${caughtNote}</p>
-                <p><strong>Gebäude:</strong> ${bldgs || '–'}</p>
-                <p><strong>Einheitenkategorien:</strong> ${unitCats || '–'}</p>
-            `;
-        } else {
-            // Full report
-            const bldgs = Object.entries(report.buildings ?? {})
-                .map(([cat, cnt]) => `<li>${cat}: ${cnt}</li>`)
-                .join('');
-            const units = Object.entries(report.units ?? {})
-                .filter(([, v]) => v.quantity > 0)
-                .map(([name, v]) => `<li>${name} (${v.category}): ${v.quantity}</li>`)
-                .join('');
-            const defenses = (report.defenses ?? [])
-                .map((d) => `<li>${d.name}: ${d.quantity}</li>`)
-                .join('');
-
-            contentHtml = `
-                <p>${caughtNote}</p>
-                <details open>
-                    <summary><strong>🏗 Gebäude</strong></summary>
-                    <ul>${bldgs || '<li>Keine</li>'}</ul>
-                </details>
-                <details open>
-                    <summary><strong>⚔️ Einheiten</strong></summary>
-                    <ul>${units || '<li>Keine</li>'}</ul>
-                </details>
-                <details open>
-                    <summary><strong>🛡 Verteidigungen</strong></summary>
-                    <ul>${defenses || '<li>Keine</li>'}</ul>
-                </details>
-            `;
-        }
-    }
-
-    card.innerHTML = `
-        <div class="spy-card-header">
-            <span class="spy-card-icon">${report.success ? '📋' : '❌'}</span>
-            <strong>Bericht: ${r.target_username}</strong>
-            <span class="spy-card-date">${date}</span>
+function renderNoTarget() {
+    container.innerHTML = `
+        <div class="spy-card">
+            <div class="spy-card-content">
+                Kein Ziel ausgewaehlt. Bitte starte die Planung ueber die <a href="/pages/karte.html">Karte</a>.
+            </div>
         </div>
-        <div class="spy-card-meta">
-            Entsandte Spione: ${r.spies_sent} | Zurückgekehrt: ${r.spies_returned ?? '–'}
-        </div>
-        <div class="spy-card-content">${contentHtml}</div>
     `;
-    return card;
 }
 
-// ── SSE-Events für Spionage ────────────────────────────────────────────────────
-window.addEventListener('spy-return', () => {
-    loadMissions();
-    loadReports();
-});
+function distance(a, b) {
+    return Math.sqrt(Math.pow(a.koordinate_x - b.koordinate_x, 2) + Math.pow(a.koordinate_y - b.koordinate_y, 2));
+}
 
-window.addEventListener('spy-mission-update', () => {
-    loadMissions();
-});
+async function initPlanning() {
+    const targetId = getTargetId();
+    if (!targetId) {
+        renderNoTarget();
+        return;
+    }
 
-// ── Init ───────────────────────────────────────────────────────────────────────
+    const [playersRes, unitsRes, meRes] = await Promise.all([
+        apiGet('/map/players'),
+        apiGet('/units/me'),
+        apiGet('/me'),
+    ]);
+
+    const players = playersRes.players ?? [];
+    const own = players.find((p) => Number(p.id) === Number(auth.user.id));
+    const target = players.find((p) => Number(p.id) === Number(targetId));
+    if (!target || !own) throw new Error('Ziel konnte nicht geladen werden.');
+
+    const intelUnits = (Array.isArray(unitsRes) ? unitsRes : []).filter(
+        (u) => u.category === 'intel' && u.quantity > 0 && !u.is_moving
+    );
+    let availableFuel = Number(meRes?.resources?.treibstoff ?? 0);
+
+    const dist = distance(own, target);
+
+    if (!intelUnits.length) {
+        container.innerHTML = `
+            <div class="spy-card">
+                <div class="spy-card-header"><span class="spy-card-icon">🕵️</span><strong>Spionage: ${target.username}</strong></div>
+                <div class="spy-card-content">Keine verfuegbaren Geheimdiensteinheiten.</div>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="spy-card">
+            <div class="spy-card-header"><span class="spy-card-icon">🕵️</span><strong>Spionage: ${target.username}</strong></div>
+            <div id="spy-preview-info" class="spy-card-body">
+                <span>📍 Ziel: (${target.koordinate_x}, ${target.koordinate_y})</span>
+                <span>📏 Distanz: ${dist.toFixed(1)} Felder</span>
+            </div>
+            <div id="spy-units-list"></div>
+            <div class="spy-card-content">
+                <button id="btn-launch-spy" class="primary-action" disabled>Spione entsenden</button>
+                <span id="spy-fuel-badge" class="spy-fuel-badge" style="display:none">Nicht genug Treibstoff</span>
+                <span id="spy-msg" class="build-cost" style="margin-left:10px"></span>
+            </div>
+        </div>
+    `;
+
+    const list = document.getElementById('spy-units-list');
+    const launchBtn = document.getElementById('btn-launch-spy');
+    const fuelBadgeNode = document.getElementById('spy-fuel-badge');
+    const msgNode = document.getElementById('spy-msg');
+    const previewNode = document.getElementById('spy-preview-info');
+
+    const setLaunchState = (canLaunch, fuelCost = 0) => {
+        const hasSelection = fuelCost > 0;
+        launchBtn.disabled = !canLaunch;
+        if (!hasSelection) {
+            fuelBadgeNode.style.display = 'none';
+            msgNode.textContent = '';
+            return;
+        }
+        if (!canLaunch) {
+            fuelBadgeNode.style.display = 'inline-flex';
+            msgNode.style.color = '#f87171';
+            msgNode.textContent = `Zu wenig Treibstoff: ${Number(fuelCost).toLocaleString('de-DE')} L benötigt, ${Number(availableFuel).toLocaleString('de-DE')} L verfügbar.`;
+        } else {
+            fuelBadgeNode.style.display = 'none';
+            msgNode.style.color = '#94a3b8';
+            msgNode.textContent = '';
+        }
+    };
+
+    for (const u of intelUnits) {
+        const row = document.createElement('div');
+        row.className = 'attack-unit-row';
+        row.innerHTML = `
+            <span class="attack-unit-name">${u.name}</span>
+            <span class="attack-unit-avail">/${u.quantity}</span>
+            <input class="attack-unit-qty" type="number" min="0" max="${u.quantity}" value="0" data-unit-id="${u.id}" />
+        `;
+        list.appendChild(row);
+    }
+
+    const updatePreview = async () => {
+        const selectedInputs = [...list.querySelectorAll('.attack-unit-qty')].filter((inp) => Number(inp.value) > 0);
+        if (!selectedInputs.length) {
+            setLaunchState(false, 0);
+            return;
+        }
+
+        const ids = selectedInputs.map((inp) => inp.dataset.unitId).join(',');
+        const quantities = selectedInputs.map((inp) => Math.floor(Number(inp.value))).join(',');
+        try {
+            const preview = await apiGet(`/espionage/preview?target_id=${target.id}&unit_ids=${ids}&quantities=${quantities}`);
+            const p = preview.data;
+            previewNode.innerHTML = `
+                <span>📍 Ziel: ${p.targetUsername} (${p.targetCoords.x}, ${p.targetCoords.y})</span>
+                <span>📏 Distanz: ${p.distance} Felder</span>
+                <span>⏱ Reisezeit: ~${p.travelMinutes} min</span>
+                <span>🛢️ Treibstoff: ${Number(p.fuelCost).toLocaleString('de-DE')} L</span>
+                <span>🧪 Verfügbar: ${Number(availableFuel).toLocaleString('de-DE')} L</span>
+                <span>Hinweis: Treibstoff wird beim Absenden abgezogen.</span>
+            `;
+            setLaunchState(Number(p.fuelCost) <= availableFuel, Number(p.fuelCost));
+        } catch {
+            // Preview nicht kritisch.
+        }
+    };
+
+    list.addEventListener('input', updatePreview);
+
+    launchBtn.addEventListener('click', async () => {
+        const payloadUnits = [...list.querySelectorAll('.attack-unit-qty')]
+            .map((inp) => ({ user_unit_id: Number(inp.dataset.unitId), quantity: Number(inp.value) }))
+            .filter((entry) => entry.quantity > 0);
+
+        if (!payloadUnits.length) return;
+
+        if (launchBtn.disabled) return;
+
+        launchBtn.disabled = true;
+        msgNode.textContent = 'Starte Spionage...';
+
+        try {
+            const data = await apiPost('/espionage/launch', { target_id: Number(target.id), units: payloadUnits });
+            availableFuel = Math.max(0, availableFuel - Number(data?.data?.fuelCost ?? 0));
+            await refreshShellStatus(auth.token);
+            await updatePreview();
+            const eta = new Date(data?.data?.arrivalTime);
+            const mins = Math.round((eta - Date.now()) / 60000);
+            msgNode.textContent = `Spionage gestartet. Ankunft in ~${mins} min.`;
+            msgNode.style.color = '#22c55e';
+        } catch (err) {
+            msgNode.textContent = err.message;
+            msgNode.style.color = '#f87171';
+            launchBtn.disabled = false;
+        }
+    });
+}
+
 await initShell();
-await Promise.all([loadMissions(), loadReports()]);
-
-// Sekundengenaues Countdown-Ticking + zyklischer Sync mit Serverdaten
-setInterval(tickCountdowns, 1_000);
-setInterval(loadMissions, 10_000);
+try {
+    await initPlanning();
+} catch (err) {
+    container.innerHTML = `<div class="spy-error">${err.message}</div>`;
+}

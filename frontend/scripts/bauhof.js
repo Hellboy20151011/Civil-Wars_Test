@@ -30,12 +30,6 @@ const CATEGORIES = [
     description: 'Verwaltung, Forschung und Wirtschaft.',
     image: '/assets/images/categories/regierung.jpg',
   },
-  {
-    key: 'defense',
-    title: 'Verteidigung',
-    description: 'Schutzanlagen für Land, See und Luft.',
-    image: '/assets/images/categories/verteidigung.jpg',
-  },
 ];
 
 const BUILDING_IMAGE_BY_NAME = {
@@ -43,6 +37,12 @@ const BUILDING_IMAGE_BY_NAME = {
   Reihenhaus: '/assets/images/categories/unterkünfte.jpg',
   Mehrfamilienhaus: '/assets/images/categories/unterkünfte.jpg',
   Hochhaus: '/assets/images/categories/unterkünfte.jpg',
+  Kraftwerk: '/assets/images/buildings/kraftwerk.jpg',
+  Stahlwerk: '/assets/images/buildings/stahlwerk.jpg',
+  Steinbruch: '/assets/images/buildings/steinbruch.jpg',
+  Ölpumpe: '/assets/images/buildings/ölpumpe.jpg',
+  'Öl-Raffinerie': '/assets/images/buildings/ölraffinerie.jpg',
+  Ölraffinerie: '/assets/images/buildings/ölraffinerie.jpg',
 };
 
 const bauhofState = {
@@ -253,14 +253,13 @@ function buildCategoryOverviewCard(category, typesForCategory) {
 
 function buildBuildingCard(bt, category, container) {
   const owned = bauhofState.buildings.find((b) => Number(b.id) === Number(bt.id));
+  const existingCount = Number(owned?.anzahl ?? 0);
   const inQueue = bauhofState.queue.find((q) => q.building_type_id === bt.id);
   const maxBuildable = getMaxBuildableByResourcesAndPower(bt);
   const maxBuildableLabel = formatMaxBuildable(maxBuildable);
   const numericMax = Number.isFinite(maxBuildable) ? Math.max(0, maxBuildable) : 999;
   const unavailable = numericMax === 0;
   const powerCost = Number(bt.power_consumption ?? 0);
-
-  const statusText = inQueue ? 'In Warteschlange…' : owned ? 'Weiteren bauen' : 'Bauen';
 
   const input = el('input', {
     className: 'build-quantity-input',
@@ -275,7 +274,7 @@ function buildBuildingCard(bt, category, container) {
 
   const button = el('button', {
     className: 'primary-action',
-    text: statusText,
+    text: 'Bauen',
     dataset: { buildId: bt.id },
     attrs: { disabled: inQueue || unavailable ? 'true' : null },
     on: {
@@ -362,6 +361,10 @@ function buildBuildingCard(bt, category, container) {
       el('p', {
         className: 'building-card-description',
         text: bt.description || 'Keine Beschreibung verfügbar.',
+      }),
+      el('span', {
+        className: 'building-count',
+        text: `Vorhanden: ${existingCount.toLocaleString('de-DE')}`,
       }),
       el('span', {
         className: 'build-cost',

@@ -6,13 +6,85 @@ import { el, render } from '/scripts/ui/component.js';
 
 let liveEventSource = null;
 let liveEventSourceToken = null;
+let latestStatusPayload = null;
+let latestResearchOverview = null;
+let researchOverviewPollTimer = null;
+let researchCountdownTimer = null;
+const LOGIN_PAGE_PATH = '/pages/index.html';
+
+function formatTimeLeft(targetDate) {
+  const ms = new Date(targetDate) - Date.now();
+  if (ms <= 0) return 'Fertig';
+  const totalSec = Math.ceil(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function stopResearchTimers() {
+  if (researchOverviewPollTimer) {
+    clearInterval(researchOverviewPollTimer);
+    researchOverviewPollTimer = null;
+  }
+  if (researchCountdownTimer) {
+    clearInterval(researchCountdownTimer);
+    researchCountdownTimer = null;
+  }
+}
+
+async function fetchResearchOverview(token) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/research/overview`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function updateResearchCountdownText() {
+  const target = document.querySelector('#production-panel [data-research-countdown="active"]');
+  const endAt = latestResearchOverview?.activeResearch?.endsAt;
+  if (!target || !endAt) return;
+  target.textContent = formatTimeLeft(endAt);
+}
+
+async function refreshResearchOverview(token) {
+  const overview = await fetchResearchOverview(token);
+  latestResearchOverview = overview;
+  if (latestStatusPayload) {
+    renderProductionPanel(latestStatusPayload, latestResearchOverview);
+    updateResearchCountdownText();
+  }
+}
+
+function startResearchOverviewPolling(token) {
+  stopResearchTimers();
+
+  researchCountdownTimer = setInterval(() => {
+    updateResearchCountdownText();
+  }, 1000);
+
+  researchOverviewPollTimer = setInterval(() => {
+    refreshResearchOverview(token);
+  }, 15000);
+}
+
+function redirectToLogin() {
+  // replace() verhindert, dass die geschützte Seite per Browser-Zurück direkt wieder erscheint.
+  window.location.replace(LOGIN_PAGE_PATH);
+}
 
 const BAUHOF_CATEGORIES = [
   { key: 'housing', label: 'Unterkünfte' },
   { key: 'infrastructure', label: 'Industrie' },
   { key: 'military', label: 'Militär' },
   { key: 'government', label: 'Regierung' },
-  { key: 'defense', label: 'Verteidigung' },
 ];
 
 const MILITAER_CATEGORIES = [
@@ -30,7 +102,7 @@ export function getAuth() {
     stopLiveUpdates();
     sessionStorage.removeItem('currentUser');
     sessionStorage.removeItem('authToken');
-    window.location.href = '/';
+    redirectToLogin();
     return null;
   }
   return { user: JSON.parse(raw), token };
@@ -42,14 +114,21 @@ export async function initShell(navLinks = []) {
 
   // /me lädt Ressourcen, Strom, Produktion und Gebäude in einem Request
   try {
-    const res = await fetch(`${API_BASE_URL}/me`, {
-      headers: { Authorization: `Bearer ${auth.token}` }
-    });
+    const [res, overview] = await Promise.all([
+      fetch(`${API_BASE_URL}/me`, {
+        headers: { Authorization: `Bearer ${auth.token}` }
+      }),
+      fetchResearchOverview(auth.token),
+    ]);
     if (!res.ok) throw new Error('Status-Abruf fehlgeschlagen');
     const status = await res.json();
+    latestStatusPayload = status;
+    latestResearchOverview = overview;
     renderSidebar(navLinks, status);
     renderResourceBar(status);
-    renderProductionPanel(status);
+    renderProductionPanel(status, latestResearchOverview);
+    updateResearchCountdownText();
+    startResearchOverviewPolling(auth.token);
     startLiveUpdates(auth.token);
   } catch (err) {
     renderSidebar(navLinks, null);
@@ -64,6 +143,24 @@ export async function initShell(navLinks = []) {
       ]);
     }
   }
+}
+
+export async function refreshShellStatus(tokenOverride) {
+  const auth = getAuth();
+  const token = tokenOverride || auth?.token;
+  if (!token) return null;
+
+  const res = await fetch(`${API_BASE_URL}/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Status-Abruf fehlgeschlagen');
+
+  const status = await res.json();
+  latestStatusPayload = status;
+  renderResourceBar(latestStatusPayload);
+  renderProductionPanel(latestStatusPayload, latestResearchOverview);
+  updateResearchCountdownText();
+  return status;
 }
 
 async function startLiveUpdates(token) {
@@ -83,7 +180,7 @@ async function startLiveUpdates(token) {
   try {
     const ticketRes = await fetch(`${API_BASE_URL}/me/stream-ticket`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` }
     });
     if (!ticketRes.ok) throw new Error('Ticket-Anfrage fehlgeschlagen');
     const ticketData = await ticketRes.json();
@@ -100,8 +197,10 @@ async function startLiveUpdates(token) {
     try {
       const payload = JSON.parse(event.data || '{}');
       if (!payload.status) return;
-      renderResourceBar(payload.status);
-      renderProductionPanel(payload.status);
+      latestStatusPayload = payload.status;
+      renderResourceBar(latestStatusPayload);
+      renderProductionPanel(latestStatusPayload, latestResearchOverview);
+      updateResearchCountdownText();
     } catch (err) {
       console.error('SSE status parse error:', err);
     }
@@ -191,6 +290,9 @@ function stopLiveUpdates() {
     liveEventSource = null;
   }
   liveEventSourceToken = null;
+  latestStatusPayload = null;
+  latestResearchOverview = null;
+  stopResearchTimers();
 }
 
 function renderSidebar(navLinks, status) {
@@ -211,10 +313,10 @@ function renderSidebar(navLinks, status) {
     { label: 'Dashboard', href: '/pages/dashboard.html' },
     { label: 'Bauhof', href: '/pages/bauhof.html' },
     { label: 'Militär', href: '/pages/militaer.html' },
+    { label: 'Forschungen', href: '/pages/forschungen.html' },
     { label: 'Karte', href: '/pages/karte.html' },
-    { label: 'Kämpfe', href: '/pages/kampf.html' },
+    { label: 'Missionen', href: '/pages/missionen.html' },
     ...(hasGdh ? [{ label: 'Geheimdienstzentrum', href: '/pages/geheimdienstzentrum.html' }] : []),
-    { label: 'Spionage', href: '/pages/spionage.html' },
   ];
 
   const links = defaultLinks.concat(
@@ -291,8 +393,9 @@ function renderSidebar(navLinks, status) {
           (hrefLower === '/pages/dashboard.html' && currentPath === '/dashboard.html') ||
           (hrefLower === '/pages/bauhof.html' && currentPath === '/bauhof.html') ||
           (hrefLower === '/pages/militaer.html' && currentPath === '/militaer.html') ||
+          (hrefLower === '/pages/forschungen.html' && currentPath === '/forschungen.html') ||
+          (hrefLower === '/pages/missionen.html' && currentPath === '/missionen.html') ||
           (hrefLower === '/pages/karte.html' && currentPath === '/karte.html') ||
-          (hrefLower === '/pages/spionage.html' && currentPath === '/spionage.html') ||
           (hrefLower === '/pages/geheimdienstzentrum.html' && currentPath === '/geheimdienstzentrum.html')
             ? 'is-active'
             : ''
@@ -309,7 +412,7 @@ function renderSidebar(navLinks, status) {
           stopLiveUpdates();
           sessionStorage.removeItem('currentUser');
           sessionStorage.removeItem('authToken');
-          window.location.href = '/';
+          redirectToLogin();
         },
       },
     })
@@ -380,7 +483,7 @@ function renderResourceBar(status) {
   render(bar, nodes);
 }
 
-function renderProductionPanel(status) {
+function renderProductionPanel(status, researchOverview = null) {
   const panel = document.getElementById('production-panel');
   if (!panel) return;
 
@@ -407,7 +510,35 @@ function renderProductionPanel(status) {
     });
   });
 
-  render(panel, [el('h3', { text: 'Produktion / Tick' }), ...rowNodes]);
+  const activeResearch = researchOverview?.activeResearch ?? null;
+  const researchNodes = [el('h3', { text: 'Forschung' })];
+
+  if (activeResearch) {
+    researchNodes.push(
+      el('div', {
+        className: 'production-item',
+        children: [
+          el('span', { text: activeResearch.name }),
+          el('span', {
+            dataset: { researchCountdown: 'active' },
+            text: formatTimeLeft(activeResearch.endsAt),
+          }),
+        ],
+      })
+    );
+  } else {
+    researchNodes.push(
+      el('div', {
+        className: 'production-item',
+        children: [
+          el('span', { text: 'Keine aktive Forschung' }),
+          el('span', { text: '—' }),
+        ],
+      })
+    );
+  }
+
+  render(panel, [el('h3', { text: 'Produktion / Tick' }), ...rowNodes, ...researchNodes]);
 }
 
 

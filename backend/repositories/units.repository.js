@@ -110,7 +110,7 @@ export async function createUserUnit(userId, unitTypeId, quantity, client = pool
 
 export async function findMovableUnit(userUnitId, userId, client = pool) {
     const result = await client.query(
-        `SELECT uu.*, ut.movement_speed
+        `SELECT uu.*, ut.movement_speed, ut.fuel_cost, ut.category, ut.name
          FROM user_units uu
          JOIN unit_types ut ON uu.unit_type_id = ut.id
          WHERE uu.id = $1 AND uu.user_id = $2`,

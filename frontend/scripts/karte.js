@@ -1,4 +1,4 @@
-import { initShell, getAuth, showToast } from '/scripts/shell.js';
+import { initShell, getAuth, showToast, refreshShellStatus } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
 
 const auth = getAuth();
@@ -279,12 +279,12 @@ const actionInfo       = document.getElementById('action-info');
 
 document.getElementById('action-panel-close').addEventListener('click', closeAllPanels);
 document.getElementById('btn-open-attack').addEventListener('click', () => {
-    actionPanel.style.display = 'none';
-    openAttackPanel(clickedPlayer);
+    if (!clickedPlayer) return;
+    window.location.href = `/pages/kampf.html?target_id=${encodeURIComponent(clickedPlayer.id)}`;
 });
 document.getElementById('btn-open-spy').addEventListener('click', () => {
-    actionPanel.style.display = 'none';
-    openSpyPanel(clickedPlayer);
+    if (!clickedPlayer) return;
+    window.location.href = `/pages/spionage.html?target_id=${encodeURIComponent(clickedPlayer.id)}`;
 });
 
 function openActionPanel(target) {
@@ -327,14 +327,15 @@ async function openAttackPanel(target) {
     btnLaunch.disabled = true;
     attackPanelMsg.textContent = '';
 
-    // Distanz berechnen
+        // Distanz berechnen
     const ownPlayer = players.find((p) => p.id === ownId);
-    const distance = ownPlayer
-        ? Math.sqrt(
+        const distanceValue = ownPlayer
+                ? Math.sqrt(
               Math.pow(target.koordinate_x - ownPlayer.koordinate_x, 2) +
               Math.pow(target.koordinate_y - ownPlayer.koordinate_y, 2)
-          ).toFixed(1)
+                    )
         : '?';
+        const distance = typeof distanceValue === 'number' ? distanceValue.toFixed(1) : distanceValue;
 
     attackInfo.innerHTML = `
         <strong>Ziel:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
@@ -342,14 +343,24 @@ async function openAttackPanel(target) {
         <small>Reisezeit abhängig von der langsamsten Einheit.</small>
     `;
 
-    // Eigene Einheiten laden
+    // Eigene Einheiten + Ressourcen laden
     try {
-        const res = await fetch(`${API_BASE_URL}/units/me`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-        });
-        if (!res.ok) throw new Error('Einheiten konnten nicht geladen werden');
-        const data = await res.json();
-        const units = (Array.isArray(data) ? data : (data.units ?? [])).filter((u) => u.quantity > 0 && !u.is_moving);
+        const [unitsRes, meRes] = await Promise.all([
+            fetch(`${API_BASE_URL}/units/me`, {
+                headers: { Authorization: `Bearer ${auth.token}` },
+            }),
+            fetch(`${API_BASE_URL}/me`, {
+                headers: { Authorization: `Bearer ${auth.token}` },
+            }),
+        ]);
+        if (!unitsRes.ok) throw new Error('Einheiten konnten nicht geladen werden');
+        if (!meRes.ok) throw new Error('Ressourcen konnten nicht geladen werden');
+        const data = await unitsRes.json();
+        const meData = await meRes.json();
+        let availableFuel = Number(meData?.resources?.treibstoff ?? 0);
+        const units = (Array.isArray(data) ? data : (data.units ?? [])).filter(
+            (u) => u.quantity > 0 && !u.is_moving && u.category !== 'defense' && u.category !== 'intel'
+        );
 
         if (units.length === 0) {
             attackUnitsList.innerHTML = '<div style="color:#64748b;padding:6px 0">Keine verfügbaren Einheiten.</div>';
@@ -370,17 +381,63 @@ async function openAttackPanel(target) {
                     max="${u.quantity}"
                     value="0"
                     data-unit-id="${u.id}"
+                    data-fuel-cost="${Number(u.fuel_cost ?? 0)}"
                 />
             `;
             attackUnitsList.appendChild(row);
         }
 
-        // Button aktivieren sobald mind. 1 Einheit > 0
-        attackUnitsList.addEventListener('input', () => {
+        const fuelBadge = document.getElementById('attack-fuel-badge');
+
+        const calculateAttackFuelCost = () => {
+            if (typeof distanceValue !== 'number') return 0;
+            return [...attackUnitsList.querySelectorAll('.attack-unit-qty')]
+                .filter((inp) => parseInt(inp.value, 10) > 0)
+                .reduce((sum, inp) => {
+                    const qty = parseInt(inp.value, 10);
+                    const fuelPerUnit = Number(inp.dataset.fuelCost ?? 0);
+                    return sum + Math.ceil((fuelPerUnit * distanceValue * qty) / 10);
+                }, 0);
+        };
+
+        const setAttackLaunchState = () => {
             const anySelected = [...attackUnitsList.querySelectorAll('.attack-unit-qty')]
                 .some((inp) => parseInt(inp.value, 10) > 0);
-            btnLaunch.disabled = !anySelected;
-        });
+            if (!anySelected) {
+                btnLaunch.disabled = true;
+                if (fuelBadge) fuelBadge.style.display = 'none';
+                attackPanelMsg.textContent = '';
+                attackInfo.innerHTML = `
+                    <strong>Ziel:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
+                    <strong>Distanz:</strong> ${distance} Felder<br>
+                    <small>Reisezeit abhängig von der langsamsten Einheit.</small>
+                `;
+                return;
+            }
+
+            const fuelCost = calculateAttackFuelCost();
+            const hasFuel = fuelCost <= availableFuel;
+            btnLaunch.disabled = !hasFuel;
+            if (fuelBadge) fuelBadge.style.display = hasFuel ? 'none' : 'inline-flex';
+
+            attackInfo.innerHTML = `
+                <strong>Ziel:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
+                <strong>Distanz:</strong> ${distance} Felder<br>
+                <strong>Treibstoffbedarf:</strong> ${fuelCost.toLocaleString()} L<br>
+                <strong>Verfügbar:</strong> ${availableFuel.toLocaleString()} L<br>
+                <small>Reisezeit abhängig von der langsamsten Einheit.</small>
+            `;
+
+            if (!hasFuel) {
+                attackPanelMsg.style.color = '#f87171';
+                attackPanelMsg.textContent = `Zu wenig Treibstoff: ${fuelCost.toLocaleString()} L benötigt, ${availableFuel.toLocaleString()} L verfügbar.`;
+            } else if (!attackPanelMsg.textContent || attackPanelMsg.style.color === 'rgb(248, 113, 113)') {
+                attackPanelMsg.style.color = '#94a3b8';
+                attackPanelMsg.textContent = '';
+            }
+        };
+
+        attackUnitsList.addEventListener('input', setAttackLaunchState);
     } catch (err) {
         attackUnitsList.innerHTML = `<div style="color:#f87171">${err.message}</div>`;
     }
@@ -395,6 +452,7 @@ btnLaunch.addEventListener('click', async () => {
         .filter((u) => u.quantity > 0);
 
     if (units.length === 0) return;
+    if (btnLaunch.disabled) return;
 
     btnLaunch.disabled = true;
     attackPanelMsg.textContent = 'Starte Angriff…';
@@ -410,6 +468,8 @@ btnLaunch.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message ?? 'Fehler beim Starten des Angriffs');
+
+        await refreshShellStatus(auth.token);
 
         const eta = new Date(data.data.arrivalTime);
         const mins = Math.round((eta - Date.now()) / 60000);
@@ -445,11 +505,19 @@ async function openSpyPanel(target) {
     spyPanelMsg.textContent = '';
 
     try {
-        const res = await fetch(`${API_BASE_URL}/units/me`, {
-            headers: { Authorization: `Bearer ${auth.token}` },
-        });
-        if (!res.ok) throw new Error('Einheiten konnten nicht geladen werden');
-        const data = await res.json();
+        const [unitsRes, meRes] = await Promise.all([
+            fetch(`${API_BASE_URL}/units/me`, {
+                headers: { Authorization: `Bearer ${auth.token}` },
+            }),
+            fetch(`${API_BASE_URL}/me`, {
+                headers: { Authorization: `Bearer ${auth.token}` },
+            }),
+        ]);
+        if (!unitsRes.ok) throw new Error('Einheiten konnten nicht geladen werden');
+        if (!meRes.ok) throw new Error('Ressourcen konnten nicht geladen werden');
+        const data = await unitsRes.json();
+        const meData = await meRes.json();
+        let availableFuel = Number(meData?.resources?.treibstoff ?? 0);
         const intelUnits = (Array.isArray(data) ? data : (data.units ?? [])).filter(
             (u) => u.category === 'intel' && u.quantity > 0 && !u.is_moving
         );
@@ -498,21 +566,47 @@ async function openSpyPanel(target) {
 
         spyUnitsList.addEventListener('input', updateSpyPreview);
 
+        const setLaunchState = (canLaunch, fuelCost = 0) => {
+            const hasSelection = fuelCost > 0;
+            btnLaunchSpy.disabled = !canLaunch;
+            const fuelBadge = document.getElementById('spy-fuel-badge');
+            if (!hasSelection) {
+                if (fuelBadge) fuelBadge.style.display = 'none';
+                spyPanelMsg.textContent = '';
+                return;
+            }
+            if (!canLaunch) {
+                if (fuelBadge) fuelBadge.style.display = 'inline-flex';
+                spyPanelMsg.style.color = '#f87171';
+                spyPanelMsg.textContent = `Zu wenig Treibstoff: ${Number(fuelCost).toLocaleString('de-DE')} L benötigt, ${Number(availableFuel).toLocaleString('de-DE')} L verfügbar.`;
+            } else if (!spyPanelMsg.textContent || spyPanelMsg.style.color === 'rgb(248, 113, 113)') {
+                if (fuelBadge) fuelBadge.style.display = 'none';
+                spyPanelMsg.style.color = '#94a3b8';
+                spyPanelMsg.textContent = '';
+            }
+        };
+
         async function updateSpyPreview() {
             const inputs = [...spyUnitsList.querySelectorAll('.attack-unit-qty')];
             const any = inputs.some((inp) => parseInt(inp.value, 10) > 0);
-            btnLaunchSpy.disabled = !any;
 
-            if (!any) return;
+            if (!any) {
+                setLaunchState(false, 0);
+                return;
+            }
 
             const unitIds = inputs
                 .filter((inp) => parseInt(inp.value, 10) > 0)
                 .map((inp) => inp.dataset.unitId)
                 .join(',');
+            const quantities = inputs
+                .filter((inp) => parseInt(inp.value, 10) > 0)
+                .map((inp) => parseInt(inp.value, 10))
+                .join(',');
 
             try {
                 const r = await fetch(
-                    `${API_BASE_URL}/espionage/preview?target_id=${target.id}&unit_ids=${unitIds}`,
+                    `${API_BASE_URL}/espionage/preview?target_id=${target.id}&unit_ids=${unitIds}&quantities=${quantities}`,
                     { headers: { Authorization: `Bearer ${auth.token}` } }
                 );
                 if (!r.ok) return;
@@ -523,9 +617,10 @@ async function openSpyPanel(target) {
                     <strong>Distanz:</strong> ${p.distance} Felder<br>
                     <strong>Reisezeit:</strong> ~${p.travelMinutes} min<br>
                     <strong>Treibstoffbedarf:</strong> ${p.fuelCost.toLocaleString()} L<br>
-                    <strong>Geschätzte Erfolgsrate:</strong> ${p.estimatedSuccessRate}%<br>
-                    <small style="color:#94a3b8">Geschätzt – variiert je nach Gegenspionage des Ziels.</small>
+                    <strong>Verfügbar:</strong> ${availableFuel.toLocaleString()} L<br>
+                    <small style="color:#94a3b8">Treibstoff wird beim Absenden sofort abgezogen.</small>
                 `;
+                setLaunchState(Number(p.fuelCost) <= availableFuel, Number(p.fuelCost));
             } catch {
                 // Vorschau nicht kritisch
             }
@@ -546,6 +641,8 @@ btnLaunchSpy.addEventListener('click', async () => {
 
     if (units.length === 0) return;
 
+    if (btnLaunchSpy.disabled) return;
+
     btnLaunchSpy.disabled = true;
     spyPanelMsg.textContent = 'Spione werden entsandt…';
 
@@ -560,6 +657,8 @@ btnLaunchSpy.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message ?? 'Fehler beim Starten der Spionage');
+
+        await refreshShellStatus(auth.token);
 
         const eta = new Date(data.data.arrivalTime);
         const mins = Math.round((eta - Date.now()) / 60000);

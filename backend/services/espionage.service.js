@@ -21,6 +21,7 @@
 import * as spyRepo from '../repositories/spy-missions.repository.js';
 import * as playerRepo from '../repositories/player.repository.js';
 import * as unitsRepo from '../repositories/units.repository.js';
+import * as resourcesRepo from '../repositories/resources.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastToUser } from './live-updates.service.js';
 import { config } from '../config.js';
@@ -40,6 +41,9 @@ import { calcDistance, calcArrivalTime } from '../utils/game-math.js';
  * @returns {number} 0.10 … 0.95
  */
 function calcSuccessRate(intelLevel, counterIntelLevel, unitName) {
+    // Ohne Gegenspionageverteidigung gelingt jede Aktion sicher.
+    if (Number(counterIntelLevel) <= 0) return 1;
+
     let base = 50 + 10 * intelLevel - 15 * counterIntelLevel;
 
     // Fortgeschrittene Geheimdiensteinheiten haben Boni
@@ -47,6 +51,15 @@ function calcSuccessRate(intelLevel, counterIntelLevel, unitName) {
     if (unitName === 'Spionagesatellit') base += 30;
 
     return Math.min(95, Math.max(10, base)) / 100;
+}
+
+function calculateFuelCost(distance, units) {
+    return units.reduce((acc, unit) => {
+        const quantity = Math.max(0, Number(unit.quantitySending ?? unit.quantity ?? 1));
+        const fuelPerUnit = Number(unit.fuel_cost);
+        const normalizedFuelPerUnit = Number.isFinite(fuelPerUnit) ? fuelPerUnit : 0;
+        return acc + Math.ceil((normalizedFuelPerUnit * distance * quantity) / 10);
+    }, 0);
 }
 
 /**
@@ -59,6 +72,8 @@ function calcSuccessRate(intelLevel, counterIntelLevel, unitName) {
  * @returns {object} report-Objekt
  */
 function buildReport(successRate, spiesCaught, targetUsername, buildingSummary, unitSummary) {
+    const successRatePercent = Math.round(Math.max(0, Math.min(1, Number(successRate) || 0)) * 100);
+
     if (successRate < 0.30) {
         // Nur Kategorienübersicht
         return {
@@ -66,6 +81,7 @@ function buildReport(successRate, spiesCaught, targetUsername, buildingSummary, 
             detail: 'low',
             targetUsername,
             spiesCaught,
+            successRatePercent,
             buildings: {
                 categories: Object.keys(buildingSummary),
             },
@@ -80,6 +96,7 @@ function buildReport(successRate, spiesCaught, targetUsername, buildingSummary, 
             detail: 'medium',
             targetUsername,
             spiesCaught,
+            successRatePercent,
             buildings: buildingSummary,
             units: { categories: unitCategories },
         };
@@ -102,6 +119,7 @@ function buildReport(successRate, spiesCaught, targetUsername, buildingSummary, 
         detail: 'full',
         targetUsername,
         spiesCaught,
+        successRatePercent,
         buildings: buildingSummary,
         units,
         defenses,
@@ -181,6 +199,17 @@ export async function launchSpyMission(spyPlayerId, targetPlayerId, units) {
         // Langsamste Einheit bestimmt die Reisezeit
         const speed = Math.min(...unitDetails.map((u) => Number(u.movement_speed)));
         const arrivalTime = calcArrivalTime(distance, speed);
+        const fuelCost = calculateFuelCost(distance, unitDetails);
+
+        const resources = (await resourcesRepo.findByUserIdLocked(spyPlayerId, client)) ?? {
+            treibstoff: 0,
+        };
+
+        if (Number(resources.treibstoff ?? 0) < fuelCost) {
+            throw createServiceError('Nicht genug Treibstoff für die Mission', 400, 'INSUFFICIENT_RESOURCES');
+        }
+
+        await resourcesRepo.deductResources(spyPlayerId, 0, 0, 0, fuelCost, client);
 
         // Mission anlegen
         const mission = await spyRepo.createMission({
@@ -206,6 +235,7 @@ export async function launchSpyMission(spyPlayerId, targetPlayerId, units) {
             missionId: mission.id,
             arrivalTime,
             distance: Math.round(distance * 10) / 10,
+            fuelCost,
             spiesSent: totalSpies,
             targetUsername: target.username,
         };
@@ -259,6 +289,13 @@ async function processOneMission(mission, client) {
         }
     }
 
+    // Ohne Gegenspionage wird die Mission garantiert erfolgreich ausgewertet.
+    if (Number(counterIntelLevel) <= 0) {
+        successfulSpies = mission.spies_sent;
+        caughtSpies = 0;
+        bestSuccessRate = 1;
+    }
+
     const totalSent = mission.spies_sent;
     const survivalRate = successfulSpies / totalSent;
 
@@ -275,6 +312,7 @@ async function processOneMission(mission, client) {
             success: false,
             targetUsername: mission.target_username,
             spiesCaught: caughtSpies,
+            successRatePercent: 0,
         };
         newStatus = 'aborted';
     } else {
@@ -391,38 +429,53 @@ export async function getMissionPreview(spyPlayerId, targetPlayerId, unitIds) {
         target.koordinate_x, target.koordinate_y
     );
 
-    const unitDetails = await Promise.all(
-        unitIds.map((id) => unitsRepo.findUserUnitById(id))
-    );
+    if (!Array.isArray(unitIds) || unitIds.length === 0) {
+        throw createServiceError('Keine gültigen Einheiten', 400, 'UNIT_NOT_FOUND');
+    }
 
-    const validUnits = unitDetails.filter(Boolean);
-    if (validUnits.length === 0) throw createServiceError('Keine gültigen Einheiten', 400, 'UNIT_NOT_FOUND');
+    const unitDetails = [];
 
-    const speed = Math.min(...validUnits.map((u) => Number(u.movement_speed)));
+    for (const entry of unitIds) {
+        const userUnitId = Number(entry?.user_unit_id);
+        const quantity = Number(entry?.quantity ?? 1);
+        const unit = await unitsRepo.findUserUnitById(userUnitId);
+
+        if (!unit || Number(unit.user_id) !== Number(spyPlayerId)) {
+            throw createServiceError(`Einheit ${userUnitId} nicht gefunden`, 404, 'UNIT_NOT_FOUND');
+        }
+        if (unit.category !== 'intel') {
+            throw createServiceError(
+                'Nur Geheimdiensteinheiten können Spionage-Missionen durchführen',
+                400,
+                'INVALID_UNIT_CATEGORY'
+            );
+        }
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+            throw createServiceError('Menge muss größer als 0 sein', 400, 'INVALID_QUANTITY');
+        }
+        if (Number(unit.quantity) < quantity) {
+            throw createServiceError(
+                `Nicht genug ${unit.name} vorhanden (${unit.quantity} verfügbar)`,
+                400,
+                'INSUFFICIENT_UNITS'
+            );
+        }
+
+        unitDetails.push({ ...unit, quantitySending: quantity });
+    }
+
+    const speed = Math.min(...unitDetails.map((u) => Number(u.movement_speed)));
     const travelTicks = distance / speed;
     const tickMs = config.gameloop.tickIntervalMs;
     const travelMs = travelTicks * tickMs;
 
-    // Treibstoffverbrauch: fuel_cost * distance / 10 pro Einheit
-    const fuelCost = validUnits.reduce((acc, u) => {
-        return acc + Math.ceil(Number(u.fuel_cost) * distance / 10);
-    }, 0);
-
-    const [intelLevel, counterIntelLevel] = await Promise.all([
-        spyRepo.findIntelLevel(spyPlayerId),
-        spyRepo.findCounterIntelLevel(targetPlayerId),
-    ]);
-
-    const estimatedSuccessRate = Math.min(95, Math.max(10,
-        50 + 10 * intelLevel - 15 * counterIntelLevel
-    ));
+    const fuelCost = calculateFuelCost(distance, unitDetails);
 
     return {
         distance: Math.round(distance * 10) / 10,
         travelMinutes: Math.round(travelMs / 60000),
         arrivalTime: new Date(Date.now() + travelMs).toISOString(),
         fuelCost,
-        estimatedSuccessRate,
         targetUsername: target.username,
         targetCoords: { x: target.koordinate_x, y: target.koordinate_y },
     };

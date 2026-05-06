@@ -11,6 +11,7 @@
 import * as buildingRepo from '../repositories/building.repository.js';
 import * as combatMissionsRepo from '../repositories/combat-missions.repository.js';
 import * as playerRepo from '../repositories/player.repository.js';
+import * as resourcesRepo from '../repositories/resources.repository.js';
 import * as unitsRepo from '../repositories/units.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastToUser } from './live-updates.service.js';
@@ -39,11 +40,12 @@ const MAX_RAFFINERIEN_PER_PUMPE = 5;
  *   - Ölpumpe/Öl-Raffinerie-Verhältnis: max. 5 Raffinerien pro Pumpe nach Plünderung
  *   - Kraftwerke werden zuletzt entfernt, um kein Stromdefizit beim Verteidiger auszulösen
  *
+ * @param {number} attackerId
  * @param {number} defenderId
  * @param {import('pg').PoolClient} client
  * @returns {Promise<Array<{ name: string, removed: number, remaining: number }>>}
  */
-async function _plunderBuildings(defenderId, client) {
+async function _plunderBuildings(attackerId, defenderId, client) {
     const buildings = await buildingRepo.findBuildingsByUser(defenderId, client);
 
     // Plünderable Gebäude: housing + infrastructure mit Ressourcenproduktion oder -verbrauch
@@ -95,6 +97,7 @@ async function _plunderBuildings(defenderId, client) {
     for (const { b, toRemove } of plan.values()) {
         if (toRemove <= 0) continue;
         await buildingRepo.removeUserBuildingsByType(defenderId, b.id, toRemove, client);
+        await buildingRepo.upsertBuilding(attackerId, b.id, toRemove, client);
         plunderLog.push({ name: b.name, removed: toRemove, remaining: Number(b.anzahl) - toRemove });
     }
 
@@ -113,6 +116,7 @@ async function _plunderBuildings(defenderId, client) {
         if (toRemove <= 0) continue;
 
         await buildingRepo.removeUserBuildingsByType(defenderId, b.id, toRemove, client);
+        await buildingRepo.upsertBuilding(attackerId, b.id, toRemove, client);
         plunderLog.push({ name: b.name, removed: toRemove, remaining: count - toRemove });
     }
 
@@ -147,6 +151,15 @@ function getUnitMatchup(attackerName, defenderName) {
  */
 function slowestSpeed(unitTypes) {
     return Math.min(...unitTypes.map((u) => Number(u.movement_speed)));
+}
+
+function calculateFuelCost(distance, units) {
+    return units.reduce((acc, unit) => {
+        const quantity = Math.max(0, Number(unit.quantitySent ?? 0));
+        const fuelPerUnit = Number(unit.fuel_cost);
+        const normalizedFuelPerUnit = Number.isFinite(fuelPerUnit) ? fuelPerUnit : 0;
+        return acc + Math.ceil((normalizedFuelPerUnit * distance * quantity) / 10);
+    }, 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -185,6 +198,9 @@ export async function launchAttack(attackerId, defenderId, units) {
             const userUnitId = entry.userUnitId ?? entry.user_unit_id;
             const unit = await unitsRepo.findMovableUnit(userUnitId, attackerId, client);
             if (!unit) throw createServiceError(`Einheit ${userUnitId} nicht gefunden oder gehört nicht dir`, 404, 'UNIT_NOT_FOUND');
+            if (unit.category === 'defense') {
+                throw createServiceError('Verteidigungsstellungen können nicht für Angriffe eingesetzt werden', 400, 'INVALID_UNIT_CATEGORY');
+            }
             if (unit.is_moving) throw createServiceError(`Einheit ${unit.id} ist bereits unterwegs`, 409, 'UNIT_BUSY');
             if (unit.quantity < entry.quantity) {
                 throw createServiceError(`Nicht genug Einheiten (vorhanden: ${unit.quantity}, gefordert: ${entry.quantity})`, 400, 'INSUFFICIENT_UNITS');
@@ -200,6 +216,15 @@ export async function launchAttack(attackerId, defenderId, units) {
         );
         if (distance === 0) throw createServiceError('Ziel ist identisch mit eigener Position', 400, 'SAME_POSITION');
         const arrivalTime = calcArrivalTime(distance, speed);
+        const fuelCost = calculateFuelCost(distance, unitRecords);
+
+        const resources = (await resourcesRepo.findByUserIdLocked(attackerId, client)) ?? {
+            treibstoff: 0,
+        };
+        if (Number(resources.treibstoff ?? 0) < fuelCost) {
+            throw createServiceError('Nicht genug Treibstoff für den Angriff', 400, 'INSUFFICIENT_RESOURCES');
+        }
+        await resourcesRepo.deductResources(attackerId, 0, 0, 0, fuelCost, client);
 
         // Mission anlegen
         const mission = await combatMissionsRepo.createMission(
@@ -234,6 +259,7 @@ export async function launchAttack(attackerId, defenderId, units) {
         return {
             missionId: mission.id,
             distance: parseFloat(distance.toFixed(2)),
+            fuelCost,
             arrivalTime,
         };
     });
@@ -314,7 +340,7 @@ async function _resolveCombat(mission, client) {
         const returnSpeed = slowestSpeed(missionUnits.length > 0 ? missionUnits : [{ movement_speed: 1 }]);
         const returnTime = calcArrivalTime(mission.distance, returnSpeed);
 
-        const plunderedBuildings = await _plunderBuildings(mission.defender_id, client);
+        const plunderedBuildings = await _plunderBuildings(mission.attacker_id, mission.defender_id, client);
 
         const combatResult = {
             attackerWon,
@@ -382,8 +408,11 @@ async function _resolveCombat(mission, client) {
     // ── Verluste Angreifer ────────────────────────────────────────────────────
     const attackerResults = [];
     for (const mu of missionUnits) {
-        const survived = Math.floor(mu.quantity_sent * (1 - attackerCasualtyRate));
-        const losses = Math.max(0, mu.quantity_sent - survived);
+        const canBeHit = activeDefs.some((d) => getUnitMatchup(d.unit_name, mu.unit_name) > 0);
+        const losses = canBeHit
+            ? Math.max(0, mu.quantity_sent - Math.floor(mu.quantity_sent * (1 - attackerCasualtyRate)))
+            : 0;
+        const survived = mu.quantity_sent - losses;
         attackerResults.push({
             missionUnitId: mu.id,
             userUnitId: mu.user_unit_id,
@@ -412,7 +441,9 @@ async function _resolveCombat(mission, client) {
     const returnTime = calcArrivalTime(mission.distance, returnSpeed);
 
     // ── Plünderung bei Sieg ───────────────────────────────────────────────────
-    const plunderedBuildings = attackerWon ? await _plunderBuildings(mission.defender_id, client) : [];
+    const plunderedBuildings = attackerWon
+        ? await _plunderBuildings(mission.attacker_id, mission.defender_id, client)
+        : [];
 
     // ── Ergebnis persistieren ─────────────────────────────────────────────────
     const combatResult = {

@@ -1,25 +1,14 @@
-import { initShell, getAuth } from '/scripts/shell.js';
+import { initShell, getAuth, refreshShellStatus } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
-const outgoingList = document.getElementById('outgoing-list');
-const incomingList = document.getElementById('incoming-list');
-const reportsList = document.getElementById('reports-list');
+const container = document.getElementById('kampf-planung');
 
-const missionCountdowns = new Map();
-
-function formatTimeLeft(targetDate) {
-  const ms = new Date(targetDate) - Date.now();
-  if (ms <= 0) return 'Wird verarbeitet...';
-  const totalSec = Math.ceil(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+function getTargetId() {
+  const id = Number(new URLSearchParams(window.location.search).get('target_id'));
+  return Number.isFinite(id) && id > 0 ? id : null;
 }
 
 async function apiGet(path) {
@@ -27,232 +16,177 @@ async function apiGet(path) {
     headers: { Authorization: `Bearer ${auth.token}` },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.message || 'Abruf fehlgeschlagen');
-  }
+  if (!res.ok) throw new Error(data.message || 'Abruf fehlgeschlagen');
   return data;
 }
 
-function clearCountdownMap() {
-  missionCountdowns.clear();
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${auth.token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Aktion fehlgeschlagen');
+  return data;
 }
 
-function addCountdownNode(node, isoTime) {
-  const id = node.dataset.countdownId;
-  if (!id) return;
-  missionCountdowns.set(id, { node, isoTime });
+function renderNoTarget() {
+  container.innerHTML = `
+    <div class="spy-card">
+      <div class="spy-card-content">
+        Kein Ziel ausgewaehlt. Bitte starte die Planung ueber die <a href="/pages/karte.html">Karte</a>.
+      </div>
+    </div>
+  `;
 }
 
-function tickCountdowns() {
-  for (const { node, isoTime } of missionCountdowns.values()) {
-    node.textContent = formatTimeLeft(isoTime);
+function distance(a, b) {
+  return Math.sqrt(Math.pow(a.koordinate_x - b.koordinate_x, 2) + Math.pow(a.koordinate_y - b.koordinate_y, 2));
+}
+
+async function initPlanning() {
+  const targetId = getTargetId();
+  if (!targetId) {
+    renderNoTarget();
+    return;
   }
-}
 
-function missionStatusLabel(mission) {
-  return mission.status === 'traveling_back' ? 'Rueckreise' : 'Anreise';
-}
+  const [playersRes, unitsRes, meRes] = await Promise.all([
+    apiGet('/map/players'),
+    apiGet('/units/me'),
+    apiGet('/me'),
+  ]);
 
-function missionTimeField(mission) {
-  return mission.status === 'traveling_back' ? mission.return_time : mission.arrival_time;
-}
-
-async function loadMissions() {
-  clearCountdownMap();
-
-  try {
-    const [outgoingRes, incomingRes] = await Promise.all([
-      apiGet('/combat/missions'),
-      apiGet('/combat/incoming'),
-    ]);
-
-    const outgoing = outgoingRes.data ?? [];
-    const incoming = incomingRes.data ?? [];
-
-    if (!outgoing.length) {
-      outgoingList.innerHTML = '<div class="spy-empty">Keine laufenden Angriffe.</div>';
-    } else {
-      outgoingList.innerHTML = '';
-      for (const m of outgoing) {
-        const card = document.createElement('div');
-        card.className = 'spy-card';
-        const time = missionTimeField(m);
-        const counterId = `out-${m.id}`;
-        card.innerHTML = `
-          <div class="spy-card-header">
-            <span class="spy-card-icon">${m.status === 'traveling_back' ? '🏠' : '⚔'}</span>
-            <strong>Ziel: ${m.defender_username}</strong>
-            <span class="spy-card-status ${m.status === 'traveling_back' ? 'returning' : 'traveling'}">${missionStatusLabel(m)}</span>
-          </div>
-          <div class="spy-card-body">
-            <span>📍 Zielkoordinaten: (${m.target_x}, ${m.target_y})</span>
-            <span>📏 Distanz: ${Number(m.distance).toFixed(1)} Felder</span>
-            <span>⏱ Restzeit: <strong data-countdown-id="${counterId}"></strong></span>
-          </div>
-        `;
-        outgoingList.appendChild(card);
-        const node = card.querySelector(`[data-countdown-id="${counterId}"]`);
-        if (node && time) addCountdownNode(node, time);
-      }
-    }
-
-    if (!incoming.length) {
-      incomingList.innerHTML = '<div class="spy-empty">Keine eingehenden Angriffe.</div>';
-    } else {
-      incomingList.innerHTML = '';
-      for (const m of incoming) {
-        const counterId = `in-${m.id}`;
-        const card = document.createElement('div');
-        card.className = 'spy-card';
-        card.innerHTML = `
-          <div class="spy-card-header">
-            <span class="spy-card-icon">🚨</span>
-            <strong>Angreifer: ${m.attacker_username}</strong>
-            <span class="spy-card-status traveling">Anreise</span>
-          </div>
-          <div class="spy-card-body">
-            <span>📍 Ursprung: (${m.origin_x}, ${m.origin_y})</span>
-            <span>📏 Distanz: ${Number(m.distance).toFixed(1)} Felder</span>
-            <span>⏱ Ankunft in: <strong data-countdown-id="${counterId}"></strong></span>
-          </div>
-        `;
-        incomingList.appendChild(card);
-        const node = card.querySelector(`[data-countdown-id="${counterId}"]`);
-        if (node) addCountdownNode(node, m.arrival_time);
-      }
-    }
-
-    tickCountdowns();
-  } catch (err) {
-    const html = `<div class="spy-error">${err.message}</div>`;
-    outgoingList.innerHTML = html;
-    incomingList.innerHTML = html;
+  const players = playersRes.players ?? [];
+  const own = players.find((p) => Number(p.id) === Number(auth.user.id));
+  const target = players.find((p) => Number(p.id) === Number(targetId));
+  if (!target || !own) {
+    throw new Error('Ziel konnte nicht geladen werden.');
   }
-}
 
-function parseResult(result) {
-  if (!result) return null;
-  if (typeof result === 'string') {
-    try {
-      return JSON.parse(result);
-    } catch {
-      return null;
-    }
+  const units = (Array.isArray(unitsRes) ? unitsRes : []).filter(
+    (u) => u.quantity > 0 && !u.is_moving && u.category !== 'intel' && u.category !== 'defense'
+  );
+  let availableFuel = Number(meRes?.resources?.treibstoff ?? 0);
+  const dist = distance(own, target);
+
+  if (!units.length) {
+    container.innerHTML = `
+      <div class="spy-card">
+        <div class="spy-card-header">
+          <span class="spy-card-icon">⚔</span>
+          <strong>Angriff auf ${target.username}</strong>
+        </div>
+        <div class="spy-card-content">Keine verfuegbaren Kampfeinheiten.</div>
+      </div>
+    `;
+    return;
   }
-  return result;
-}
 
-function renderLossList(items, keyLabel, keyValue) {
-  if (!items?.length) return '<li>Keine Daten</li>';
-  return items
-    .map((it) => `<li>${it[keyLabel]}: ${it[keyValue]}</li>`)
-    .join('');
-}
+  container.innerHTML = `
+    <div class="spy-card">
+      <div class="spy-card-header">
+        <span class="spy-card-icon">⚔</span>
+        <strong>Angriff auf ${target.username}</strong>
+      </div>
+      <div class="spy-card-body">
+        <span>📍 Ziel: (${target.koordinate_x}, ${target.koordinate_y})</span>
+        <span>📏 Distanz: ${dist.toFixed(1)} Felder</span>
+      </div>
+      <div id="attack-units-list"></div>
+      <div class="spy-card-content">
+        <button id="btn-launch-attack" class="primary-action" disabled>Angriff starten</button>
+        <span id="attack-fuel-badge" class="spy-fuel-badge" style="display:none">Nicht genug Treibstoff</span>
+        <span id="attack-msg" class="build-cost" style="margin-left:10px"></span>
+      </div>
+    </div>
+  `;
 
-async function loadReports() {
-  try {
-    const res = await apiGet('/combat/history');
-    const history = res.data ?? [];
+  const list = document.getElementById('attack-units-list');
+  const launchBtn = document.getElementById('btn-launch-attack');
+  const fuelBadge = document.getElementById('attack-fuel-badge');
+  const msgNode = document.getElementById('attack-msg');
 
-    if (!history.length) {
-      reportsList.innerHTML = '<div class="spy-empty">Noch keine Kampfberichte vorhanden.</div>';
+  for (const u of units) {
+    const row = document.createElement('div');
+    row.className = 'attack-unit-row';
+    row.innerHTML = `
+      <span class="attack-unit-name">${u.name}</span>
+      <span class="attack-unit-avail">/${u.quantity}</span>
+      <input class="attack-unit-qty" type="number" min="0" max="${u.quantity}" value="0" data-unit-id="${u.id}" data-fuel-cost="${Number(u.fuel_cost ?? 0)}" />
+    `;
+    list.appendChild(row);
+  }
+
+  const calculateFuelCost = () => {
+    return [...list.querySelectorAll('.attack-unit-qty')]
+      .filter((inp) => Number(inp.value) > 0)
+      .reduce((sum, inp) => {
+        const qty = Number(inp.value);
+        const fuelPerUnit = Number(inp.dataset.fuelCost ?? 0);
+        return sum + Math.ceil((fuelPerUnit * dist * qty) / 10);
+      }, 0);
+  };
+
+  const updateState = () => {
+    const any = [...list.querySelectorAll('.attack-unit-qty')].some((inp) => Number(inp.value) > 0);
+    if (!any) {
+      launchBtn.disabled = true;
+      fuelBadge.style.display = 'none';
+      msgNode.textContent = '';
       return;
     }
 
-    reportsList.innerHTML = '';
+    const fuelCost = calculateFuelCost();
+    const hasFuel = fuelCost <= availableFuel;
+    launchBtn.disabled = !hasFuel;
+    fuelBadge.style.display = hasFuel ? 'none' : 'inline-flex';
 
-    for (const m of history) {
-      const result = parseResult(m.result);
-      const card = document.createElement('div');
-      card.className = 'spy-card';
-
-      const isAttacker = Number(m.attacker_id) === Number(auth.user.id);
-      const opponent = isAttacker ? m.defender_username : m.attacker_username;
-      const reportAt = m.arrival_time ? new Date(m.arrival_time).toLocaleString('de-DE') : '-';
-
-      let contentHtml = '<p>Kein Ergebnis gespeichert.</p>';
-      if (result) {
-        const won = Boolean(result.attackerWon);
-        const myWin = isAttacker ? won : !won;
-        const myRate = isAttacker ? result.attackerCasualtyRate : result.defenderCasualtyRate;
-        const enemyRate = isAttacker ? result.defenderCasualtyRate : result.attackerCasualtyRate;
-
-        contentHtml = `
-          <p><strong>Ausgang:</strong> ${myWin ? 'Sieg' : 'Niederlage'}</p>
-          <p><strong>Eigene Verlustrate:</strong> ${Math.round((Number(myRate) || 0) * 100)}%</p>
-          <p><strong>Gegnerische Verlustrate:</strong> ${Math.round((Number(enemyRate) || 0) * 100)}%</p>
-          <details>
-            <summary><strong>Einheitenverluste im Detail</strong></summary>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px;">
-              <div>
-                <div><strong>Angreifer</strong></div>
-                <ul>
-                  ${renderLossList(result.attackerUnits, 'unitName', 'survived')}
-                </ul>
-              </div>
-              <div>
-                <div><strong>Verteidiger</strong></div>
-                <ul>
-                  ${renderLossList(result.defenderUnits, 'unitName', 'losses')}
-                </ul>
-              </div>
-            </div>
-          </details>
-        `;
-      }
-
-      card.innerHTML = `
-        <div class="spy-card-header">
-          <span class="spy-card-icon">📋</span>
-          <strong>${isAttacker ? 'Angriff auf' : 'Verteidigung gegen'}: ${opponent}</strong>
-          <span class="spy-card-date">${reportAt}</span>
-        </div>
-        <div class="spy-card-meta">
-          Distanz: ${Number(m.distance).toFixed(1)} Felder
-        </div>
-        <div class="spy-card-content">${contentHtml}</div>
-        <div class="spy-card-meta" style="margin-top:8px;">
-          <a href="/pages/kampfbericht.html?missionId=${m.id}">Details anzeigen</a>
-        </div>
-      `;
-
-      reportsList.appendChild(card);
+    if (!hasFuel) {
+      msgNode.style.color = '#f87171';
+      msgNode.textContent = `Zu wenig Treibstoff: ${fuelCost.toLocaleString('de-DE')} L benötigt, ${availableFuel.toLocaleString('de-DE')} L verfügbar.`;
+    } else {
+      msgNode.style.color = '#94a3b8';
+      msgNode.textContent = `Treibstoffbedarf: ${fuelCost.toLocaleString('de-DE')} L | Verfügbar: ${availableFuel.toLocaleString('de-DE')} L`;
     }
-  } catch (err) {
-    reportsList.innerHTML = `<div class="spy-error">${err.message}</div>`;
-  }
-}
+  };
 
-function setupTabs() {
-  document.querySelectorAll('.spy-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.spy-tab').forEach((b) => b.classList.remove('active'));
-      document.querySelectorAll('.spy-section').forEach((s) => (s.style.display = 'none'));
-      btn.classList.add('active');
-      document.getElementById(`tab-${btn.dataset.tab}`).style.display = '';
-    });
+  list.addEventListener('input', updateState);
+
+  launchBtn.addEventListener('click', async () => {
+    const payloadUnits = [...list.querySelectorAll('.attack-unit-qty')]
+      .map((inp) => ({ user_unit_id: Number(inp.dataset.unitId), quantity: Number(inp.value) }))
+      .filter((entry) => entry.quantity > 0);
+
+    if (!payloadUnits.length) return;
+    if (launchBtn.disabled) return;
+
+    launchBtn.disabled = true;
+    msgNode.textContent = 'Starte Angriff...';
+    try {
+      const data = await apiPost('/combat/attack', { defender_id: Number(target.id), units: payloadUnits });
+      availableFuel = Math.max(0, availableFuel - Number(data?.data?.fuelCost ?? 0));
+      await refreshShellStatus(auth.token);
+      updateState();
+      const eta = new Date(data?.data?.arrivalTime);
+      const mins = Math.round((eta - Date.now()) / 60000);
+      msgNode.textContent = `Angriff gestartet. Ankunft in ~${mins} min.`;
+      msgNode.style.color = '#22c55e';
+    } catch (err) {
+      msgNode.textContent = err.message;
+      msgNode.style.color = '#f87171';
+      launchBtn.disabled = false;
+    }
   });
 }
 
-window.addEventListener('combat-result', () => {
-  loadMissions();
-  loadReports();
-});
-
-window.addEventListener('combat-return', () => {
-  loadMissions();
-  loadReports();
-});
-
-window.addEventListener('combat-incoming', () => {
-  loadMissions();
-  loadReports();
-});
-
-setupTabs();
 await initShell();
-await Promise.all([loadMissions(), loadReports()]);
-
-setInterval(tickCountdowns, 1000);
-setInterval(loadMissions, 10000);
-setInterval(loadReports, 30000);
+try {
+  await initPlanning();
+} catch (err) {
+  container.innerHTML = `<div class="spy-error">${err.message}</div>`;
+}

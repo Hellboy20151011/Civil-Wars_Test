@@ -11,6 +11,7 @@ import unitsRouter from './routes/units.js';
 import mapRouter from './routes/map.js';
 import combatRouter from './routes/combat.js';
 import espionageRouter from './routes/espionage.js';
+import researchRouter from './routes/research.js';
 import { createDocsRouter } from './routes/docs.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { startGameLoop } from './services/gameloop-scheduler.js';
@@ -24,7 +25,8 @@ const app = express();
 const PORT = config.port;
 const FRONTEND_DIR = path.join(__dirname, '../frontend');
 const FRONTEND_DIST_DIR = path.join(FRONTEND_DIR, 'dist');
-const ACTIVE_FRONTEND_DIR = fs.existsSync(FRONTEND_DIST_DIR) ? FRONTEND_DIST_DIR : FRONTEND_DIR;
+const shouldUseDist = config.frontend.preferDist && fs.existsSync(FRONTEND_DIST_DIR);
+const ACTIVE_FRONTEND_DIR = shouldUseDist ? FRONTEND_DIST_DIR : FRONTEND_DIR;
 
 app.use(cors({ origin: config.cors.origin }));
 app.use(express.json());
@@ -41,6 +43,7 @@ app.use('/me', meRouter);
 app.use('/map', mapRouter);
 app.use('/combat', combatRouter);
 app.use('/espionage', espionageRouter);
+app.use('/research', researchRouter);
 
 if (config.docs.enableSwaggerUi) {
     app.use('/api-docs', createDocsRouter());
@@ -65,6 +68,14 @@ app.get('/bauhof.html', (req, res) => {
 
 app.get('/militaer.html', (req, res) => {
     res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/militaer.html'));
+});
+
+app.get('/forschungen.html', (req, res) => {
+    res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/forschungen.html'));
+});
+
+app.get('/missionen.html', (req, res) => {
+    res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/missionen.html'));
 });
 
 app.get('/karte.html', (req, res) => {

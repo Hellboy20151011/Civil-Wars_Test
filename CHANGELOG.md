@@ -11,12 +11,42 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Fixed
 
+- `backend/services/espionage.service.js`, `backend/routes/espionage.js`, `backend/repositories/resources.repository.js`, `frontend/scripts/karte.js`, `frontend/scripts/spionage.js`, `backend/tests/services/espionage.service.test.js` – Spionage-Vorschau und Start synchronisiert: Erfolgsquote aus der Vorschau entfernt, Treibstoffbedarf berücksichtigt jetzt die gewählte Einheitenmenge, und Treibstoff wird beim Absenden serverseitig geprüft und sofort abgezogen (`INSUFFICIENT_RESOURCES` bei zu wenig Treibstoff).
+- `frontend/scripts/shell.js`, `frontend/scripts/karte.js`, `frontend/scripts/spionage.js` – Spionage-UI zeigt verfügbaren Treibstoff direkt in der Vorschau, deaktiviert `Spione entsenden` bei zu wenig Treibstoff und aktualisiert Ressourcenanzeige nach erfolgreichem Absenden sofort ohne Seiten-Refresh.
+- `frontend/pages/karte.html`, `frontend/CSS/style.css`, `frontend/scripts/karte.js`, `frontend/scripts/spionage.js` – Bei zu wenig Treibstoff wird zusätzlich ein gut sichtbarer Badge `Nicht genug Treibstoff` neben dem Senden-Button angezeigt.
+- `backend/services/combat.service.js`, `backend/repositories/units.repository.js`, `backend/tests/services/combat.service.test.js`, `frontend/pages/karte.html`, `frontend/scripts/karte.js`, `frontend/scripts/kampf.js`, `frontend/scripts/shell.js` – Angriffe prüfen und buchen Treibstoff nun analog zur Spionage: serverseitige Prüfung/Abzug beim Start, Frontend zeigt Treibstoffbedarf + Verfügbarkeit, deaktiviert Start bei Mangel und aktualisiert Ressourcen direkt nach dem Absenden.
+- `backend/services/combat.service.js`, `backend/repositories/units.repository.js`, `backend/tests/services/combat.service.test.js`, `frontend/scripts/karte.js`, `frontend/scripts/kampf.js` – Verteidigungsstellungen (`category = defense`) können nicht mehr für Angriffe ausgewählt oder per API gestartet werden; serverseitig wird mit `INVALID_UNIT_CATEGORY` abgewiesen.
+- `backend/services/combat.service.js` und `backend/tests/services/combat.service.test.js` – Plünderung bei Angreifer-Sieg überträgt Gebäude jetzt korrekt vom Verteidiger auf den Angreifer (statt nur beim Verteidiger zu entfernen).
+- `backend/services/combat.service.js` und `backend/tests/services/combat.service.test.js` – Angreiferverluste werden nur noch für Einheiten berechnet, die laut Matchup-Matrix vom Verteidiger überhaupt getroffen werden können (z. B. kein Seahawk-Verlust gegen reinen Soldaten-Verteidiger).
+- `frontend/pages/missionen.html`, `frontend/scripts/missionen.js`, `frontend/scripts/shell.js`, `frontend/vite.config.js`, `backend/server.js` – Kampf- und Spionagefunktionen (laufende Missionen + Berichte) in neue zentrale Seite `Missionen` zusammengeführt.
+- `frontend/pages/kampf.html`, `frontend/scripts/kampf.js`, `frontend/pages/spionage.html`, `frontend/scripts/spionage.js`, `frontend/scripts/karte.js` – `Kämpfe` und `Spionage` zu Planungsseiten umgestellt: Aufruf erfolgt über das Karten-Popup (`Angriff`/`Spionage`) mit Zielübergabe per Query-Parameter.
+- `frontend/scripts/shell.js` – globale Forschungs-Queue-Anzeige im rechten Produktionspanel ergänzt (aktive Forschung + Live-Countdown); Status wird periodisch via `/research/overview` aktualisiert.
+- `backend/database/schemas/research.sql`, `backend/database/migrate_v5_research.sql`, `backend/repositories/research.repository.js`, `backend/services/research.service.js`, `backend/routes/research.js`, `backend/server.js` – Persistentes Forschungssystem mit Projekten, Laufzeiten und API (`GET /research/overview`, `POST /research/start`) eingeführt.
+- `frontend/scripts/forschungen.js` – Forschungen-Seite nutzt jetzt echte Forschungsprojekte aus dem Backend inkl. Start-Button, Live-Status und Restzeit.
+- `backend/services/units.service.js` und `frontend/scripts/militaer.js` – Freischaltung von Verteidigungsstellungen auf abgeschlossene Verteidigungsforschung umgestellt (statt direkter Gebäudelevel-Logik).
+- `backend/scripts/resetdb.js` – neues Forschungsschema `research.sql` in die Reset-Reihenfolge aufgenommen.
+- `frontend/scripts/militaer.js` – Militärseite zeigt nun den aktuellen Forschungsstand (`Forschungslabor Level`) inkl. Verteidigungs-Freischaltstatus direkt oberhalb der Karten an.
+- `frontend/pages/forschungen.html`, `frontend/scripts/forschungen.js`, `frontend/CSS/style.css`, `frontend/scripts/shell.js`, `frontend/vite.config.js`, `backend/server.js` – neue Seite `Forschungen` ergänzt (Navigation + Build/Route): zeigt Forschungsstufen und Freischaltstatus der Verteidigungsstellungen.
+- `frontend/scripts/bauhof.js` und `frontend/scripts/shell.js` – Bauhof-Rubrik `Verteidigung` inkl. zugehöriger Frontend-Navigation/Filter-Logik entfernt.
+- `frontend/scripts/militaer.js` und `backend/services/units.service.js` – Verteidigungsstellungen im Militär werden nun über Forschung freigeschaltet: statt Verteidigungsgebäuden gilt jetzt `Forschungslabor Level X` als Freischaltbedingung.
+- `frontend/scripts/militaer.js` und `frontend/CSS/style.css` – Gesperrte Einheitenkarten zeigen jetzt zusätzlich ein gut sichtbares Schloss-Badge (`Gesperrt`) für schnellere Erkennbarkeit.
+- `frontend/scripts/militaer.js` und `frontend/CSS/style.css` – Militäransicht auf Bauhof-Kartenlayout umgestellt; Einheiten werden jetzt ausgegraut und deaktiviert, wenn das erforderliche Gebäude noch nicht gebaut wurde (inkl. Hinweistext in der Karte).
+- `frontend/CSS/style.css` – Bauhof-Button in Gebäudekarten optisch verkleinert und Action-Bereich mit zusätzlichem Innenabstand versehen, damit der `Bauen`-Button die Container-Ränder nicht mehr berührt.
+- `frontend/scripts/bauhof.js` – Bauhof-Karten zeigen jetzt die vorhandene Anzahl pro Gebäudetyp (`Vorhanden: X`); der Aktionsbutton heißt in allen Fällen konsistent `Bauen`.
+- `frontend/scripts/bauhof.js` – Neue Gebäudebilder aus `frontend/assets/images/buildings` für `Kraftwerk`, `Stahlwerk`, `Steinbruch`, `Ölpumpe` und `Öl-Raffinerie` direkt in der Bauhof-Kartenansicht zugeordnet (inkl. Namensvariante `Ölraffinerie`).
+- `frontend/scripts/main.js` – Login-Seite zeigt waehrend der initialen Session-Pruefung jetzt einen kurzen Hinweis (`Session wird geprueft...`), damit der Redirect-Check nicht wie ein leerer Zwischenzustand wirkt.
+- `frontend/scripts/main.js` – Login-Seite prüft beim Laden jetzt bestehende Session-Daten robust: nur bei gültigem Token (`GET /me`) erfolgt Auto-Redirect zum Dashboard, ungültige/stale Tokens werden bereinigt.
+- `frontend/scripts/shell.js` – Logout-Weiterleitung auf Spielseiten vereinheitlicht: Redirect geht jetzt explizit auf `/pages/index.html` (Login) und nutzt `location.replace`, damit kein inkonsistenter Root-Redirect und kein direktes Zurückspringen auf geschützte Seiten entsteht.
+- `frontend/scripts/main.js` – Login auf der Startseite funktioniert nun beim ersten Klick: Der `Login`-Button triggert direkt den Login-Request statt zuerst nur eine neue (leere) Login-Ansicht zu rendern.
 - `backend/services/combat.service.js` – Angreifer gewann nicht gegen verteidigerlosen Spieler: Bei leerer `activeDefs`-Liste blieb `attackPower = 0`, was zu fälschlicher Niederlage führte. Frühzeitiger Sieg-Pfad eingefügt, der automatisch Sieg + 0 Verluste zurückliefert wenn der Verteidiger keine Einheiten hat.
 - `backend/services/combat.service.js` – Falscher Funktionsaufruf `resolveMission` (existiert nicht) im no-defenders-Pfad korrigiert zu `updateMissionAfterCombat`.
 - `frontend/scripts/spionage.js` – Reisezeit-Countdown auf sekundengenaues Ticking umgestellt (analog zu Kämpfen), inklusive korrektem Zeitfeld je Missionsstatus (`arrival_time`/`return_time`) für flüssigere Anzeige.
+- `backend/services/espionage.service.js` – Ohne Gegenspionageverteidigung (`counterIntelLevel = 0`) ist Spionage jetzt garantiert erfolgreich: keine erwischten Spione, immer `successRatePercent = 100` im Bericht.
+- `frontend/scripts/spionage.js` – Spionageberichte zeigen jetzt die Erfolgsquote (`successRatePercent`) explizit an.
 
 ### Added
 
+- `backend/tests/e2e/combat-plunder-flow.test.js` – API-E2E-Regressionstest ergänzt, der den Kampf-Missionsfluss (Angriff starten, Kampf auflösen, Bericht prüfen) inklusive Gebäudeübertrag beim Angreifer-Sieg und Seahawk-vs-Soldat-Verlustlogik validiert.
 - `backend/services/combat.service.js` + `backend/repositories/building.repository.js` – Plünderungsmechanik nach gewonnenem Kampf: 25 % der Unterkunfts- und Ressourcenproduktionsgebäude (inkl. Kraftwerke) des Verteidigers werden zerstört. Mindestens 1 Gebäude jedes Typs bleibt erhalten. Kraftwerke werden zuletzt entfernt und nur so weit, dass kein Stromdefizit beim Verteidiger entsteht. Ergebnis wird als `plunderedBuildings` im Kampfbericht gespeichert.
 - `backend/repositories/combat-missions.repository.js` – Kampfberichte werden jetzt direkt nach dem Kampf sichtbar (`status IN ('traveling_back', 'completed')` statt nur `'completed'`); Sortierung auf `arrival_time` umgestellt
 - `backend/repositories/spy-missions.repository.js` – Spionageberichte werden direkt nach Ankunft sichtbar (`status IN ('traveling_back', 'completed', 'aborted')`)
@@ -40,6 +70,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Changed
 
+- `backend/server.js`, `backend/config.js`, `backend/.env.example` – statische Frontend-Auslieferung nutzt `frontend/dist` standardmäßig nur in `production`; für explizites Umschalten wurde `FRONTEND_PREFER_DIST` ergänzt.
 - `frontend/scripts/bauhof.js` und `frontend/CSS/style.css` – Bauhof-Rubrikansicht rendert Gebäudetypen jetzt als einzelne Karten mit Gebäudebild, Typ-Beschreibung, Strombedarf sowie maximal baubarer Anzahl (in Klammern) basierend auf verfügbarem Strom und Ressourcen
 - `backend/services/combat.service.js` – Matchup-Logik auf unit-vs-unit-Tabelle (`combat-matchups.json`) umgestellt; `MATCHUP`-Konstante, `getMatchup()` und Counter-Bonus-Hardcode entfernt; neue `getUnitMatchup()`-Funktion liest direkt Einheit-Namen aus der JSON
 - `backend/routes/combat.js` – neuer Endpoint `GET /combat/history/:missionId` für Detailansicht eines einzelnen Kampfberichts

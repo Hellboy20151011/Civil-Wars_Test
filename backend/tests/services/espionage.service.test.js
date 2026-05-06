@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../repositories/spy-missions.repository.js');
 vi.mock('../../repositories/player.repository.js');
 vi.mock('../../repositories/units.repository.js');
+vi.mock('../../repositories/resources.repository.js');
 vi.mock('../../repositories/transaction.repository.js');
 vi.mock('../../services/live-updates.service.js');
 vi.mock('../../utils/game-math.js');
@@ -10,6 +11,7 @@ vi.mock('../../utils/game-math.js');
 import * as spyRepo from '../../repositories/spy-missions.repository.js';
 import * as playerRepo from '../../repositories/player.repository.js';
 import * as unitsRepo from '../../repositories/units.repository.js';
+import * as resourcesRepo from '../../repositories/resources.repository.js';
 import { withTransaction } from '../../repositories/transaction.repository.js';
 import { calcDistance, calcArrivalTime } from '../../utils/game-math.js';
 import {
@@ -30,6 +32,8 @@ beforeEach(() => {
     withTransaction.mockImplementation(async (fn) => fn({}));
     calcDistance.mockReturnValue(8);
     calcArrivalTime.mockReturnValue(new Date('2026-01-01T00:08:00Z'));
+    resourcesRepo.findByUserIdLocked.mockResolvedValue({ treibstoff: 1000 });
+    resourcesRepo.deductResources.mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -130,7 +134,7 @@ describe('launchSpyMission', () => {
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
         unitsRepo.findUserUnitById.mockResolvedValue({
             id: 1, user_id: 1, category: 'intel', name: 'Agent',
-            is_moving: false, quantity: 5, movement_speed: 2,
+            is_moving: false, quantity: 5, movement_speed: 2, fuel_cost: 5,
         });
         calcDistance.mockReturnValue(0);
 
@@ -146,7 +150,7 @@ describe('launchSpyMission', () => {
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
         unitsRepo.findUserUnitById.mockResolvedValue({
             id: 1, user_id: 1, category: 'intel', name: 'Agent',
-            is_moving: false, quantity: 5, movement_speed: 2,
+            is_moving: false, quantity: 5, movement_speed: 2, fuel_cost: 5,
         });
         calcDistance.mockReturnValue(8);
         calcArrivalTime.mockReturnValue(arrivalTime);
@@ -157,10 +161,33 @@ describe('launchSpyMission', () => {
         const result = await launchSpyMission(1, 2, [{ user_unit_id: 1, quantity: 2 }]);
 
         expect(spyRepo.createMission).toHaveBeenCalled();
+        expect(resourcesRepo.deductResources).toHaveBeenCalledWith(1, 0, 0, 0, 8, {});
         expect(result.missionId).toBe(7);
         expect(result.spiesSent).toBe(2);
         expect(result.targetUsername).toBe('target');
         expect(result.arrivalTime).toEqual(arrivalTime);
+    });
+
+    it('wirft INSUFFICIENT_RESOURCES wenn Treibstoff nicht ausreicht', async () => {
+        playerRepo.findById
+            .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
+            .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
+        unitsRepo.findUserUnitById.mockResolvedValue({
+            id: 1,
+            user_id: 1,
+            category: 'intel',
+            name: 'Agent',
+            is_moving: false,
+            quantity: 5,
+            movement_speed: 2,
+            fuel_cost: 5,
+        });
+        calcDistance.mockReturnValue(10);
+        resourcesRepo.findByUserIdLocked.mockResolvedValue({ treibstoff: 1 });
+
+        await expect(launchSpyMission(1, 2, [{ user_unit_id: 1, quantity: 2 }])).rejects.toMatchObject({
+            code: 'INSUFFICIENT_RESOURCES',
+        });
     });
 });
 
@@ -168,6 +195,38 @@ describe('launchSpyMission', () => {
 // processArrivingSpyMissions
 // ---------------------------------------------------------------------------
 describe('processArrivingSpyMissions', () => {
+    it('erzwingt 100% Erfolg ohne Gegenspionageverteidigung', async () => {
+        // Würde normalerweise scheitern, muss ohne Gegenspionage trotzdem sicher erfolgreich sein.
+        vi.spyOn(Math, 'random').mockReturnValue(1);
+
+        const mission = {
+            id: 99, spy_id: 1, target_id: 2,
+            spy_username: 'spy', target_username: 'target',
+            spies_sent: 3, distance: 8,
+        };
+        spyRepo.findArrivingMissions.mockResolvedValue([mission]);
+        spyRepo.findMissionUnits.mockResolvedValue([
+            { id: 10, user_unit_id: 1, quantity_sent: 3, name: 'Agent', movement_speed: 2 },
+        ]);
+        spyRepo.findIntelLevel.mockResolvedValue(0);
+        spyRepo.findCounterIntelLevel.mockResolvedValue(0);
+        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 2 });
+        spyRepo.findUnitSummaryForReport.mockResolvedValue([
+            { name: 'Infanterist', category: 'infantry', quantity: 5 },
+        ]);
+        spyRepo.setMissionResult.mockResolvedValue(undefined);
+
+        await processArrivingSpyMissions();
+
+        const call = spyRepo.setMissionResult.mock.calls[0];
+        expect(call[1]).toBe('traveling_back');
+        expect(call[2].success).toBe(true);
+        expect(call[2].spiesCaught).toBe(0);
+        expect(call[2].successRatePercent).toBe(100);
+
+        vi.spyOn(Math, 'random').mockRestore();
+    });
+
     it('verarbeitet ankommende Missionen ohne Fehler', async () => {
         // Math.random = 0.5, intelLevel=2 → rate=0.70, all spies succeed → full report
         vi.spyOn(Math, 'random').mockReturnValue(0.5);
@@ -354,18 +413,15 @@ describe('getMissionPreview', () => {
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 6, koordinate_y: 8, username: 'target' });
         unitsRepo.findUserUnitById.mockResolvedValue({
-            id: 1, movement_speed: 2, fuel_cost: 5,
+            id: 1, user_id: 1, category: 'intel', quantity: 99, movement_speed: 2, fuel_cost: 5,
         });
         calcDistance.mockReturnValue(10);
-        spyRepo.findIntelLevel.mockResolvedValue(1);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(0);
 
-        const result = await getMissionPreview(1, 2, [1]);
+        const result = await getMissionPreview(1, 2, [{ user_unit_id: 1, quantity: 3 }]);
 
         expect(result.distance).toBe(10);
         expect(result.targetUsername).toBe('target');
-        expect(result.fuelCost).toBeGreaterThanOrEqual(0);
-        expect(result.estimatedSuccessRate).toBeGreaterThan(0);
+        expect(result.fuelCost).toBe(15);
     });
 
     it('wirft UNIT_NOT_FOUND wenn keine gültigen Einheiten', async () => {
@@ -374,7 +430,7 @@ describe('getMissionPreview', () => {
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
         unitsRepo.findUserUnitById.mockResolvedValue(null);
 
-        await expect(getMissionPreview(1, 2, [99])).rejects.toMatchObject({
+        await expect(getMissionPreview(1, 2, [{ user_unit_id: 99, quantity: 1 }])).rejects.toMatchObject({
             code: 'UNIT_NOT_FOUND',
         });
     });

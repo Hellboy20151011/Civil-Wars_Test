@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/CSS/style.css" />
+    <title>Civil-Wars - Missionen</title>
+  </head>
+  <body>
+    <header id="top-bar">
+      <span class="game-title">Civil-Wars</span>
+      <div id="resource-bar"></div>
+    </header>
+
+    <div id="app-layout">
+      <nav id="sidebar"></nav>
+
+      <main id="main-content">
+        <div id="missionen-app">
+          <div class="spy-tabs">
+            <button class="spy-tab active" data-tab="combat-missions">Kaempfe aktiv</button>
+            <button class="spy-tab" data-tab="combat-reports">Kampfberichte</button>
+            <button class="spy-tab" data-tab="spy-missions">Spionage aktiv</button>
+            <button class="spy-tab" data-tab="spy-reports">Spionageberichte</button>
+          </div>
+
+          <section id="tab-combat-missions" class="spy-section">
+            <h2>⚔ Laufende Kaempfe</h2>
+            <h3 style="margin-top: 16px; margin-bottom: 8px;">Meine Angriffe</h3>
+            <div id="outgoing-list" class="spy-list">Wird geladen...</div>
+
+            <h3 style="margin-top: 18px; margin-bottom: 8px;">Eingehende Angriffe</h3>
+            <div id="incoming-list" class="spy-list">Wird geladen...</div>
+          </section>
+
+          <section id="tab-combat-reports" class="spy-section" style="display:none">
+            <h2>📋 Kampfberichte</h2>
+            <div id="combat-reports-list" class="spy-list">Wird geladen...</div>
+          </section>
+
+          <section id="tab-spy-missions" class="spy-section" style="display:none">
+            <h2>🕵️ Laufende Spionage-Missionen</h2>
+            <div id="spy-missions-list" class="spy-list">Wird geladen...</div>
+          </section>
+
+          <section id="tab-spy-reports" class="spy-section" style="display:none">
+            <h2>📋 Spionageberichte</h2>
+            <div id="spy-reports-list" class="spy-list">Wird geladen...</div>
+          </section>
+        </div>
+      </main>
+
+      <aside id="production-panel"></aside>
+    </div>
+
+    <div id="toast-container"></div>
+    <script type="module" src="/scripts/missionen.js"></script>
+  </body>
+</html>

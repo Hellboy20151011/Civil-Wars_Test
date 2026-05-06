@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../repositories/combat-missions.repository.js');
 vi.mock('../../repositories/player.repository.js');
 vi.mock('../../repositories/units.repository.js');
+vi.mock('../../repositories/building.repository.js');
+vi.mock('../../repositories/resources.repository.js');
 vi.mock('../../repositories/transaction.repository.js');
 vi.mock('../../services/live-updates.service.js');
 vi.mock('../../utils/game-math.js');
@@ -10,6 +12,8 @@ vi.mock('../../utils/game-math.js');
 import * as combatMissionsRepo from '../../repositories/combat-missions.repository.js';
 import * as playerRepo from '../../repositories/player.repository.js';
 import * as unitsRepo from '../../repositories/units.repository.js';
+import * as buildingRepo from '../../repositories/building.repository.js';
+import * as resourcesRepo from '../../repositories/resources.repository.js';
 import { withTransaction } from '../../repositories/transaction.repository.js';
 import { calcDistance, calcArrivalTime } from '../../utils/game-math.js';
 import {
@@ -33,6 +37,12 @@ beforeEach(() => {
     withTransaction.mockImplementation(async (fn) => fn({}));
     calcDistance.mockReturnValue(10);
     calcArrivalTime.mockReturnValue(new Date('2026-01-01T00:10:00Z'));
+    buildingRepo.findBuildingsByUser.mockResolvedValue([]);
+    buildingRepo.findPowerSummaryByUser.mockResolvedValue({ production: 0, consumption: 0 });
+    buildingRepo.removeUserBuildingsByType.mockResolvedValue(undefined);
+    buildingRepo.upsertBuilding.mockResolvedValue(undefined);
+    resourcesRepo.findByUserIdLocked.mockResolvedValue({ treibstoff: 1000 });
+    resourcesRepo.deductResources.mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -96,6 +106,25 @@ describe('launchAttack', () => {
         });
     });
 
+    it('wirft INVALID_UNIT_CATEGORY wenn Verteidigungsstellung angegriffen werden soll', async () => {
+        playerRepo.findById
+            .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
+            .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
+        unitsRepo.findMovableUnit.mockResolvedValue({
+            id: 1,
+            is_moving: false,
+            quantity: 5,
+            movement_speed: 1,
+            fuel_cost: 1,
+            category: 'defense',
+            name: '2cm Flak',
+        });
+
+        await expect(launchAttack(1, 2, [{ userUnitId: 1, quantity: 1 }])).rejects.toMatchObject({
+            code: 'INVALID_UNIT_CATEGORY',
+        });
+    });
+
     it('wirft INSUFFICIENT_UNITS wenn nicht genug Einheiten vorhanden', async () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
@@ -125,7 +154,7 @@ describe('launchAttack', () => {
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
         unitsRepo.findMovableUnit.mockResolvedValue({
-            id: 1, is_moving: false, quantity: 10, movement_speed: 2,
+            id: 1, is_moving: false, quantity: 10, movement_speed: 2, fuel_cost: 3,
         });
         calcDistance.mockReturnValue(10);
         calcArrivalTime.mockReturnValue(arrivalTime);
@@ -136,9 +165,30 @@ describe('launchAttack', () => {
         const result = await launchAttack(1, 2, [{ userUnitId: 1, quantity: 3 }]);
 
         expect(combatMissionsRepo.createMission).toHaveBeenCalled();
+        expect(resourcesRepo.deductResources).toHaveBeenCalledWith(1, 0, 0, 0, 9, {});
         expect(result.missionId).toBe(42);
         expect(result.distance).toBe(10);
+        expect(result.fuelCost).toBe(9);
         expect(result.arrivalTime).toEqual(arrivalTime);
+    });
+
+    it('wirft INSUFFICIENT_RESOURCES wenn Treibstoff nicht reicht', async () => {
+        playerRepo.findById
+            .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
+            .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
+        unitsRepo.findMovableUnit.mockResolvedValue({
+            id: 1,
+            is_moving: false,
+            quantity: 10,
+            movement_speed: 2,
+            fuel_cost: 5,
+        });
+        calcDistance.mockReturnValue(10);
+        resourcesRepo.findByUserIdLocked.mockResolvedValue({ treibstoff: 1 });
+
+        await expect(launchAttack(1, 2, [{ userUnitId: 1, quantity: 3 }])).rejects.toMatchObject({
+            code: 'INSUFFICIENT_RESOURCES',
+        });
     });
 });
 
@@ -482,5 +532,61 @@ describe('Matchup-Sonderfälle', () => {
 
         // Defender wiped out (remaining = 0) → setUnitHealth called with 0
         expect(unitsRepo.setUnitHealth).toHaveBeenCalledWith(80, 0, {});
+    });
+
+    it('Seahawk gegen Soldat: Angreifer erleidet keinen Verlust, wenn Verteidiger nicht treffen kann', async () => {
+        combatMissionsRepo.findArrivingMissions.mockResolvedValue([{ ...baseMission, id: 16 }]);
+        combatMissionsRepo.findMissionUnits.mockResolvedValue([
+            {
+                id: 7, user_unit_id: 1, unit_name: 'Seahawk',
+                category: 'air', quantity_sent: 2,
+                attack_points: 20, health_percentage: 100, counter_unit: null, movement_speed: 4,
+            },
+        ]);
+        unitsRepo.findCombatUnitsByUser.mockResolvedValue([
+            {
+                id: 81, unit_name: 'Soldat', category: 'infantry',
+                quantity: 1, defense_points: 8, health_percentage: 100,
+            },
+        ]);
+
+        await processArrivingMissions();
+
+        const call = combatMissionsRepo.updateMissionAfterCombat.mock.calls[0];
+        const combatResult = call[2];
+        expect(combatResult.attackerUnits[0]).toEqual(
+            expect.objectContaining({ sent: 2, survived: 2, losses: 0 })
+        );
+    });
+
+    it('überträgt geplünderte Gebäude beim Angreifer-Sieg auf den Angreifer', async () => {
+        combatMissionsRepo.findArrivingMissions.mockResolvedValue([{ ...baseMission, id: 17 }]);
+        combatMissionsRepo.findMissionUnits.mockResolvedValue([
+            {
+                id: 8, user_unit_id: 1, unit_name: 'Seahawk',
+                category: 'air', quantity_sent: 2,
+                attack_points: 20, health_percentage: 100, counter_unit: null, movement_speed: 4,
+            },
+        ]);
+        unitsRepo.findCombatUnitsByUser.mockResolvedValue([]);
+        buildingRepo.findBuildingsByUser.mockResolvedValue([
+            {
+                id: 5,
+                name: 'Steinbruch',
+                category: 'infrastructure',
+                anzahl: 4,
+                power_production: 0,
+                power_consumption: 0,
+                stone_production: 4,
+                steel_production: 0,
+                fuel_production: 0,
+                money_production: 0,
+            },
+        ]);
+
+        await processArrivingMissions();
+
+        expect(buildingRepo.removeUserBuildingsByType).toHaveBeenCalledWith(2, 5, 1, {});
+        expect(buildingRepo.upsertBuilding).toHaveBeenCalledWith(1, 5, 1, {});
     });
 });

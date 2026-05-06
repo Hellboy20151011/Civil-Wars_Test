@@ -3,6 +3,46 @@ import { el, render } from '/scripts/ui/component.js';
 
 const authRoot = document.getElementById('Auth');
 
+function renderSessionCheckState() {
+  render(authRoot, [
+    el('p', {
+      text: 'Session wird geprueft...'
+    }),
+  ]);
+}
+
+function clearAuthStorage() {
+  sessionStorage.removeItem('currentUser');
+  sessionStorage.removeItem('authToken');
+}
+
+async function redirectIfAuthenticated() {
+  const rawUser = sessionStorage.getItem('currentUser');
+  const token = sessionStorage.getItem('authToken');
+
+  if (!rawUser || !token || token === 'undefined' || token === 'null') {
+    clearAuthStorage();
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      clearAuthStorage();
+      return false;
+    }
+
+    window.location.replace('/pages/dashboard.html');
+    return true;
+  } catch (_error) {
+    // Bei Netzfehlern kein Auto-Redirect erzwingen: Login anzeigen.
+    return false;
+  }
+}
+
 function labeledInput(id, type, placeholder) {
   return el('input', {
     attrs: { id, type, placeholder },
@@ -24,7 +64,7 @@ function renderHome() {
     labeledInput('Input_Username', 'text', 'Username'),
     labeledInput('Input_Password', 'password', 'Password'),
     actionButton('btn_Register', 'Register', renderRegister),
-    actionButton('btn_Login', 'Login', renderLogin),
+    actionButton('btn_Login', 'Login', submitLogin),
   ]);
 }
 
@@ -33,7 +73,7 @@ let pendingRegistration = null;
 function goToDashboard(user, token) {
   sessionStorage.setItem('currentUser', JSON.stringify(user));
   sessionStorage.setItem('authToken', token);
-  window.location.href = '/pages/dashboard.html';
+  window.location.replace('/pages/dashboard.html');
 }
 
 //Registrierungsfunktion: Erst Abfrage nach Namen und Passwort,
@@ -151,6 +191,12 @@ async function submitLogin() {
   }
 }
 
+async function initLoginPage() {
+  renderSessionCheckState();
+  const redirected = await redirectIfAuthenticated();
+  if (redirected) return;
+  renderHome();
+}
 
 // Start
-renderHome();
+initLoginPage();

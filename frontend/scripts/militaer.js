@@ -10,26 +10,31 @@ const UNIT_CATEGORIES = [
     key: 'infantry',
     title: 'Infanterie',
     description: 'Bodeneinheiten – Soldaten, Panzergrenadiere und Spezialisten.',
+    image: '/assets/images/categories/militär.jpg',
   },
   {
     key: 'vehicle',
     title: 'Fahrzeuge',
     description: 'Gepanzerte Fahrzeuge und Artillerie.',
+    image: '/assets/images/categories/militär.jpg',
   },
   {
     key: 'ship',
     title: 'Marine',
     description: 'Kriegsschiffe und Marineeinheiten.',
+    image: '/assets/images/categories/militär.jpg',
   },
   {
     key: 'air',
     title: 'Luftwaffe',
     description: 'Kampfflugzeuge, Bomber und Luftabwehr.',
+    image: '/assets/images/categories/militär.jpg',
   },
   {
     key: 'defense',
     title: 'Verteidigung',
     description: 'Stationäre Verteidigungsanlagen.',
+    image: '/assets/images/categories/militär.jpg',
   },
 ];
 
@@ -37,8 +42,19 @@ const militaerState = {
   selectedCategory: null,
   unitTypes: [],
   myUnits: [],
+  buildings: [],
+  researchLabLevel: 0,
+  defenseResearchLevel: 0,
+  activeResearch: null,
   message: '',
 };
+
+function getDefenseResearchRequirement(unitType) {
+  const match = String(unitType.building_requirement ?? '').match(/Level\s*(\d+)/i);
+  const parsed = Number(match?.[1] ?? 1);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(3, Math.max(1, parsed));
+}
 
 function getSelectedCategory() {
   const selected = new URLSearchParams(window.location.search).get('category');
@@ -119,10 +135,28 @@ function buildOverviewCategoryCard(category, unitCount) {
   });
 }
 
-function buildUnitRow(unitType, container) {
+function getBuiltRequirementCount(buildingName) {
+  const building = militaerState.buildings.find((b) => b.name === buildingName);
+  return Number(building?.anzahl ?? 0);
+}
+
+function buildUnitCard(unitType, category, container) {
   const owned = militaerState.myUnits.find(
     (u) => u.unit_type_id === unitType.id || u.name === unitType.name
   );
+  const ownedCount = Number(owned?.quantity ?? 0);
+  const isDefenseUnit = unitType.category === 'defense';
+  const requiredBuildingCount = getBuiltRequirementCount(unitType.building_requirement);
+  const requiredResearchLevel = isDefenseUnit ? getDefenseResearchRequirement(unitType) : 0;
+  const canTrain = isDefenseUnit
+    ? militaerState.defenseResearchLevel >= requiredResearchLevel
+    : requiredBuildingCount > 0;
+  const requirementLabel = isDefenseUnit
+    ? `Forschung: Verteidigungsforschung Level ${requiredResearchLevel} (aktuell ${militaerState.defenseResearchLevel})`
+    : `Benötigt: ${unitType.building_requirement} (${requiredBuildingCount.toLocaleString('de-DE')})`;
+  const lockHintText = isDefenseUnit
+    ? 'Wird über Forschung freigeschaltet'
+    : 'Gebäude noch nicht gebaut';
 
   const input = el('input', {
     className: 'build-quantity-input',
@@ -131,13 +165,15 @@ function buildUnitRow(unitType, container) {
       min: '1',
       max: '999',
       value: '1',
-      style: 'width:60px',
+      style: 'width:68px',
+      disabled: canTrain ? null : 'true',
     },
   });
 
   const button = el('button', {
     className: 'primary-action',
-    text: owned ? 'Weitere ausbilden' : 'Ausbilden',
+    text: 'Ausbilden',
+    attrs: { disabled: canTrain ? null : 'true' },
     on: {
       click: async () => {
         button.disabled = true;
@@ -151,7 +187,16 @@ function buildUnitRow(unitType, container) {
           });
 
           militaerState.message = result.message ?? '';
-          militaerState.myUnits = await apiFetch('/units/me');
+          const [myUnits, buildData, researchOverview] = await Promise.all([
+            apiFetch('/units/me'),
+            apiFetch('/buildings/me'),
+            apiFetch('/research/overview'),
+          ]);
+          militaerState.myUnits = myUnits;
+          militaerState.buildings = buildData.buildings ?? [];
+          militaerState.researchLabLevel = Number(researchOverview?.researchLabLevel ?? 0);
+          militaerState.defenseResearchLevel = Number(researchOverview?.defenseResearchLevel ?? 0);
+          militaerState.activeResearch = researchOverview?.activeResearch ?? null;
           await initShell();
 
           renderMilitaer(container);
@@ -165,24 +210,51 @@ function buildUnitRow(unitType, container) {
     },
   });
 
-  return el('div', {
-    className: 'building-type-row',
+  return el('article', {
+    className: `building-card${canTrain ? '' : ' is-locked'}`,
     children: [
-      el('strong', { text: unitType.name }),
+      el('img', {
+        className: 'building-card-image',
+        attrs: {
+          src: category?.image || '/assets/images/categories/militär.jpg',
+          alt: `${unitType.name} Einheit`,
+        },
+      }),
+      el('h4', { text: unitType.name }),
+      !canTrain
+        ? el('span', {
+          className: 'unit-lock-badge',
+          text: 'Gesperrt',
+        })
+        : null,
+      el('p', {
+        className: 'building-card-description',
+        text: unitType.description || 'Militäreinheit für taktische Einsätze.',
+      }),
       el('span', {
-        className: 'build-cost',
-        text: `Benötigt: ${unitType.building_requirement}`,
+        className: 'building-count',
+        text: `Vorhanden: ${ownedCount.toLocaleString('de-DE')}`,
+      }),
+      el('span', {
+        className: `build-cost unit-requirement${canTrain ? '' : ' unit-requirement--missing'}`,
+        text: requirementLabel,
       }),
       el('span', {
         className: 'build-cost',
         text: getUnitCostsText(unitType),
       }),
       el('span', {
-        className: 'build-cost',
+        className: 'build-power',
         text: `HP: ${unitType.hitpoints}  ⚔️ ${unitType.attack_points}  🛡️ ${unitType.defense_points}`,
       }),
+      !canTrain
+        ? el('span', {
+          className: 'unit-lock-hint',
+          text: lockHintText,
+        })
+        : null,
       el('div', {
-        attrs: { style: 'display:flex;gap:8px;align-items:center' },
+        className: 'building-card-actions',
         children: [input, button],
       }),
     ],
@@ -192,12 +264,23 @@ function buildUnitRow(unitType, container) {
 function renderMilitaer(container) {
   if (!container) return;
 
+  const defenseUnlockText = militaerState.defenseResearchLevel >= 3
+    ? 'Alle Verteidigungsstellungen freigeschaltet'
+    : `Verteidigung freigeschaltet bis Level ${militaerState.defenseResearchLevel}`;
+  const activeResearchText = militaerState.activeResearch
+    ? `Aktive Forschung: ${militaerState.activeResearch.name}`
+    : 'Keine aktive Forschung';
+
   const nodes = [
     el('h2', { text: 'Militär – Einheiten ausbilden' }),
     el('p', {
       attrs: { id: 'mil-message' },
       className: 'dash-message',
       text: militaerState.message,
+    }),
+    el('p', {
+      className: 'gdh-level-info',
+      text: `Forschungslabor Level ${militaerState.researchLabLevel} – ${defenseUnlockText} – ${activeResearchText}`,
     }),
   ];
 
@@ -243,17 +326,9 @@ function renderMilitaer(container) {
     return;
   }
 
-  const cardChildren = [el('h3', { text: selectedDef?.title ?? selectedCategory })];
   catUnits.forEach((ut) => {
-    cardChildren.push(buildUnitRow(ut, container));
+    gridChildren.push(buildUnitCard(ut, selectedDef, container));
   });
-
-  gridChildren.push(
-    el('article', {
-      className: 'category-card',
-      children: cardChildren,
-    })
-  );
 
   nodes.push(el('div', { className: 'category-grid', children: gridChildren }));
   render(container, nodes);
@@ -285,13 +360,19 @@ async function init() {
   attachSidebarInterception();
 
   try {
-    const [unitTypes, myUnits] = await Promise.all([
+    const [unitTypes, myUnits, buildData, researchOverview] = await Promise.all([
       apiFetch('/units/types'),
       apiFetch('/units/me'),
+      apiFetch('/buildings/me'),
+      apiFetch('/research/overview'),
     ]);
 
     militaerState.unitTypes = unitTypes;
     militaerState.myUnits = myUnits;
+    militaerState.buildings = buildData.buildings ?? [];
+    militaerState.researchLabLevel = Number(researchOverview?.researchLabLevel ?? 0);
+    militaerState.defenseResearchLevel = Number(researchOverview?.defenseResearchLevel ?? 0);
+    militaerState.activeResearch = researchOverview?.activeResearch ?? null;
     militaerState.selectedCategory = getSelectedCategory();
 
     renderMilitaer(container);

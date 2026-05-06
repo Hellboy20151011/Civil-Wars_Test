@@ -24,7 +24,8 @@ const launchSchema = z.object({
 
 const previewSchema = z.object({
     target_id: z.coerce.number().int().positive(),
-    unit_ids: z.string().transform((s) => s.split(',').map(Number)),
+    unit_ids: z.string().min(1),
+    quantities: z.string().optional(),
 });
 
 // ─── Endpunkte ────────────────────────────────────────────────────────────────
@@ -53,10 +54,28 @@ router.get(
     requireAuth,
     validateQuery(previewSchema),
     asyncWrapper(async (req, res) => {
+        const unitIds = String(req.query.unit_ids)
+            .split(',')
+            .map((value) => Number(value))
+            .filter((value) => Number.isInteger(value) && value > 0);
+
+        const quantities = req.query.quantities
+            ? String(req.query.quantities)
+                .split(',')
+                .map((value) => Number(value))
+            : [];
+
+        const units = unitIds.map((userUnitId, index) => ({
+            user_unit_id: userUnitId,
+            quantity: Number.isFinite(quantities[index]) && quantities[index] > 0
+                ? Math.floor(quantities[index])
+                : 1,
+        }));
+
         const preview = await espionageService.getMissionPreview(
             req.user.id,
             req.query.target_id,
-            req.query.unit_ids
+            units
         );
         res.json({ data: preview });
     })
