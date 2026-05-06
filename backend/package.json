@@ -13,7 +13,8 @@
         "format": "prettier --write .",
         "test": "vitest run",
         "test:coverage": "vitest run --coverage",
-        "test:e2e": "playwright test"
+        "test:e2e": "playwright test",
+        "seed:npcs": "node --env-file=.env scripts/seed-npcs.js"
     },
     "dependencies": {
         "bcrypt": "^6.0.0",

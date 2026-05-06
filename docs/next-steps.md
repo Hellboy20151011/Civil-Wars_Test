@@ -276,7 +276,16 @@ Aktuell wird nur ein kurzlebiges JWT ohne Refresh-Token verwendet.
 
 ## Langfristig (> 1 Monat)
 
-### P2 – Kampfsystem implementieren (Aufwand: XL | Impact: 🟢 sehr hoch)
+### ✅ P2 – Kampfsystem implementieren (Aufwand: XL | Impact: 🟢 sehr hoch)
+
+**Erledigt (Regel-Update):**
+
+- [x] Verlustquote basiert auf allen vor Ort befindlichen Verteidigern inkl. Verteidigungsanlagen.
+- [x] Deterministische Schadensverteilung bei Misch-Armeen gemäß `combat-matchups.json`.
+- [x] Siegerlogik auf relative Verlustquoten mit Verteidiger-Tie-Break umgestellt.
+- [x] Plünderung auf `20 % Loot-Pool × Verteidiger-Verlustquote` umgestellt.
+- [x] Tageslimit `max. 6 Angriffe` pro Angreifer→Verteidiger ergänzt.
+
 
 ### ✅ P1 – Unit-Tests für Combat & Espionage Service (P1 aus Projektanalyse 2026-05-05)
 
@@ -361,6 +370,6 @@ Für ein vollständiges Strategiespiel fehlt einer Karte mit Territorien.
 | P2 | OpenAPI Spec | L | 🟢 Impact hoch | ✅ |
 | P2 | Release-Prozess | M | 🟡 mittel | ✅ |
 | P2 | Refresh Token | L | 🔴 Risiko hoch | ✅ |
-| P2 | Kampfsystem | XL | 🟢 Impact sehr hoch | ⏳ |
+| P2 | Kampfsystem | XL | 🟢 Impact sehr hoch | ✅ |
 | P2 | Karten-System | XL | 🟢 Impact sehr hoch | ✅ |
 | P2 | Multi-Player-Security | L | 🔴 Risiko hoch | ✅ (Rate-Limit + Lockout) |

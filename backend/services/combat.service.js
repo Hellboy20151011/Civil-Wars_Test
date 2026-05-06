@@ -27,46 +27,53 @@ const MATCHUPS = require('../data/combat-matchups.json');
 // PLÜNDERUNGS-LOGIK
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PLUNDER_RATE = 0.25; // 25 % der Gebäude werden zerstört/geplündert
+const LOOT_POOL_RATE = 0.20; // 20 % Loot-Pool pro Angriff
+const MAX_DAILY_ATTACKS_PER_TARGET = 6;
 
 // Pro Ölpumpe dürfen maximal 5 Öl-Raffinerien betrieben werden
 const MAX_RAFFINERIEN_PER_PUMPE = 5;
+const PLUNDERABLE_BUILDINGS = new Set([
+    'Wohnhaus',
+    'Reihenhaus',
+    'Mehrfamilienhaus',
+    'Hochhaus',
+    'Kraftwerk',
+    'Steinbruch',
+    'Stahlwerk',
+    'Ölpumpe',
+    'Öl-Raffinerie',
+]);
 
 /**
- * Zerstört einen Teil der Unterkunfts- und Ressourcenproduktionsgebäude des Verteidigers.
+ * Zerstört einen Teil der plünderbaren Gebäude des Verteidigers.
  * Regeln:
- *   - Nur Gebäude der Kategorie 'housing' und 'infrastructure' mit Produktion/Verbrauch
+ *   - Nur explizit plünderbare Gebäudetypen
  *   - Mindestens 1 Gebäude jedes Typs bleibt erhalten
  *   - Ölpumpe/Öl-Raffinerie-Verhältnis: max. 5 Raffinerien pro Pumpe nach Plünderung
  *   - Kraftwerke werden zuletzt entfernt, um kein Stromdefizit beim Verteidiger auszulösen
  *
  * @param {number} attackerId
  * @param {number} defenderId
+ * @param {number} raidPercent   – Anteil in [0..1], abgeleitet aus Verteidiger-Verlustquote
  * @param {import('pg').PoolClient} client
  * @returns {Promise<Array<{ name: string, removed: number, remaining: number }>>}
  */
-async function _plunderBuildings(attackerId, defenderId, client) {
+async function _plunderBuildings(attackerId, defenderId, raidPercent, client) {
+    const normalizedRaidPercent = Math.min(1, Math.max(0, Number(raidPercent) || 0));
+    if (normalizedRaidPercent <= 0) return [];
+
     const buildings = await buildingRepo.findBuildingsByUser(defenderId, client);
 
-    // Plünderable Gebäude: housing + infrastructure mit Ressourcenproduktion oder -verbrauch
-    const plunderable = buildings.filter(
-        (b) =>
-            b.category === 'housing' ||
-            (b.category === 'infrastructure' &&
-                (Number(b.power_production) > 0 ||
-                    Number(b.power_consumption) > 0 ||
-                    Number(b.stone_production) > 0 ||
-                    Number(b.steel_production) > 0 ||
-                    Number(b.fuel_production) > 0 ||
-                    Number(b.money_production) > 0))
-    );
+    // Plünderbare Gebäude werden ausschließlich per Name gesteuert.
+    const plunderable = buildings.filter((b) => PLUNDERABLE_BUILDINGS.has(b.name));
 
     // ── Schritt 1: Entfernungsplan erstellen (ohne Kraftwerke) ────────────────
     // Map: building.id → { b, toRemove }
     const plan = new Map();
     for (const b of plunderable.filter((b) => Number(b.power_production) <= 0)) {
         const count = Number(b.anzahl);
-        const toRemove = Math.min(Math.floor(count * PLUNDER_RATE), count - 1);
+        const rawStolen = Math.floor(count * LOOT_POOL_RATE * normalizedRaidPercent);
+        const toRemove = Math.max(0, Math.min(rawStolen, count - 1));
         plan.set(b.id, { b, toRemove });
     }
 
@@ -105,7 +112,8 @@ async function _plunderBuildings(attackerId, defenderId, client) {
     // Aktuell nach obigen Entfernungen lesen (Verbrauch ist gesunken)
     for (const b of plunderable.filter((b) => Number(b.power_production) > 0)) {
         const count = Number(b.anzahl);
-        let toRemove = Math.min(Math.floor(count * PLUNDER_RATE), count - 1);
+        const rawStolen = Math.floor(count * LOOT_POOL_RATE * normalizedRaidPercent);
+        let toRemove = Math.max(0, Math.min(rawStolen, count - 1));
         if (toRemove <= 0) continue;
 
         const { production, consumption } = await buildingRepo.findPowerSummaryByUser(defenderId, client);
@@ -136,8 +144,8 @@ async function _plunderBuildings(attackerId, defenderId, client) {
  */
 function getUnitMatchup(attackerName, defenderName) {
     const val = MATCHUPS[attackerName]?.[defenderName];
-    if (!val || val === 'x') return 0;
-    return parseFloat(val.replace(',', '.'));
+    if (typeof val !== 'number' || !Number.isFinite(val) || val <= 0) return 0;
+    return val;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,6 +168,139 @@ function calculateFuelCost(distance, units) {
         const normalizedFuelPerUnit = Number.isFinite(fuelPerUnit) ? fuelPerUnit : 0;
         return acc + Math.ceil((normalizedFuelPerUnit * distance * quantity) / 10);
     }, 0);
+}
+
+function toEffectiveHitpoints(unit) {
+    const baseHitpoints = Math.max(1, Number(unit.hitpoints) || 1);
+    const healthFactor = Math.max(0, Number(unit.health_percentage) || 0) / 100;
+    // defense_points erhöhen effektive HP: +1 % pro Punkt
+    const defenseFactor = 1 + Math.max(0, Number(unit.defense_points) || 0) / 100;
+    return Math.max(1, baseHitpoints * healthFactor * defenseFactor);
+}
+
+function sumMapValues(map) {
+    let sum = 0;
+    for (const value of map.values()) sum += Number(value) || 0;
+    return sum;
+}
+
+/**
+ * Rundenbasierte Kampfsimulation.
+ * Pro Runde greifen beide Seiten gleichzeitig an. Schaden akkumuliert sich in
+ * einem Pool pro Einheitentyp; sobald der Pool ≥ effektive HP erreicht, stirbt
+ * eine Einheit. So können auch kleine Einheitenzahlen (z. B. 1 vs. 1) nach
+ * mehreren Runden Verluste erleiden.
+ *
+ * @returns {{ attackerLosses: Map, defenderLosses: Map, attackDamage: number, defenseDamage: number }}
+ */
+function simulateCombatRounds(attackerUnits, defenderUnits) {
+    const MAX_ROUNDS = 1000;
+
+    const atk = attackerUnits.map((u) => ({
+        id: u.id,
+        unit_name: u.unit_name,
+        attack_points: Number(u.attack_points || 0),
+        defense_points: Number(u.defense_points || 0),
+        hitpoints: Number(u.hitpoints || 1),
+        health_percentage: Number(u.health_percentage ?? 100),
+        remaining: Number(u.quantity),
+        damagePool: 0,
+    }));
+    const def = defenderUnits.map((u) => ({
+        id: u.id,
+        unit_name: u.unit_name,
+        attack_points: Number(u.attack_points || 0),
+        defense_points: Number(u.defense_points || 0),
+        hitpoints: Number(u.hitpoints || 1),
+        health_percentage: Number(u.health_percentage ?? 100),
+        remaining: Number(u.quantity),
+        damagePool: 0,
+    }));
+
+    let attackDamage = 0;
+    let defenseDamage = 0;
+    let rounds = 0;
+    const roundLog = [];
+
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+        const aliveA = atk.filter((u) => u.remaining > 0);
+        const aliveD = def.filter((u) => u.remaining > 0);
+        if (aliveA.length === 0 || aliveD.length === 0) break;
+        rounds = round + 1;
+
+        const beforeA = atk.map((u) => u.remaining);
+        const beforeD = def.map((u) => u.remaining);
+
+        // Angreifer → Verteidiger
+        attackDamage += _dealRoundDamage(aliveA, def);
+        // Verteidiger → Angreifer (gleichzeitig, Verluste dieser Runde zählen noch nicht)
+        defenseDamage += _dealRoundDamage(aliveD, atk);
+
+        _applyDamagePool(atk);
+        _applyDamagePool(def);
+
+        const aKilled = beforeA.reduce((s, b, i) => s + Math.max(0, b - atk[i].remaining), 0);
+        const dKilled = beforeD.reduce((s, b, i) => s + Math.max(0, b - def[i].remaining), 0);
+        const aAlive = atk.reduce((s, u) => s + u.remaining, 0);
+        const dAlive = def.reduce((s, u) => s + u.remaining, 0);
+        if (aKilled > 0 || dKilled > 0) {
+            roundLog.push({ r: rounds, aKilled, dKilled, aAlive, dAlive });
+        }
+    }
+
+    const attackerLossMap = new Map();
+    for (let i = 0; i < atk.length; i++) {
+        attackerLossMap.set(atk[i].id, Number(attackerUnits[i].quantity) - atk[i].remaining);
+    }
+    const defenderLossMap = new Map();
+    for (let i = 0; i < def.length; i++) {
+        defenderLossMap.set(def[i].id, Number(defenderUnits[i].quantity) - def[i].remaining);
+    }
+
+    return { attackerLosses: attackerLossMap, defenderLosses: defenderLossMap, attackDamage, defenseDamage, rounds, roundLog };
+}
+
+/**
+ * Verteilt den Schaden einer Seite auf die lebenden Zieleinheiten (eine Runde).
+ * Gibt den gesamten ausgeteilten Schaden zurück.
+ */
+function _dealRoundDamage(sourceUnits, allTargets) {
+    const aliveTargets = allTargets.filter((u) => u.remaining > 0);
+    if (aliveTargets.length === 0) return 0;
+
+    let totalDealt = 0;
+    for (const source of sourceUnits) {
+        const healthFactor = Math.max(0, source.health_percentage) / 100;
+        const baseDamage = source.remaining * source.attack_points * healthFactor;
+        if (baseDamage <= 0) continue;
+
+        const weighted = aliveTargets
+            .map((t) => ({ t, w: getUnitMatchup(source.unit_name, t.unit_name) * t.remaining }))
+            .filter((e) => e.w > 0);
+        if (weighted.length === 0) continue;
+
+        const totalW = weighted.reduce((s, e) => s + e.w, 0);
+        for (const entry of weighted) {
+            const share = baseDamage * (entry.w / totalW);
+            entry.t.damagePool += share;
+            totalDealt += share;
+        }
+    }
+    return totalDealt;
+}
+
+/** Zieht aus dem Schadenspool Verluste ab und überträgt den Rest. */
+function _applyDamagePool(units) {
+    for (const u of units) {
+        if (u.damagePool <= 0 || u.remaining <= 0) continue;
+        const effHP = toEffectiveHitpoints(u);
+        const losses = Math.min(u.remaining, Math.floor(u.damagePool / effHP));
+        if (losses > 0) {
+            u.remaining -= losses;
+            u.damagePool -= losses * effHP;
+            if (u.damagePool < 0) u.damagePool = 0;
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,6 +329,14 @@ export async function launchAttack(attackerId, defenderId, units) {
 
         if (!attacker) throw createServiceError('Angreifer nicht gefunden', 404, 'ATTACKER_NOT_FOUND');
         if (!defender) throw createServiceError('Verteidiger nicht gefunden', 404, 'DEFENDER_NOT_FOUND');
+        const attacksToday = await combatMissionsRepo.countAttacksByPairToday(attackerId, defenderId, client);
+        if (attacksToday >= MAX_DAILY_ATTACKS_PER_TARGET) {
+            throw createServiceError(
+                'Maximal 6 Angriffe pro Tag auf den gleichen Spieler erlaubt',
+                429,
+                'ATTACK_LIMIT_REACHED'
+            );
+        }
         if (attacker.koordinate_x == null || defender.koordinate_x == null) {
             throw createServiceError('Spielerkoordinaten fehlen', 400, 'MISSING_COORDINATES');
         }
@@ -287,43 +436,21 @@ export async function processArrivingMissions() {
 
 /**
  * Berechnet den Kampf für eine einzelne Mission.
- *
- * Phasen:
- *  1. Kampftaucher-Phase  – neutralisiert alle defense-Einheiten des Verteidigers
- *  2. Matchup-Berechnung  – Angriffskraft gewichtet nach Matchup-Multiplikator
- *  3. Verlustberechnung   – Einheiten die nicht angreifbar sind, erleiden keine Verluste
- *  4. Persistierung       – Ergebnis + Rückreise-Zeit speichern
  */
 async function _resolveCombat(mission, client) {
-    // Angreifer-Einheiten der Mission
     const missionUnits = await combatMissionsRepo.findMissionUnits(mission.id, client);
+    const defenderUnits = await unitsRepo.findCombatUnitsByUser(mission.defender_id, client);
 
-    // Verteidiger-Einheiten (alle mit Menge > 0)
-    let defenderUnits = await unitsRepo.findCombatUnitsByUser(mission.defender_id, client);
+    const hasKampftaucher = missionUnits.some((u) => u.unit_name === 'Kampftaucher' && u.quantity_sent > 0);
 
-    // ── Phase 1: Kampftaucher neutralisiert Küstenverteidigung ───────────────
-    const hasKampftaucher = missionUnits.some(
-        (u) => u.unit_name === 'Kampftaucher' && u.quantity_sent > 0
-    );
-    if (hasKampftaucher) {
-        // defense-Einheiten werden für diese Kampfrunde auf 0 gesetzt (keine Verluste, aber kein Beitrag)
-        defenderUnits = defenderUnits.map((u) =>
-            u.category === 'defense' ? { ...u, quantity: 0 } : u
-        );
-        logger.info({ missionId: mission.id }, 'Kampftaucher: Küstenverteidigung neutralisiert');
-    }
+    const activeAttackers = missionUnits.filter((u) => Number(u.quantity_sent) > 0);
+    const activeDefenders = defenderUnits.filter((u) => Number(u.quantity) > 0);
 
-    // ── Phase 2: Effektive Angriffskraft (unit-vs-unit-Matchup) ────────────────
-    const activeDefs = defenderUnits.filter((u) => u.quantity > 0);
+    // Für die Verlustquote zählen alle vor Ort befindlichen Verteidiger inkl. Verteidigungsanlagen.
+    const attackerCount = activeAttackers.reduce((sum, u) => sum + Number(u.quantity_sent || 0), 0);
+    const defenderCount = activeDefenders.reduce((sum, u) => sum + Number(u.quantity || 0), 0);
 
-    // Kein Verteidiger → automatischer Sieg für den Angreifer
-    if (activeDefs.length === 0) {
-        const attackPower = 1;
-        const defensePower = 0;
-        const attackerWon = true;
-        const attackerCasualtyRate = 0;
-        const defenderCasualtyRate = 0;
-
+    if (defenderCount === 0) {
         const attackerResults = [];
         for (const mu of missionUnits) {
             attackerResults.push({
@@ -339,15 +466,14 @@ async function _resolveCombat(mission, client) {
 
         const returnSpeed = slowestSpeed(missionUnits.length > 0 ? missionUnits : [{ movement_speed: 1 }]);
         const returnTime = calcArrivalTime(mission.distance, returnSpeed);
-
-        const plunderedBuildings = await _plunderBuildings(mission.attacker_id, mission.defender_id, client);
+        const plunderedBuildings = await _plunderBuildings(mission.attacker_id, mission.defender_id, 1, client);
 
         const combatResult = {
-            attackerWon,
-            attackPower,
-            defensePower,
-            attackerCasualtyRate,
-            defenderCasualtyRate,
+            attackerWon: true,
+            attackPower: 0,
+            defensePower: 0,
+            attackerCasualtyRate: 0,
+            defenderCasualtyRate: 1,
             kampftaucherUsed: hasKampftaucher,
             attackerUnits: attackerResults,
             defenderUnits: [],
@@ -356,98 +482,94 @@ async function _resolveCombat(mission, client) {
         };
 
         await combatMissionsRepo.updateMissionAfterCombat(mission.id, 'traveling_back', combatResult, returnTime, client);
-        logger.info({ missionId: mission.id, plunderedBuildings }, 'Combat resolved: attacker won (no defenders)');
-        broadcastToUser(mission.attacker_id, 'combat_result', {
+
+        const resultPayload = {
             missionId: mission.id,
-            attackerWon,
+            attackerWon: true,
             attackerUsername: mission.attacker_username,
             defenderUsername: mission.defender_username,
             returnTime: returnTime.toISOString(),
-        });
-        broadcastToUser(mission.defender_id, 'combat_result', {
-            missionId: mission.id,
-            attackerWon,
-            attackerUsername: mission.attacker_username,
-            defenderUsername: mission.defender_username,
-            returnTime: returnTime.toISOString(),
-        });
+        };
+        broadcastToUser(mission.attacker_id, 'combat_result', resultPayload);
+        broadcastToUser(mission.defender_id, 'combat_result', resultPayload);
         return;
     }
 
-    let attackPower = 0;
-    for (const u of missionUnits) {
-        if (!u.quantity_sent) continue;
+    const attackerCombatUnits = activeAttackers.map((u) => ({
+        id: u.id,
+        unit_name: u.unit_name,
+        quantity: Number(u.quantity_sent || 0),
+        attack_points: Number(u.attack_points || 0),
+        defense_points: Number(u.defense_points || 0),
+        hitpoints: Number(u.hitpoints || 1),
+        health_percentage: Number(u.health_percentage || 100),
+    }));
+    const defenderCombatUnits = activeDefenders.map((u) => ({
+        id: u.id,
+        unit_name: u.unit_name,
+        quantity: Number(u.quantity || 0),
+        attack_points: Number(u.attack_points || 0),
+        defense_points: Number(u.defense_points || 0),
+        hitpoints: Number(u.hitpoints || 1),
+        health_percentage: Number(u.health_percentage || 100),
+    }));
 
-        // Welche Defender-Einheiten kann diese Einheit angreifen?
-        const reachable = activeDefs.filter((d) => getUnitMatchup(u.unit_name, d.unit_name) > 0);
-        if (reachable.length === 0) continue; // Kann niemanden treffen → kein Beitrag
+    // Rundenbasierte Simulation: Schaden akkumuliert sich bis Einheiten sterben.
+    const { attackerLosses, defenderLosses, attackDamage, defenseDamage, rounds, roundLog } =
+        simulateCombatRounds(attackerCombatUnits, defenderCombatUnits);
 
-        // Durchschnitts-Multiplikator über alle erreichbaren Defender-Einheiten
-        const avgMult =
-            reachable.reduce((sum, d) => sum + getUnitMatchup(u.unit_name, d.unit_name), 0) /
-            reachable.length;
+    const attackPower = parseFloat(attackDamage.toFixed(2));
+    const defensePower = parseFloat(defenseDamage.toFixed(2));
 
-        attackPower += u.attack_points * u.quantity_sent * (u.health_percentage / 100) * avgMult;
+    let totalDefenderLosses = 0;
+    const defenderResults = [];
+    for (const du of defenderUnits) {
+        const quantity = Number(du.quantity || 0);
+        const losses = Math.min(quantity, defenderLosses.get(du.id) ?? 0);
+        const remaining = quantity - losses;
+
+        await unitsRepo.setUserUnitQuantity(du.id, remaining, client);
+        if (remaining === 0) await unitsRepo.setUnitHealth(du.id, 0, client);
+
+        totalDefenderLosses += losses;
+        defenderResults.push({ unitId: du.id, unitName: du.unit_name, losses, remaining });
     }
 
-    // ── Phase 3: Effektive Verteidigungskraft ─────────────────────────────────
-    // Nur Einheiten zählen, die von mindestens einem Angreifer getroffen werden können
-    let defensePower = 0;
-    for (const u of activeDefs) {
-        const canBeHit = missionUnits.some((a) => getUnitMatchup(a.unit_name, u.unit_name) > 0);
-        if (!canBeHit) continue; // Immun – kein Angreifer kann diese Einheit treffen
-        defensePower += u.defense_points * u.quantity * (u.health_percentage / 100);
-    }
-
-    // Schadensverhältnis
-    const totalPower = attackPower + defensePower || 1;
-    const attackerCasualtyRate = Math.min(1, defensePower / totalPower);
-    const defenderCasualtyRate = Math.min(1, attackPower  / totalPower);
-    const attackerWon = attackPower > defensePower;
-
-    // ── Verluste Angreifer ────────────────────────────────────────────────────
+    let totalAttackerLosses = 0;
     const attackerResults = [];
     for (const mu of missionUnits) {
-        const canBeHit = activeDefs.some((d) => getUnitMatchup(d.unit_name, mu.unit_name) > 0);
-        const losses = canBeHit
-            ? Math.max(0, mu.quantity_sent - Math.floor(mu.quantity_sent * (1 - attackerCasualtyRate)))
-            : 0;
-        const survived = mu.quantity_sent - losses;
+        const sent = Number(mu.quantity_sent || 0);
+        const losses = Math.min(sent, attackerLosses.get(mu.id) ?? 0);
+        const survived = sent - losses;
+
+        totalAttackerLosses += losses;
         attackerResults.push({
             missionUnitId: mu.id,
             userUnitId: mu.user_unit_id,
             unitName: mu.unit_name,
-            sent: mu.quantity_sent,
+            sent,
             survived,
             losses,
         });
         await combatMissionsRepo.setMissionUnitReturned(mu.id, survived, client);
     }
 
-    // ── Verluste Verteidiger ──────────────────────────────────────────────────
-    // Nur Einheiten die angreifbar waren bekommen Verluste; immune bleiben unberührt
-    const defenderResults = [];
-    for (const du of defenderUnits) {
-        const canBeHit = missionUnits.some((a) => getUnitMatchup(a.unit_name, du.unit_name) > 0);
-        const losses = canBeHit ? Math.floor(du.quantity * defenderCasualtyRate) : 0;
-        const remaining = du.quantity - losses;
-        await unitsRepo.setUserUnitQuantity(du.id, remaining, client);
-        if (remaining === 0) await unitsRepo.setUnitHealth(du.id, 0, client);
-        defenderResults.push({ unitId: du.id, unitName: du.unit_name, losses, remaining });
-    }
+    const attackerCasualtyRate = attackerCount > 0 ? Math.min(1, totalAttackerLosses / attackerCount) : 1;
+    const defenderCasualtyRate = defenderCount > 0 ? Math.min(1, totalDefenderLosses / defenderCount) : 1;
+    const attackerSurvivors = attackerCount - totalAttackerLosses;
+    const attackerWon = defenderCasualtyRate > attackerCasualtyRate && attackerSurvivors > 0;
 
-    // ── Rückreise-Zeit ────────────────────────────────────────────────────────
     const returnSpeed = slowestSpeed(missionUnits.length > 0 ? missionUnits : [{ movement_speed: 1 }]);
     const returnTime = calcArrivalTime(mission.distance, returnSpeed);
 
-    // ── Plünderung bei Sieg ───────────────────────────────────────────────────
     const plunderedBuildings = attackerWon
-        ? await _plunderBuildings(mission.attacker_id, mission.defender_id, client)
+        ? await _plunderBuildings(mission.attacker_id, mission.defender_id, defenderCasualtyRate, client)
         : [];
 
-    // ── Ergebnis persistieren ─────────────────────────────────────────────────
     const combatResult = {
         attackerWon,
+        rounds,
+        roundLog,
         attackPower: parseFloat(attackPower.toFixed(2)),
         defensePower: parseFloat(defensePower.toFixed(2)),
         attackerCasualtyRate: parseFloat(attackerCasualtyRate.toFixed(3)),
@@ -478,7 +600,6 @@ async function _resolveCombat(mission, client) {
         'Combat resolved'
     );
 
-    // ── SSE: Beide Spieler benachrichtigen ────────────────────────────────────
     const resultPayload = {
         missionId: mission.id,
         attackerWon,

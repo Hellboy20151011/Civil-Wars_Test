@@ -9,7 +9,34 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ## [Unreleased]
 
+### Added
+
+- `backend/database/migrate_v6_npc.sql` – Migration: Spalten `is_npc BOOLEAN` und `npc_type VARCHAR(20)` in `users`-Tabelle; Index `idx_users_is_npc`.
+- `backend/repositories/npc.repository.js` – `findActiveNpcs()` und `createNpc()` für NPC-Accounts.
+- `backend/services/npc.service.js` – KI-Tick-Service: NPCs bauen eigenständig Gebäude nach Priorität, trainieren Einheiten und (bei `aggressive`-Typ) starten Angriffe auf nahegelegene Spieler.
+- `backend/scripts/seed-npcs.js` – Seed-Script zum Anlegen von 3 Test-NPCs (2× defensiv, 1× aggressiv).
+
+### Changed
+
+- `backend/services/buildings.service.js` – Infrastruktur- und Unterkunftsgebäude (Kategorie `infrastructure` / `housing`) werden mit jedem gebauten Exemplar um **3% linear** teurer (Formel: `floor(baseCost × (1 + n × 0,03))`). Konstanten `SCALABLE_CATEGORIES`, `COST_SCALE_PER_BUILDING` und Hilfsfunktion `calculateScaledTotal` hinzugefügt.
+- `frontend/scripts/bauhof.js` – Baukostenanzeige und „Max baubar"-Berechnung berücksichtigen jetzt die gestaffelten Kosten für Infrastruktur- und Unterkunftsgebäude. Hilfsfunktionen `getScaledUnitCost`, `calcScaledTotal`, `maxBuildableWithScaling` sowie Konstanten `SCALABLE_CATEGORIES`/`COST_SCALE_RATE` ergänzt.
+
+- `backend/services/gameloop-scheduler.js` – `npcService.tickAllNpcs()` wird am Ende jedes Ticks aufgerufen.
+
+- `backend/data/combat-matchups.json` – Matchup-Matrix auf numerische Werte (`number`) und `null` normalisiert; Stringwerte (`"1,5"`) und `"x"` entfernt.
+- `backend/services/combat.service.js` – Kampfauflösung auf deterministische, matrixbasierte Schadensverteilung umgestellt (`Anzahl × Angriff × Matchup`), Siegerermittlung auf relative Verlustquoten geändert (Verteidiger gewinnt bei Gleichstand), Plünderung auf `20 % Loot-Pool × Verteidiger-Verlustquote` umgestellt.
+- `backend/repositories/combat-missions.repository.js` und `backend/services/combat.service.js` – Tageslimit ergänzt: maximal 6 Angriffe pro Tag je Angreifer→Verteidiger (`ATTACK_LIMIT_REACHED`).
+- `backend/tests/services/combat.service.test.js` – Tests an neue Kampf-/Plünderlogik angepasst (inkl. Tageslimit-Mock und aktualisierter Plünderungsrate).
+- `backend/tests/e2e/combat-plunder-flow.test.js` – Bestehenden Test auf 100 Angreifer-Einheiten und 5 Gebäude korrigiert; neuen `test.describe`-Block „Raid-Formel" mit 4 Szenarien ergänzt (10, 98, 100 Gebäude, Mindestschutz 1 Gebäude).
+- `backend/services/combat.service.js` – Schadensverteilung auf mengengewichtete Zuteilung (`quantity × matchup` als Gewicht statt gleichmäßiger Aufteilung); `defense_points` in `toEffectiveHitpoints` integriert (`HP × (1 + defense_points / 100)`), wodurch defensive Einheiten robuster werden.
+- `backend/tests/services/combat.service.test.js` – Erwartete `attackPower`-Werte an gewichtete Verteilung angepasst (3 Tests).
+- `docs/next-steps.md` und `docs/Verbesserungs.md` – Kampfsystem-Fortschritt und Testumfang aktualisiert.
+
 ### Fixed
+
+- `backend/services/combat.service.js` – Kampfverluste bei kleinen Einheitenmengen (z. B. 1 vs. 1) waren immer 0, weil `Math.floor(damage/HP)` bei Werten < 1 stets 0 ergibt. Verlustberechnung ersetzt durch **rundenbasierte Simulation** (`simulateCombatRounds`): Schaden akkumuliert sich pro Runde in einem Pool; erst wenn der Pool die effektiven HP einer Einheit erreicht, stirbt sie. `rounds` und `roundLog` werden im `combatResult` gespeichert.
+- `frontend/scripts/kampfbericht.js` – Kampfbericht komplett neu gestaltet: farbiges Win/Loss-Banner, Kennzahlen-Grid, farbkodierte Einheitentabellen, ausklappbare Rundeneinzelübersicht mit Verlustmarkierung.
+- `frontend/CSS/style.css` – Neue CSS-Klassen `.cb-banner`, `.cb-stats`, `.cb-stat`, `.cb-section`, `.cb-unit-grid`, `.cb-table`, `.cb-round-details`, `.cb-round-scroll` für den Kampfbericht ergänzt.
 
 - `backend/services/espionage.service.js`, `backend/routes/espionage.js`, `backend/repositories/resources.repository.js`, `frontend/scripts/karte.js`, `frontend/scripts/spionage.js`, `backend/tests/services/espionage.service.test.js` – Spionage-Vorschau und Start synchronisiert: Erfolgsquote aus der Vorschau entfernt, Treibstoffbedarf berücksichtigt jetzt die gewählte Einheitenmenge, und Treibstoff wird beim Absenden serverseitig geprüft und sofort abgezogen (`INSUFFICIENT_RESOURCES` bei zu wenig Treibstoff).
 - `frontend/scripts/shell.js`, `frontend/scripts/karte.js`, `frontend/scripts/spionage.js` – Spionage-UI zeigt verfügbaren Treibstoff direkt in der Vorschau, deaktiviert `Spione entsenden` bei zu wenig Treibstoff und aktualisiert Ressourcenanzeige nach erfolgreichem Absenden sofort ohne Seiten-Refresh.

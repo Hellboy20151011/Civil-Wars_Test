@@ -108,13 +108,39 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+// Kategorien mit steigenden Baukosten (+3% pro bereits gebautem Exemplar)
+const SCALABLE_CATEGORIES = ['infrastructure', 'housing'];
+const COST_SCALE_RATE = 0.03;
+
+/** Gibt den skalierten Einzelpreis für das (existingCount+1)-te Gebäude zurück. */
+function getScaledUnitCost(baseCost, existingCount) {
+  if (baseCost <= 0) return 0;
+  return Math.floor(baseCost * (1 + existingCount * COST_SCALE_RATE));
+}
+
+/** Gesamtkosten für `quantity` Gebäude, wenn bereits `existingCount` vorhanden sind. */
+function calcScaledTotal(baseCost, existingCount, quantity) {
+  let total = 0;
+  for (let i = 0; i < quantity; i++) {
+    total += Math.floor(baseCost * (1 + (existingCount + i) * COST_SCALE_RATE));
+  }
+  return total;
+}
+
 function getBuildCostsText(bt) {
+  const isScalable = SCALABLE_CATEGORIES.includes(bt.category);
+  const owned = isScalable ? getBuiltCount(bt.name) : 0;
+  const factor = isScalable && owned > 0 ? ` (+${Math.round(owned * COST_SCALE_RATE * 100)}%)` : '';
+
+  const scaled = (base) => (isScalable ? getScaledUnitCost(base, owned) : base);
+
   const costs = [];
-  if (bt.money_cost > 0) costs.push(`💰 ${Number(bt.money_cost).toLocaleString('de-DE')}`);
-  if (bt.stone_cost > 0) costs.push(`🪨 ${Number(bt.stone_cost).toLocaleString('de-DE')}`);
-  if (bt.steel_cost > 0) costs.push(`⚙️ ${Number(bt.steel_cost).toLocaleString('de-DE')}`);
-  if (bt.fuel_cost > 0) costs.push(`🛢️ ${Number(bt.fuel_cost).toLocaleString('de-DE')}`);
-  return costs.length > 0 ? costs.join('  ') : 'Kostenlos';
+  if (bt.money_cost > 0) costs.push(`💰 ${scaled(Number(bt.money_cost)).toLocaleString('de-DE')}`);
+  if (bt.stone_cost > 0) costs.push(`🪨 ${scaled(Number(bt.stone_cost)).toLocaleString('de-DE')}`);
+  if (bt.steel_cost > 0) costs.push(`⚙️ ${scaled(Number(bt.steel_cost)).toLocaleString('de-DE')}`);
+  if (bt.fuel_cost > 0) costs.push(`🛢️ ${scaled(Number(bt.fuel_cost)).toLocaleString('de-DE')}`);
+  const base = costs.length > 0 ? costs.join('  ') : 'Kostenlos';
+  return factor ? `${base}${factor}` : base;
 }
 
 function getPlayerResources() {
@@ -151,8 +177,27 @@ function getRatioCap(bt) {
   return Math.max(0, providerCount * rule.ratio - currentCount);
 }
 
+/**
+ * Ermittelt wie viele Gebäude mit `budget` gekauft werden können,
+ * wenn die Kosten bei `existingCount` starten und mit COST_SCALE_RATE steigen.
+ */
+function maxBuildableWithScaling(budget, baseCost, existingCount) {
+  if (baseCost <= 0) return Infinity;
+  let total = 0;
+  let k = 0;
+  while (k < 100000) {
+    const next = Math.floor(baseCost * (1 + (existingCount + k) * COST_SCALE_RATE));
+    if (total + next > budget) break;
+    total += next;
+    k++;
+  }
+  return k;
+}
+
 function getMaxBuildableByResourcesAndPower(bt) {
   const resources = getPlayerResources();
+  const isScalable = SCALABLE_CATEGORIES.includes(bt.category);
+  const owned = isScalable ? getBuiltCount(bt.name) : 0;
   const limits = [];
 
   const resourceChecks = [
@@ -164,7 +209,11 @@ function getMaxBuildableByResourcesAndPower(bt) {
 
   resourceChecks.forEach(({ available, cost }) => {
     if (cost > 0) {
-      limits.push(Math.floor(available / cost));
+      limits.push(
+        isScalable
+          ? maxBuildableWithScaling(available, cost, owned)
+          : Math.floor(available / cost)
+      );
     }
   });
 
@@ -191,13 +240,18 @@ function applyLocalBuildCost(bt, quantity) {
   const resources = { ...(current.resources ?? {}) };
   const strom = { ...(current.strom ?? { frei: 0 }) };
 
-  resources.geld = Math.max(0, Number(resources.geld ?? 0) - Number(bt.money_cost ?? 0) * quantity);
-  resources.stein = Math.max(0, Number(resources.stein ?? 0) - Number(bt.stone_cost ?? 0) * quantity);
-  resources.stahl = Math.max(0, Number(resources.stahl ?? 0) - Number(bt.steel_cost ?? 0) * quantity);
-  resources.treibstoff = Math.max(
-    0,
-    Number(resources.treibstoff ?? 0) - Number(bt.fuel_cost ?? 0) * quantity
-  );
+  const isScalable = SCALABLE_CATEGORIES.includes(bt.category);
+  const owned = isScalable ? getBuiltCount(bt.name) : 0;
+
+  const costGeld = isScalable ? calcScaledTotal(Number(bt.money_cost ?? 0), owned, quantity) : Number(bt.money_cost ?? 0) * quantity;
+  const costStein = isScalable ? calcScaledTotal(Number(bt.stone_cost ?? 0), owned, quantity) : Number(bt.stone_cost ?? 0) * quantity;
+  const costStahl = isScalable ? calcScaledTotal(Number(bt.steel_cost ?? 0), owned, quantity) : Number(bt.steel_cost ?? 0) * quantity;
+  const costTreibstoff = isScalable ? calcScaledTotal(Number(bt.fuel_cost ?? 0), owned, quantity) : Number(bt.fuel_cost ?? 0) * quantity;
+
+  resources.geld = Math.max(0, Number(resources.geld ?? 0) - costGeld);
+  resources.stein = Math.max(0, Number(resources.stein ?? 0) - costStein);
+  resources.stahl = Math.max(0, Number(resources.stahl ?? 0) - costStahl);
+  resources.treibstoff = Math.max(0, Number(resources.treibstoff ?? 0) - costTreibstoff);
 
   strom.frei = Math.max(0, Number(strom.frei ?? 0) - Number(bt.power_consumption ?? 0) * quantity);
 

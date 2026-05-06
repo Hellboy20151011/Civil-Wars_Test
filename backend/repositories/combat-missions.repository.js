@@ -30,6 +30,23 @@ export async function createMission(
 }
 
 /**
+ * Anzahl der heute gestarteten Angriffe eines Angreifers auf einen bestimmten Verteidiger.
+ */
+export async function countAttacksByPairToday(attackerId, defenderId, client = pool) {
+    const result = await client.query(
+        `SELECT COUNT(*)::INTEGER AS count
+         FROM combat_missions
+         WHERE attacker_id = $1
+           AND defender_id = $2
+           AND created_at >= date_trunc('day', NOW())
+           AND created_at < date_trunc('day', NOW()) + INTERVAL '1 day'`,
+        [attackerId, defenderId]
+    );
+
+    return Number(result.rows[0]?.count ?? 0);
+}
+
+/**
  * Fügt eine Einheit zu einer Mission hinzu.
  */
 export async function addMissionUnit(missionId, userUnitId, quantitySent, client = pool) {

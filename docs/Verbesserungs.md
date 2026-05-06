@@ -181,7 +181,7 @@ unterstützen mehrere CORS-Origins (inkl. `http://localhost:5173`).
 - `backend/tests/services/units.service.test.js` – 19 Tests: Getter, `startTraining`, `moveUnits`, `arriveAtDestination`, `attackUnits`
 - `backend/tests/services/gameloop-scheduler.test.js` – 7 Tests: `executeGameTick`, `getTickStats`, `startGameLoop`
 - `backend/tests/services/buildings.service.test.js` – 27 Tests: Bau, Upgrade, Queue, Ressourcen- und Stromprüfungen
-- `backend/tests/services/combat.service.test.js` – 18 Tests: Matchups, Sonderregeln, Missions-Rückkehr
+- `backend/tests/services/combat.service.test.js` – 29 Tests: Matchups, Sonderregeln, Missions-Rückkehr
 - `backend/tests/services/espionage.service.test.js` – 20 Tests: Missionsvalidierung, Berichte, Vorschau
 - Alle Abhängigkeiten (Repositories, DB-Pool, config) werden via `vi.mock()` ersetzt; Tests laufen ohne laufende DB.
 - `backend/tests/services/economy.service.test.js` war bereits vorhanden (11 Tests).

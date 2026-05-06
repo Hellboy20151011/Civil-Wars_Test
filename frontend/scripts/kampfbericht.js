@@ -9,17 +9,13 @@ const content = document.getElementById('report-content');
 function parseResult(result) {
   if (!result) return null;
   if (typeof result === 'string') {
-    try {
-      return JSON.parse(result);
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(result); } catch { return null; }
   }
   return result;
 }
 
 function pct(value) {
-  return `${Math.round((Number(value) || 0) * 100)}%`;
+  return `${Math.round((Number(value) || 0) * 100)} %`;
 }
 
 function esc(str) {
@@ -29,28 +25,56 @@ function esc(str) {
     .replaceAll('>', '&gt;');
 }
 
-function rowsForAttacker(list) {
-  if (!list?.length) return '<tr><td colspan="3">Keine Daten</td></tr>';
-  return list
-    .map((u) => `<tr><td>${esc(u.unitName)}</td><td>${Number(u.sent ?? 0)}</td><td>${Number(u.losses ?? 0)}</td></tr>`)
-    .join('');
+function attackerRows(list) {
+  if (!list?.length) return '<tr><td colspan="4" style="padding:8px 6px;color:var(--text-dim)">Keine Daten</td></tr>';
+  return list.map((u) => {
+    const sent = Number(u.sent ?? 0);
+    const losses = Number(u.losses ?? 0);
+    const survived = Number(u.survived ?? sent - losses);
+    return `<tr>
+      <td>${esc(u.unitName)}</td>
+      <td>${sent}</td>
+      <td class="${losses > 0 ? 'red' : ''}">${losses > 0 ? `−${losses}` : '0'}</td>
+      <td class="${survived === sent ? 'green' : survived > 0 ? '' : 'red'}">${survived}</td>
+    </tr>`;
+  }).join('');
 }
 
-function rowsForDefender(list) {
-  if (!list?.length) return '<tr><td colspan="3">Keine Daten</td></tr>';
-  return list
-    .map((u) => `<tr><td>${esc(u.unitName)}</td><td>${Number(u.losses ?? 0)}</td><td>${Number(u.remaining ?? 0)}</td></tr>`)
-    .join('');
+function defenderRows(list) {
+  if (!list?.length) return '<tr><td colspan="3" style="padding:8px 6px;color:var(--text-dim)">Keine Daten</td></tr>';
+  return list.map((u) => {
+    const losses = Number(u.losses ?? 0);
+    const remaining = Number(u.remaining ?? 0);
+    return `<tr>
+      <td>${esc(u.unitName)}</td>
+      <td class="${losses > 0 ? 'red' : ''}">${losses > 0 ? `−${losses}` : '0'}</td>
+      <td class="${remaining === 0 ? 'red' : 'green'}">${remaining}</td>
+    </tr>`;
+  }).join('');
 }
 
-function rowsForPlunder(list) {
-  if (!list?.length) return '<tr><td colspan="3"><em>Keine Gebäude geplündert</em></td></tr>';
-  return list
-    .map(
-      (b) =>
-        `<tr><td>${esc(b.name)}</td><td style="text-align:right;">${Number(b.removed)}</td><td style="text-align:right;">${Number(b.remaining)}</td></tr>`
-    )
-    .join('');
+function plunderRows(list) {
+  if (!list?.length) return '<tr><td colspan="3" style="padding:8px 6px;color:var(--text-dim);font-style:italic;">Keine Gebäude geplündert</td></tr>';
+  return list.map((b) =>
+    `<tr>
+      <td>${esc(b.name)}</td>
+      <td class="red">${Number(b.removed)}</td>
+      <td>${Number(b.remaining)}</td>
+    </tr>`
+  ).join('');
+}
+
+function roundRows(log) {
+  if (!log?.length) return '<tr><td colspan="5" style="padding:8px;color:var(--text-dim)">Keine Rundendaten</td></tr>';
+  return log.map((row) =>
+    `<tr class="${(row.aKilled > 0 || row.dKilled > 0) ? 'cb-round-row-kill' : ''}">
+      <td>${row.r}</td>
+      <td>${row.aAlive + row.aKilled}</td>
+      <td class="${row.aKilled > 0 ? 'red' : ''}">${row.aKilled > 0 ? `−${row.aKilled}` : '—'}</td>
+      <td class="${row.dKilled > 0 ? 'red' : ''}">${row.dKilled > 0 ? `−${row.dKilled}` : '—'}</td>
+      <td>${row.dAlive + row.dKilled}</td>
+    </tr>`
+  ).join('');
 }
 
 async function loadReport() {
@@ -81,69 +105,105 @@ async function loadReport() {
 
     const attackerWon = result.attackerWon === true;
     const myWin = isAttacker ? attackerWon : !attackerWon;
-    const attackerRate = pct(result.attackerCasualtyRate);
-    const defenderRate = pct(result.defenderCasualtyRate);
-
-    const attackerUnits = result.attackerUnits ?? [];
-
     const reportDate = new Date(mission.arrival_time).toLocaleString('de-DE');
+    const rounds = result.rounds ?? null;
+    const roundLog = result.roundLog ?? [];
+    const attackerUnits = result.attackerUnits ?? [];
+    const defenderUnits = result.defenderUnits ?? [];
+
+    const totalSent = attackerUnits.reduce((s, u) => s + Number(u.sent ?? 0), 0);
+    const totalALoss = attackerUnits.reduce((s, u) => s + Number(u.losses ?? 0), 0);
+    const totalDLoss = defenderUnits.reduce((s, u) => s + Number(u.losses ?? 0), 0);
 
     content.innerHTML = `
-      <div class="spy-card">
-        <div class="spy-card-header">
-          <span class="spy-card-icon">${myWin ? '🏆' : '⚠️'}</span>
-          <strong>${isAttacker ? 'Angriff auf' : 'Verteidigung gegen'} ${esc(opponent)}</strong>
-          <span class="spy-card-date">${reportDate}</span>
-        </div>
-        <div class="spy-card-body">
-          <span>📏 Distanz: ${Number(mission.distance).toFixed(1)} Felder</span>
-          <span>⚔ Ergebnis: ${myWin ? 'Sieg' : 'Niederlage'}</span>
-          <span>📉 Verlustrate Angreifer: ${attackerRate}</span>
-          <span>📉 Verlustrate Verteidiger: ${defenderRate}</span>
+      <!-- ── Banner ── -->
+      <div class="cb-banner ${myWin ? 'win' : 'loss'}">
+        <div class="cb-banner-icon">${myWin ? '🏆' : '💀'}</div>
+        <div>
+          <div class="cb-banner-title">${myWin ? 'Sieg' : 'Niederlage'} – ${isAttacker ? 'Angriff auf' : 'Verteidigung gegen'} ${esc(opponent)}</div>
+          <div class="cb-banner-sub">${reportDate} &nbsp;·&nbsp; Distanz: ${Number(mission.distance).toFixed(1)} Felder${rounds != null ? ` &nbsp;·&nbsp; ${rounds} Kampfrunden` : ''}</div>
         </div>
       </div>
 
-      <div class="spy-card" style="margin-top:12px;">
-        <div class="spy-card-header">
-          <span class="spy-card-icon">🪖</span>
-          <strong>Einheitenvergleich</strong>
+      <!-- ── Kennzahlen ── -->
+      <div class="cb-stats">
+        <div class="cb-stat">
+          <div class="cb-stat-label">Eingesetzt</div>
+          <div class="cb-stat-value blue">${totalSent}</div>
         </div>
-        <div class="spy-card-content" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div>
-            <h4 style="margin:0 0 8px 0;">Angreifer</h4>
-            <table style="width:100%;border-collapse:collapse;">
-              <thead>
-                <tr><th style="text-align:left;">Einheit</th><th style="text-align:right;">Gesendet</th><th style="text-align:right;">Verluste</th></tr>
-              </thead>
-              <tbody>${rowsForAttacker(attackerUnits)}</tbody>
-            </table>
-          </div>
-          <div>
-            <h4 style="margin:0 0 8px 0;">Verteidiger</h4>
-            <table style="width:100%;border-collapse:collapse;">
-              <thead>
-                <tr><th style="text-align:left;">Einheit</th><th style="text-align:right;">Verluste</th><th style="text-align:right;">Uebrig</th></tr>
-              </thead>
-              <tbody>${rowsForDefender(result.defenderUnits)}</tbody>
-            </table>
+        <div class="cb-stat">
+          <div class="cb-stat-label">Verluste Angreifer</div>
+          <div class="cb-stat-value ${totalALoss > 0 ? 'red' : 'green'}">${totalALoss}</div>
+        </div>
+        <div class="cb-stat">
+          <div class="cb-stat-label">Verluste Verteidiger</div>
+          <div class="cb-stat-value ${totalDLoss > 0 ? 'red' : 'green'}">${totalDLoss}</div>
+        </div>
+        <div class="cb-stat">
+          <div class="cb-stat-label">Verlustrate A.</div>
+          <div class="cb-stat-value ${result.attackerCasualtyRate > 0 ? 'red' : 'green'}">${pct(result.attackerCasualtyRate)}</div>
+        </div>
+        <div class="cb-stat">
+          <div class="cb-stat-label">Verlustrate V.</div>
+          <div class="cb-stat-value ${result.defenderCasualtyRate > 0 ? 'red' : 'green'}">${pct(result.defenderCasualtyRate)}</div>
+        </div>
+      </div>
+
+      <!-- ── Einheiten ── -->
+      <div class="cb-section">
+        <div class="cb-section-header">🪖 Einheitenvergleich</div>
+        <div class="cb-section-body">
+          <div class="cb-unit-grid">
+            <div class="cb-unit-side">
+              <h4>Angreifer</h4>
+              <table class="cb-table">
+                <thead><tr><th>Einheit</th><th>Gesandt</th><th>Verluste</th><th>Überlebt</th></tr></thead>
+                <tbody>${attackerRows(attackerUnits)}</tbody>
+              </table>
+            </div>
+            <div class="cb-unit-side">
+              <h4>Verteidiger</h4>
+              <table class="cb-table">
+                <thead><tr><th>Einheit</th><th>Verluste</th><th>Übrig</th></tr></thead>
+                <tbody>${defenderRows(defenderUnits)}</tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
-      <div class="spy-card" style="margin-top:12px;">
-        <div class="spy-card-header">
-          <span class="spy-card-icon">🏗️</span>
-          <strong>Geplünderte Gebäude</strong>
+
+      <!-- ── Kampfrunden ── -->
+      ${rounds != null ? `
+      <div class="cb-section">
+        <div class="cb-section-header">🔄 Kampfrunden (${rounds} gesamt)</div>
+        <div class="cb-section-body">
+          <details class="cb-round-details">
+            <summary>Rundenübersicht einblenden</summary>
+            <div class="cb-round-scroll">
+              <table class="cb-table">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;">Runde</th>
+                    <th>Angreifer vorher</th>
+                    <th>Gef. Angreifer</th>
+                    <th>Gef. Verteidiger</th>
+                    <th>Verteidiger vorher</th>
+                  </tr>
+                </thead>
+                <tbody>${roundRows(roundLog)}</tbody>
+              </table>
+            </div>
+          </details>
         </div>
-        <div class="spy-card-content">
-          <table style="width:100%;border-collapse:collapse;">
-            <thead>
-              <tr>
-                <th style="text-align:left;">Gebäude</th>
-                <th style="text-align:right;">Zerstört</th>
-                <th style="text-align:right;">Verbleibend</th>
-              </tr>
-            </thead>
-            <tbody>${rowsForPlunder(result.plunderedBuildings)}</tbody>
+      </div>` : ''}
+
+      <!-- ── Plünderung ── -->
+      <div class="cb-section">
+        <div class="cb-section-header">🏗️ Geplünderte Gebäude</div>
+        <div class="cb-section-body">
+          <table class="cb-table">
+            <thead><tr><th>Gebäude</th><th>Zerstört</th><th>Verbleibend</th></tr></thead>
+            <tbody>${plunderRows(result.plunderedBuildings)}</tbody>
           </table>
         </div>
       </div>

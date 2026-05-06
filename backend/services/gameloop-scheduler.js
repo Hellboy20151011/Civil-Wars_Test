@@ -7,6 +7,7 @@ import { config } from '../config.js';
 import * as economyService from './economy.service.js';
 import * as combatService from './combat.service.js';
 import * as espionageService from './espionage.service.js';
+import * as npcService from './npc.service.js';
 import * as playerRepo from '../repositories/player.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import { broadcastUserStatusUpdate } from './live-updates.service.js';
@@ -69,6 +70,9 @@ export async function executeGameTick() {
         await combatService.processReturningMissions();
         await espionageService.processArrivingSpyMissions();
         await espionageService.processReturningSpyMissions();
+
+        // NPC-KI-Entscheidungen (Bauen, Trainieren, Angreifen)
+        await npcService.tickAllNpcs();
     } catch (error) {
         tickLogger.error({ err: error }, 'Critical tick failure');
     } finally {

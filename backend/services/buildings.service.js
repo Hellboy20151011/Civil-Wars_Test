@@ -12,6 +12,23 @@ import { createServiceError } from './service-error.js';
 const LEVEL_NAME_REGEX = /^(.*) Level (\d+)$/;
 const MONEY_PRODUCTION_BUILDINGS = ['Wohnhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Hochhaus'];
 
+// Kategorien, bei denen jedes weitere gebaute Gebäude 3% teurer wird (linear)
+const SCALABLE_CATEGORIES = ['infrastructure', 'housing'];
+const COST_SCALE_PER_BUILDING = 0.03;
+
+/**
+ * Berechnet die skalierten Gesamtkosten für `quantity` Gebäude,
+ * wenn bereits `existingCount` Gebäude dieses Typs vorhanden sind.
+ * Formel: Σ floor(baseCost × (1 + (existingCount + i) × scale)), i = 0…quantity-1
+ */
+function calculateScaledTotal(baseCost, existingCount, quantity, scale) {
+    let total = 0;
+    for (let i = 0; i < quantity; i++) {
+        total += Math.floor(baseCost * (1 + (existingCount + i) * scale));
+    }
+    return total;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GET: Gebäude abrufen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,10 +370,24 @@ export async function buildBuilding(userId, buildingTypeId, anzahl) {
             throw createServiceError('Ressourcen nicht gefunden', 404, 'RESOURCES_NOT_FOUND');
         }
 
-        const totalGeld = Number(bt.money_cost) * quantity;
-        const totalStein = Number(bt.stone_cost) * quantity;
-        const totalStahl = Number(bt.steel_cost) * quantity;
-        const totalTreibstoff = Number(bt.fuel_cost) * quantity;
+        // Für Infrastruktur- und Unterkunftsgebäude steigen die Kosten pro gebautem Exemplar um 3%
+        const existingCount = SCALABLE_CATEGORIES.includes(bt.category)
+            ? (builtBuildings.find((b) => Number(b.id) === Number(buildingTypeId))?.anzahl ?? 0)
+            : 0;
+        const useScaling = SCALABLE_CATEGORIES.includes(bt.category);
+
+        const totalGeld = useScaling
+            ? calculateScaledTotal(Number(bt.money_cost), existingCount, quantity, COST_SCALE_PER_BUILDING)
+            : Number(bt.money_cost) * quantity;
+        const totalStein = useScaling
+            ? calculateScaledTotal(Number(bt.stone_cost), existingCount, quantity, COST_SCALE_PER_BUILDING)
+            : Number(bt.stone_cost) * quantity;
+        const totalStahl = useScaling
+            ? calculateScaledTotal(Number(bt.steel_cost), existingCount, quantity, COST_SCALE_PER_BUILDING)
+            : Number(bt.steel_cost) * quantity;
+        const totalTreibstoff = useScaling
+            ? calculateScaledTotal(Number(bt.fuel_cost), existingCount, quantity, COST_SCALE_PER_BUILDING)
+            : Number(bt.fuel_cost) * quantity;
 
         if (Number(resources.geld) < totalGeld) {
             throw createServiceError(`Nicht genug Geld. Benötigt: ${totalGeld}`, 400, 'INSUFFICIENT_GELD');
