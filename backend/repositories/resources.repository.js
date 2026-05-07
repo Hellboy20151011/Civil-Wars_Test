@@ -38,6 +38,15 @@ async function changeResourceByName(userId, resourceName, delta, newTimestamp, c
     );
 }
 
+function toResourceDeductions(geld, stein, stahl, treibstoff) {
+    return [
+        ['Geld', Math.max(0, Number(geld || 0))],
+        ['Stein', Math.max(0, Number(stein || 0))],
+        ['Stahl', Math.max(0, Number(stahl || 0))],
+        ['Treibstoff', Math.max(0, Number(treibstoff || 0))],
+    ].filter(([, amount]) => amount > 0);
+}
+
 // Startressourcen für neue Spieler anlegen
 export async function initForUser(userId, client = pool) {
     const initial = {
@@ -121,14 +130,63 @@ export async function addResources(
 
 // Kosten abziehen
 export async function deductResources(userId, geld, stein, stahl, treibstoff, client = pool) {
-    await changeResourceByName(userId, 'Geld', -Math.max(0, Number(geld || 0)), null, client);
-    await changeResourceByName(userId, 'Stein', -Math.max(0, Number(stein || 0)), null, client);
-    await changeResourceByName(userId, 'Stahl', -Math.max(0, Number(stahl || 0)), null, client);
-    await changeResourceByName(
-        userId,
-        'Treibstoff',
-        -Math.max(0, Number(treibstoff || 0)),
-        null,
-        client
+    const deductions = toResourceDeductions(geld, stein, stahl, treibstoff);
+    if (deductions.length === 0) return;
+
+    const resourceTypes = await referenceDataRepo.getResourceTypes(client);
+    const typeByName = new Map(resourceTypes.map((entry) => [entry.name, entry.id]));
+
+    const resourceTypeIds = [];
+    const amounts = [];
+
+    for (const [resourceName, amount] of deductions) {
+        const resourceTypeId = typeByName.get(resourceName);
+        if (!resourceTypeId) continue;
+        resourceTypeIds.push(Number(resourceTypeId));
+        amounts.push(Math.trunc(amount));
+    }
+
+    if (resourceTypeIds.length !== deductions.length) {
+        const error = new Error('RESOURCE_TYPE_MISSING');
+        error.code = 'RESOURCE_TYPE_MISSING';
+        throw error;
+    }
+
+    const result = await client.query(
+        `WITH requested AS (
+             SELECT *
+             FROM UNNEST($2::INT[], $3::BIGINT[]) AS req(resource_type_id, amount)
+         ),
+         required AS (
+             SELECT COUNT(*)::INT AS total FROM requested
+         ),
+         available AS (
+             SELECT COUNT(*)::INT AS total
+             FROM user_resources ur
+             JOIN requested req ON req.resource_type_id = ur.resource_type_id
+             WHERE ur.user_id = $1
+               AND ur.amount >= req.amount
+         ),
+         updated AS (
+             UPDATE user_resources ur
+             SET amount = ur.amount - req.amount
+             FROM requested req, required, available
+             WHERE ur.user_id = $1
+               AND ur.resource_type_id = req.resource_type_id
+               AND required.total = available.total
+             RETURNING ur.resource_type_id
+         )
+         SELECT
+             (SELECT total FROM required) AS required_count,
+             COUNT(*)::INT AS updated_count
+         FROM updated`,
+        [userId, resourceTypeIds, amounts]
     );
+
+    const summary = result.rows[0] ?? { required_count: 0, updated_count: 0 };
+    if (Number(summary.updated_count) !== Number(summary.required_count)) {
+        const error = new Error('INSUFFICIENT_RESOURCES');
+        error.code = 'INSUFFICIENT_RESOURCES';
+        throw error;
+    }
 }

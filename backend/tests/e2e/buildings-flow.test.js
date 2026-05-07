@@ -1,21 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { registerAndLogin as registerAndLoginFull } from './helpers.js';
 
 /**
- * Registriert einen neuen Spieler und gibt den JWT zurück.
+ * Kurzform: nur Token zurückgeben (Abwärtskompatibilität mit bestehenden Tests).
  */
 async function registerAndLogin(request) {
-    const suffix = Date.now();
-    await request.post('/auth/register', {
-        data: {
-            username: `bld_user_${suffix}`,
-            email: `bld_${suffix}@test.local`,
-            password: 'TestPass123!',
-        },
-    });
-    const login = await request.post('/auth/login', {
-        data: { username: `bld_user_${suffix}`, password: 'TestPass123!' },
-    });
-    const { token } = await login.json();
+    const { token } = await registerAndLoginFull(request, 'bld');
     return token;
 }
 

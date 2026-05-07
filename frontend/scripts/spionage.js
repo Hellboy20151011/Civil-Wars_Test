@@ -1,37 +1,21 @@
 import { initShell, getAuth, refreshShellStatus } from '/scripts/shell.js';
-import { API_BASE_URL } from '/scripts/config.js';
+import { escapeHtml } from '/scripts/utils/escape.js';
+import { createApiClient } from '/scripts/api/client.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
+const { apiGet, apiPost } = createApiClient(auth);
+
 const container = document.getElementById('spionage-planung');
+
+function renderErrorCard(message) {
+    return `<div class="spy-error">${escapeHtml(message)}</div>`;
+}
 
 function getTargetId() {
     const id = Number(new URLSearchParams(window.location.search).get('target_id'));
     return Number.isFinite(id) && id > 0 ? id : null;
-}
-
-async function apiGet(path) {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-        headers: { Authorization: `Bearer ${auth.token}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'Abruf fehlgeschlagen');
-    return data;
-}
-
-async function apiPost(path, body) {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'Aktion fehlgeschlagen');
-    return data;
 }
 
 function renderNoTarget() {
@@ -76,7 +60,7 @@ async function initPlanning() {
     if (!intelUnits.length) {
         container.innerHTML = `
             <div class="spy-card">
-                <div class="spy-card-header"><span class="spy-card-icon">🕵️</span><strong>Spionage: ${target.username}</strong></div>
+                <div class="spy-card-header"><span class="spy-card-icon">🕵️</span><strong>Spionage: ${escapeHtml(target.username)}</strong></div>
                 <div class="spy-card-content">Keine verfuegbaren Geheimdiensteinheiten.</div>
             </div>
         `;
@@ -85,10 +69,10 @@ async function initPlanning() {
 
     container.innerHTML = `
         <div class="spy-card">
-            <div class="spy-card-header"><span class="spy-card-icon">🕵️</span><strong>Spionage: ${target.username}</strong></div>
+            <div class="spy-card-header"><span class="spy-card-icon">🕵️</span><strong>Spionage: ${escapeHtml(target.username)}</strong></div>
             <div id="spy-preview-info" class="spy-card-body">
-                <span>📍 Ziel: (${target.koordinate_x}, ${target.koordinate_y})</span>
-                <span>📏 Distanz: ${dist.toFixed(1)} Felder</span>
+                <span>📍 Ziel: (${escapeHtml(target.koordinate_x)}, ${escapeHtml(target.koordinate_y)})</span>
+                <span>📏 Distanz: ${escapeHtml(dist.toFixed(1))} Felder</span>
             </div>
             <div id="spy-units-list"></div>
             <div class="spy-card-content">
@@ -128,9 +112,9 @@ async function initPlanning() {
         const row = document.createElement('div');
         row.className = 'attack-unit-row';
         row.innerHTML = `
-            <span class="attack-unit-name">${u.name}</span>
-            <span class="attack-unit-avail">/${u.quantity}</span>
-            <input class="attack-unit-qty" type="number" min="0" max="${u.quantity}" value="0" data-unit-id="${u.id}" />
+            <span class="attack-unit-name">${escapeHtml(u.name)}</span>
+            <span class="attack-unit-avail">/${escapeHtml(u.quantity)}</span>
+            <input class="attack-unit-qty" type="number" min="0" max="${escapeHtml(u.quantity)}" value="0" data-unit-id="${escapeHtml(u.id)}" />
         `;
         list.appendChild(row);
     }
@@ -148,11 +132,11 @@ async function initPlanning() {
             const preview = await apiGet(`/espionage/preview?target_id=${target.id}&unit_ids=${ids}&quantities=${quantities}`);
             const p = preview.data;
             previewNode.innerHTML = `
-                <span>📍 Ziel: ${p.targetUsername} (${p.targetCoords.x}, ${p.targetCoords.y})</span>
-                <span>📏 Distanz: ${p.distance} Felder</span>
-                <span>⏱ Reisezeit: ~${p.travelMinutes} min</span>
-                <span>🛢️ Treibstoff: ${Number(p.fuelCost).toLocaleString('de-DE')} L</span>
-                <span>🧪 Verfügbar: ${Number(availableFuel).toLocaleString('de-DE')} L</span>
+                <span>📍 Ziel: ${escapeHtml(p.targetUsername)} (${escapeHtml(p.targetCoords.x)}, ${escapeHtml(p.targetCoords.y)})</span>
+                <span>📏 Distanz: ${escapeHtml(p.distance)} Felder</span>
+                <span>⏱ Reisezeit: ~${escapeHtml(p.travelMinutes)} min</span>
+                <span>🛢️ Treibstoff: ${escapeHtml(Number(p.fuelCost).toLocaleString('de-DE'))} L</span>
+                <span>🧪 Verfügbar: ${escapeHtml(Number(availableFuel).toLocaleString('de-DE'))} L</span>
                 <span>Hinweis: Treibstoff wird beim Absenden abgezogen.</span>
             `;
             setLaunchState(Number(p.fuelCost) <= availableFuel, Number(p.fuelCost));
@@ -196,5 +180,5 @@ await initShell();
 try {
     await initPlanning();
 } catch (err) {
-    container.innerHTML = `<div class="spy-error">${err.message}</div>`;
+    container.innerHTML = renderErrorCard(err.message);
 }

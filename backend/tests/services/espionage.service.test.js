@@ -6,7 +6,14 @@ vi.mock('../../repositories/units.repository.js');
 vi.mock('../../repositories/resources.repository.js');
 vi.mock('../../repositories/transaction.repository.js');
 vi.mock('../../services/live-updates.service.js');
-vi.mock('../../utils/game-math.js');
+vi.mock('../../utils/game-math.js', async (importOriginal) => {
+    const real = await importOriginal();
+    return {
+        ...real,
+        calcDistance: vi.fn(),
+        calcArrivalTime: vi.fn(),
+    };
+});
 
 import * as spyRepo from '../../repositories/spy-missions.repository.js';
 import * as playerRepo from '../../repositories/player.repository.js';
@@ -14,6 +21,7 @@ import * as unitsRepo from '../../repositories/units.repository.js';
 import * as resourcesRepo from '../../repositories/resources.repository.js';
 import { withTransaction } from '../../repositories/transaction.repository.js';
 import { calcDistance, calcArrivalTime } from '../../utils/game-math.js';
+import { broadcastToUser } from '../../services/live-updates.service.js';
 import {
     launchSpyMission,
     processArrivingSpyMissions,
@@ -195,10 +203,7 @@ describe('launchSpyMission', () => {
 // processArrivingSpyMissions
 // ---------------------------------------------------------------------------
 describe('processArrivingSpyMissions', () => {
-    it('erzwingt 100% Erfolg ohne Gegenspionageverteidigung', async () => {
-        // Würde normalerweise scheitern, muss ohne Gegenspionage trotzdem sicher erfolgreich sein.
-        vi.spyOn(Math, 'random').mockReturnValue(1);
-
+    it('erstellt einen level3-Bericht ohne Verteidigung und benachrichtigt den Verteidiger nicht', async () => {
         const mission = {
             id: 99, spy_id: 1, target_id: 2,
             spy_username: 'spy', target_username: 'target',
@@ -206,14 +211,15 @@ describe('processArrivingSpyMissions', () => {
         };
         spyRepo.findArrivingMissions.mockResolvedValue([mission]);
         spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 10, user_unit_id: 1, quantity_sent: 3, name: 'Agent', movement_speed: 2 },
+            { id: 10, user_unit_id: 1, quantity_sent: 3, name: 'Agent', movement_speed: 2, spy_attack: 20 },
         ]);
-        spyRepo.findIntelLevel.mockResolvedValue(0);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(0);
-        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 2 });
+        spyRepo.findTotalSpyDefense.mockResolvedValue(0);
         spyRepo.findUnitSummaryForReport.mockResolvedValue([
             { name: 'Infanterist', category: 'infantry', quantity: 5 },
+            { name: 'Agent', category: 'intel', quantity: 1 },
+            { name: 'Küstengeschütz', category: 'defense', quantity: 2 },
         ]);
+        spyRepo.findProductionBuildingsForReport.mockResolvedValue([{ name: 'Stahlwerk', count: 2 }]);
         spyRepo.setMissionResult.mockResolvedValue(undefined);
 
         await processArrivingSpyMissions();
@@ -221,15 +227,20 @@ describe('processArrivingSpyMissions', () => {
         const call = spyRepo.setMissionResult.mock.calls[0];
         expect(call[1]).toBe('traveling_back');
         expect(call[2].success).toBe(true);
-        expect(call[2].spiesCaught).toBe(0);
-        expect(call[2].successRatePercent).toBe(100);
-
-        vi.spyOn(Math, 'random').mockRestore();
+        expect(call[2].detail).toBe('level3');
+        expect(call[2].units).toHaveProperty('Infanterist');
+        expect(call[2].units).not.toHaveProperty('Agent');
+        expect(call[2].defenses).toEqual([{ name: 'Küstengeschütz', quantity: 2 }]);
+        expect(broadcastToUser).toHaveBeenCalledTimes(1);
+        expect(broadcastToUser).toHaveBeenCalledWith(1, 'spy_mission_update', expect.objectContaining({
+            missionId: 99,
+            status: 'traveling_back',
+            level: 'level3',
+            targetUsername: 'target',
+        }));
     });
 
-    it('verarbeitet ankommende Missionen ohne Fehler', async () => {
-        // Math.random = 0.5, intelLevel=2 → rate=0.70, all spies succeed → full report
-        vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    it('erstellt einen level2-Bericht im mittleren Verhaeltnisbereich', async () => {
         const mission = {
             id: 1, spy_id: 1, target_id: 2,
             spy_username: 'spy', target_username: 'target',
@@ -237,58 +248,31 @@ describe('processArrivingSpyMissions', () => {
         };
         spyRepo.findArrivingMissions.mockResolvedValue([mission]);
         spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 10, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2 },
+            { id: 10, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2, spy_attack: 13 },
         ]);
-        spyRepo.findIntelLevel.mockResolvedValue(2);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(0);
-        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 2 });
-        // Include infantry and defense units to cover lines 91-92 (non-intel filter) and 97-98 (defense filter)
-        spyRepo.findUnitSummaryForReport.mockResolvedValue([
-            { name: 'Infanterist', category: 'infantry', quantity: 5 },
-            { name: 'Küstengeschütz', category: 'defense', quantity: 2 },
-        ]);
+        spyRepo.findTotalSpyDefense.mockResolvedValue(10);
+        spyRepo.findProductionBuildingsForReport.mockResolvedValue([{ name: 'Ölpumpe', count: 1 }]);
+        spyRepo.findUnitDefenseTotalsForReport.mockResolvedValue({ totalUnits: 5, totalDefenses: 2 });
         spyRepo.setMissionResult.mockResolvedValue(undefined);
 
         await expect(processArrivingSpyMissions()).resolves.toBeUndefined();
         const call = spyRepo.setMissionResult.mock.calls[0];
-        expect(call[2].detail).toBe('full');
-        expect(call[2].units).toHaveProperty('Infanterist');
-        expect(call[2].defenses).toHaveLength(1);
-        vi.spyOn(Math, 'random').mockRestore();
+        expect(call[1]).toBe('traveling_back');
+        expect(call[2].detail).toBe('level2');
+        expect(call[2].productionBuildings).toEqual([{ name: 'Ölpumpe', count: 1 }]);
+        expect(call[2].totalUnits).toBe(5);
+        expect(call[2].totalDefenses).toBe(2);
+        expect(broadcastToUser).toHaveBeenNthCalledWith(1, 2, 'spy_detected', {
+            spiesDetected: 0,
+            originUsername: 'spy',
+        });
+        expect(broadcastToUser).toHaveBeenNthCalledWith(2, 1, 'spy_mission_update', expect.objectContaining({
+            level: 'level2',
+            status: 'traveling_back',
+        }));
     });
 
-    it('filtert intel-Einheiten aus full-detail units heraus', async () => {
-        vi.spyOn(Math, 'random').mockReturnValue(0.5);
-        const mission = {
-            id: 8, spy_id: 1, target_id: 2,
-            spy_username: 'spy', target_username: 'target',
-            spies_sent: 1, distance: 8,
-        };
-        spyRepo.findArrivingMissions.mockResolvedValue([mission]);
-        spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 10, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2 },
-        ]);
-        spyRepo.findIntelLevel.mockResolvedValue(2);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(0);
-        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 2 });
-        spyRepo.findUnitSummaryForReport.mockResolvedValue([
-            { name: 'Infanterist', category: 'infantry', quantity: 5 },
-            { name: 'Agent', category: 'intel', quantity: 1 },
-        ]);
-        spyRepo.setMissionResult.mockResolvedValue(undefined);
-
-        await expect(processArrivingSpyMissions()).resolves.toBeUndefined();
-        const call = spyRepo.setMissionResult.mock.calls[0];
-        expect(call[2].detail).toBe('full');
-        expect(call[2].units).toHaveProperty('Infanterist');
-        expect(call[2].units).not.toHaveProperty('Agent');
-        vi.spyOn(Math, 'random').mockRestore();
-    });
-
-    it('setzt Status auf aborted wenn alle Spione erwischt wurden', async () => {
-        // Math.random immer 1 → alle Spione scheitern
-        vi.spyOn(Math, 'random').mockReturnValue(1);
-
+    it('setzt Status auf aborted wenn das Angriffs-/Abwehr-Verhaeltnis zu niedrig ist', async () => {
         const mission = {
             id: 2, spy_id: 1, target_id: 2,
             spy_username: 'spy', target_username: 'target',
@@ -296,10 +280,9 @@ describe('processArrivingSpyMissions', () => {
         };
         spyRepo.findArrivingMissions.mockResolvedValue([mission]);
         spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 10, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2 },
+            { id: 10, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2, spy_attack: 10 },
         ]);
-        spyRepo.findIntelLevel.mockResolvedValue(0);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(3); // starke Gegenspionage
+        spyRepo.findTotalSpyDefense.mockResolvedValue(20);
         spyRepo.setMissionResult.mockResolvedValue(undefined);
 
         await processArrivingSpyMissions();
@@ -307,8 +290,15 @@ describe('processArrivingSpyMissions', () => {
         const call = spyRepo.setMissionResult.mock.calls[0];
         expect(call[1]).toBe('aborted');
         expect(call[2].success).toBe(false);
-
-        vi.spyOn(Math, 'random').mockRestore();
+        expect(call[2].detail).toBe('failed');
+        expect(broadcastToUser).toHaveBeenNthCalledWith(1, 2, 'spy_detected', {
+            spiesDetected: 1,
+            originUsername: 'spy',
+        });
+        expect(broadcastToUser).toHaveBeenNthCalledWith(2, 1, 'spy_mission_update', expect.objectContaining({
+            level: 'failed',
+            status: 'aborted',
+        }));
     });
 
     it('loggt Fehler bei einzelner Mission ohne andere zu blockieren', async () => {
@@ -325,7 +315,7 @@ describe('processArrivingSpyMissions', () => {
 // processReturningSpyMissions
 // ---------------------------------------------------------------------------
 describe('processReturningSpyMissions', () => {
-    it('gibt überlebende Spione zurück und schließt Mission ab', async () => {
+    it('gibt bei erfolgreicher Rückkehr alle entsandten Spione zurück und schließt Mission ab', async () => {
         spyRepo.findReturningMissions.mockResolvedValue([
             {
                 id: 1, spy_id: 1, target_username: 'target',
@@ -341,9 +331,8 @@ describe('processReturningSpyMissions', () => {
 
         await processReturningSpyMissions();
 
-        // 3 gesendet - 1 erwischt = 2 zurück
-        expect(unitsRepo.addUnitQuantity).toHaveBeenCalledWith(1, 2, {});
-        expect(spyRepo.completeMission).toHaveBeenCalledWith(1, 2, {});
+        expect(unitsRepo.addUnitQuantity).toHaveBeenCalledWith(1, 3, {});
+        expect(spyRepo.completeMission).toHaveBeenCalledWith(1, 3, {});
     });
 
     it('loggt Fehler bei einzelner Mission ohne andere zu blockieren', async () => {
@@ -356,7 +345,7 @@ describe('processReturningSpyMissions', () => {
         await expect(processReturningSpyMissions()).resolves.toBeUndefined();
     });
 
-    it('stoppt Rueckgabe sobald remainingToReturn 0 erreicht', async () => {
+    it('gibt alle Missions-Einheiten der Rueckreise wieder frei', async () => {
         spyRepo.findReturningMissions.mockResolvedValue([
             {
                 id: 11, spy_id: 1, target_username: 'target',
@@ -373,8 +362,9 @@ describe('processReturningSpyMissions', () => {
 
         await processReturningSpyMissions();
 
-        expect(unitsRepo.addUnitQuantity).toHaveBeenCalledTimes(1);
+        expect(unitsRepo.addUnitQuantity).toHaveBeenCalledTimes(2);
         expect(unitsRepo.addUnitQuantity).toHaveBeenCalledWith(1, 1, {});
+        expect(unitsRepo.addUnitQuantity).toHaveBeenCalledWith(2, 1, {});
     });
 });
 
@@ -437,9 +427,9 @@ describe('getMissionPreview', () => {
 });
 
 // ---------------------------------------------------------------------------
-// calcSuccessRate – Sonderboni für fortgeschrittene Einheiten
+// Verhältnislogik – Levelableitung über Angriff/Abwehr
 // ---------------------------------------------------------------------------
-describe('calcSuccessRate via processArrivingSpyMissions', () => {
+describe('determineSpyLevel via processArrivingSpyMissions', () => {
     const mkMission = (id) => ({
         id,
         spy_id: 1,
@@ -450,49 +440,42 @@ describe('calcSuccessRate via processArrivingSpyMissions', () => {
         distance: 5,
     });
 
-    it('SR-71 Aufklärer erhält +15 % Erfolgsbonus', async () => {
-        // intelLevel=0, counterIntelLevel=0 → base=50 → with SR-71: 65 → successRate=0.65
-        vi.spyOn(Math, 'random').mockReturnValue(0.5); // 0.5 < 0.65 → Erfolg
+    it('klassifiziert 1.10 Verhältnis als level1', async () => {
         spyRepo.findArrivingMissions.mockResolvedValue([mkMission(20)]);
         spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 10, user_unit_id: 1, quantity_sent: 1, name: 'SR-71 Aufklärer', movement_speed: 3 },
+            { id: 10, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 3, spy_attack: 11 },
         ]);
-        spyRepo.findIntelLevel.mockResolvedValue(0);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(0);
-        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 1 });
-        spyRepo.findUnitSummaryForReport.mockResolvedValue([]);
-        spyRepo.setMissionResult.mockResolvedValue(undefined);
-
-        await processArrivingSpyMissions();
-
-        const call = spyRepo.setMissionResult.mock.calls[0];
-        expect(call[1]).toBe('traveling_back'); // mission succeeded
-        vi.spyOn(Math, 'random').mockRestore();
-    });
-
-    it('Spionagesatellit erhält +30 % Erfolgsbonus', async () => {
-        // intelLevel=0, counterIntelLevel=0 → base=50 → with Satellit: 80 → successRate=0.80
-        vi.spyOn(Math, 'random').mockReturnValue(0.7); // 0.7 < 0.80 → Erfolg
-        spyRepo.findArrivingMissions.mockResolvedValue([mkMission(21)]);
-        spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 11, user_unit_id: 1, quantity_sent: 1, name: 'Spionagesatellit', movement_speed: 4 },
-        ]);
-        spyRepo.findIntelLevel.mockResolvedValue(0);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(0);
-        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 1 });
-        spyRepo.findUnitSummaryForReport.mockResolvedValue([]);
+        spyRepo.findTotalSpyDefense.mockResolvedValue(10);
+        spyRepo.findPlunderableBuildingCount.mockResolvedValue(4);
         spyRepo.setMissionResult.mockResolvedValue(undefined);
 
         await processArrivingSpyMissions();
 
         const call = spyRepo.setMissionResult.mock.calls[0];
         expect(call[1]).toBe('traveling_back');
-        vi.spyOn(Math, 'random').mockRestore();
+        expect(call[2].detail).toBe('level1');
+    });
+
+    it('klassifiziert 1.80 Verhältnis als level3', async () => {
+        spyRepo.findArrivingMissions.mockResolvedValue([mkMission(21)]);
+        spyRepo.findMissionUnits.mockResolvedValue([
+            { id: 11, user_unit_id: 1, quantity_sent: 1, name: 'Spionagesatellit', movement_speed: 4, spy_attack: 18 },
+        ]);
+        spyRepo.findTotalSpyDefense.mockResolvedValue(10);
+        spyRepo.findUnitSummaryForReport.mockResolvedValue([]);
+        spyRepo.findProductionBuildingsForReport.mockResolvedValue([]);
+        spyRepo.setMissionResult.mockResolvedValue(undefined);
+
+        await processArrivingSpyMissions();
+
+        const call = spyRepo.setMissionResult.mock.calls[0];
+        expect(call[1]).toBe('traveling_back');
+        expect(call[2].detail).toBe('level3');
     });
 });
 
 // ---------------------------------------------------------------------------
-// buildReport – detail-Level (low / medium / full)
+// buildReport – detail-Level (level1 / level2)
 // ---------------------------------------------------------------------------
 describe('buildReport detail-Level via processArrivingSpyMissions', () => {
     const mkMission = (id) => ({
@@ -505,49 +488,41 @@ describe('buildReport detail-Level via processArrivingSpyMissions', () => {
         distance: 5,
     });
 
-    it('erstellt einen Low-Detail-Bericht wenn successRate < 0.30', async () => {
-        // intelLevel=0, counterIntelLevel=2 → base = 50 - 30 = 20 → 0.20 < 0.30
-        vi.spyOn(Math, 'random').mockReturnValue(0.1); // 0.1 < 0.20 → Erfolg
+    it('erstellt einen level1-Bericht bei leichter Überlegenheit', async () => {
         spyRepo.findArrivingMissions.mockResolvedValue([mkMission(30)]);
         spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 12, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2 },
+            { id: 12, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2, spy_attack: 11 },
         ]);
-        spyRepo.findIntelLevel.mockResolvedValue(0);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(2);
-        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 2, economy: 1 });
-        spyRepo.findUnitSummaryForReport.mockResolvedValue([]);
+        spyRepo.findTotalSpyDefense.mockResolvedValue(10);
+        spyRepo.findPlunderableBuildingCount.mockResolvedValue(6);
         spyRepo.setMissionResult.mockResolvedValue(undefined);
 
         await processArrivingSpyMissions();
 
         const call = spyRepo.setMissionResult.mock.calls[0];
         const report = call[2];
-        expect(report.detail).toBe('low');
-        expect(report.buildings).toHaveProperty('categories');
-        vi.spyOn(Math, 'random').mockRestore();
+        expect(report.detail).toBe('level1');
+        expect(report.plunderableBuildingsApprox).toBeTypeOf('number');
+        expect(report.defenseValueFuzzy).toBeTypeOf('number');
     });
 
-    it('erstellt einen Medium-Detail-Bericht wenn 0.30 <= successRate < 0.60', async () => {
-        // intelLevel=0, counterIntelLevel=1 → base = 50 - 15 = 35 → 0.35
-        vi.spyOn(Math, 'random').mockReturnValue(0.2); // 0.2 < 0.35 → Erfolg
+    it('erstellt einen level2-Bericht bei mittlerer Überlegenheit', async () => {
         spyRepo.findArrivingMissions.mockResolvedValue([mkMission(31)]);
         spyRepo.findMissionUnits.mockResolvedValue([
-            { id: 13, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2 },
+            { id: 13, user_unit_id: 1, quantity_sent: 1, name: 'Agent', movement_speed: 2, spy_attack: 13 },
         ]);
-        spyRepo.findIntelLevel.mockResolvedValue(0);
-        spyRepo.findCounterIntelLevel.mockResolvedValue(1);
-        spyRepo.findBuildingSummaryForReport.mockResolvedValue({ military: 3 });
-        spyRepo.findUnitSummaryForReport.mockResolvedValue([
-            { name: 'Infanterist', category: 'infantry', quantity: 5 },
-        ]);
+        spyRepo.findTotalSpyDefense.mockResolvedValue(10);
+        spyRepo.findProductionBuildingsForReport.mockResolvedValue([{ name: 'Kraftwerk', count: 2 }]);
+        spyRepo.findUnitDefenseTotalsForReport.mockResolvedValue({ totalUnits: 5, totalDefenses: 3 });
         spyRepo.setMissionResult.mockResolvedValue(undefined);
 
         await processArrivingSpyMissions();
 
         const call = spyRepo.setMissionResult.mock.calls[0];
         const report = call[2];
-        expect(report.detail).toBe('medium');
-        expect(report.units).toHaveProperty('categories');
-        vi.spyOn(Math, 'random').mockRestore();
+        expect(report.detail).toBe('level2');
+        expect(report.productionBuildings).toEqual([{ name: 'Kraftwerk', count: 2 }]);
+        expect(report.totalUnits).toBe(5);
+        expect(report.totalDefenses).toBe(3);
     });
 });

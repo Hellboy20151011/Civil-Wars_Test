@@ -63,7 +63,7 @@ app.get('/dashboard.html', (req, res) => {
 });
 
 app.get('/bauhof.html', (req, res) => {
-    res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/Bauhof.html'));
+    res.sendFile(path.join(ACTIVE_FRONTEND_DIR, 'pages/bauhof.html'));
 });
 
 app.get('/militaer.html', (req, res) => {

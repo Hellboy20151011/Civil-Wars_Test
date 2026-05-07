@@ -11,11 +11,24 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Added
 
+- `frontend/scripts/utils/time.js` – Gemeinsamer `formatTimeLeft()`-Helper für Countdowns/Zeitanzeigen; ersetzt duplizierte Implementierungen in shell.js, dashboard.js, forschungen.js, missionen.js.
+- `frontend/scripts/api/client.js` – Gemeinsamer API-Client `createApiClient(auth)` mit `apiFetch`, `apiGet`, `apiPost`; ersetzt duplizierte Fetch-Wrapper in 8 Frontend-Dateien.
+- `backend/database/migrate_v9_timestamptz.sql` – Migration: Alle `TIMESTAMP`-Spalten auf `TIMESTAMPTZ` umgestellt (building_types, unit_types, research_projects, user_researches, user_buildings, user_resources, user_units).
+- `backend/tests/e2e/helpers.js` – Gemeinsamer E2E-Helper `registerAndLogin()` für alle E2E-Tests; ersetzt drei identische lokale Implementierungen.
+- `backend/utils/game-math.js` – `calculateFuelCost(distance, units)` als geteilte Utility-Funktion ergänzt; ersetzt doppelte Implementierungen in combat.service.js und espionage.service.js.
 - `backend/database/migrate_v7_spy_stats.sql` – Migration: Spalten `spy_attack` und `spy_defense` in `unit_types`; setzt Werte für Spion (20/30), SR-71 Aufklärer (50/40), Spionagesatellit (120/60).
 - `backend/database/migrate_v6_npc.sql` – Migration: Spalten `is_npc BOOLEAN` und `npc_type VARCHAR(20)` in `users`-Tabelle; Index `idx_users_is_npc`.
 - `backend/repositories/npc.repository.js` – `findActiveNpcs()` und `createNpc()` für NPC-Accounts.
 - `backend/services/npc.service.js` – KI-Tick-Service: NPCs bauen eigenständig Gebäude nach Priorität, trainieren Einheiten und (bei `aggressive`-Typ) starten Angriffe auf nahegelegene Spieler.
 - `backend/scripts/seed-npcs.js` – Seed-Script zum Anlegen von 3 Test-NPCs (2× defensiv, 1× aggressiv).
+- `frontend/scripts/utils/escape.js` – zentraler HTML-Escaping-Helper für Frontend-Templates mit dynamischen API-/User-Daten.
+- `backend/database/migrate_v8_resource_guards.sql` – Migration ergänzt einen DB-Schutz gegen negative `user_resources.amount`-Werte für neue Schreibvorgänge.
+
+### Removed
+
+- `docs/Review_v2_2026-05-05.md` – Leere, nie befüllte Review-Vorlage aus dem Repository entfernt.
+- `docs/hallo.csv`, `docs/hallo.html`, `docs/hallo.json` – Export-Artefakte aus `docs/` entfernt (gehören nicht zur Projektdokumentation).
+- `backend/database/schemas/user_profiles.sql` – Leere Platzhalter-Datei gelöscht; Referenz aus `backend/scripts/resetdb.js` entfernt.
 
 ### Changed
 
@@ -28,7 +41,27 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 - `backend/services/gameloop-scheduler.js` – `npcService.tickAllNpcs()` wird am Ende jedes Ticks aufgerufen.
 
+- `frontend/scripts/shell.js` – `formatTimeLeft` aus lokalem Inline-Code auf Import aus `utils/time.js` umgestellt.
+- `frontend/scripts/dashboard.js` – Lokale `apiFetch`-Funktion und `formatTimeLeft` durch Imports aus `api/client.js` bzw. `utils/time.js` ersetzt.
+- `frontend/scripts/forschungen.js` – Lokale `apiFetch`-Funktion durch `createApiClient`-Import ersetzt.
+- `frontend/scripts/missionen.js` – Lokale `formatTimeLeft`- und `apiGet`-Implementierungen durch Imports ersetzt.
+- `frontend/scripts/geheimdienstzentrum.js` – Lokale `apiFetch`-Funktion durch `createApiClient`-Import ersetzt.
+- `frontend/scripts/militaer.js` – Lokale `apiFetch`-Funktion durch `createApiClient`-Import ersetzt.
+- `frontend/scripts/bauhof.js` – Lokale `apiFetch`-Funktion (mit `cache: 'no-store'`) durch `createApiClient`-Import mit option-basiertem Cache-Override ersetzt.
+- `frontend/scripts/kampf.js` – Lokale `apiGet`/`apiPost`-Funktionen durch `createApiClient`-Import ersetzt.
+- `frontend/scripts/spionage.js` – Lokale `apiGet`/`apiPost`-Funktionen durch `createApiClient`-Import ersetzt.
+
 - `backend/data/combat-matchups.json` – Matchup-Matrix auf numerische Werte (`number`) und `null` normalisiert; Stringwerte (`"1,5"`) und `"x"` entfernt.
+- `backend/routes/buildings.js` – `POST /buildings/build`: try/catch mit direktem `res.status().json()` entfernt; Fehler werden jetzt via `asyncWrapper` an den zentralen `errorHandler` delegiert.
+- `backend/repositories/player.repository.js` – `findAllForMap()` akzeptiert optionalen `bbox`-Parameter (`{ xMin, yMin, xMax, yMax }`) für Kartenausschnitt-Filterung.
+- `backend/routes/map.js` – `GET /map/players` liest optionale Query-Parameter `x_min/y_min/x_max/y_max` und reicht Bounding-Box an Repository weiter.
+- `backend/repositories/reference-data.repository.js` – `invalidateCache()` als öffentliche Export-Funktion ergänzt (z. B. für Tests und Seed-Scripts).
+- `backend/utils/game-math.js` – `calculateFuelCost()` hinzugefügt und zentral genutzt; lokale Duplikate in `combat.service.js` und `espionage.service.js` entfernt.
+- `backend/database/schemas/*.sql` – Alle `TIMESTAMP`-Spalten auf `TIMESTAMPTZ` umgestellt (Konsistenz, TZ-Sicherheit).
+- `backend/tests/e2e/auth-flow.test.js`, `buildings-flow.test.js`, `combat-plunder-flow.test.js` – Lokale `registerAndLogin`-Hilfsfunktionen durch Import aus `tests/e2e/helpers.js` ersetzt.
+- `backend/tests/services/espionage.service.test.js`, `combat.service.test.js` – `vi.mock('../../utils/game-math.js')` auf Factory-Mock umgestellt, damit `calculateFuelCost` weiterhin die reale Implementierung nutzt.
+- `frontend/pages/index.html` – `<header>` und `<h1>` in `<body>` verschoben (HTML-Struktur korrigiert); `lang="de"` gesetzt.
+- `frontend/pages/dashboard.html` – `lang="de"` gesetzt.
 - `backend/services/combat.service.js` – Kampfauflösung auf deterministische, matrixbasierte Schadensverteilung umgestellt (`Anzahl × Angriff × Matchup`), Siegerermittlung auf relative Verlustquoten geändert (Verteidiger gewinnt bei Gleichstand), Plünderung auf `20 % Loot-Pool × Verteidiger-Verlustquote` umgestellt.
 - `backend/repositories/combat-missions.repository.js` und `backend/services/combat.service.js` – Tageslimit ergänzt: maximal 6 Angriffe pro Tag je Angreifer→Verteidiger (`ATTACK_LIMIT_REACHED`).
 - `backend/tests/services/combat.service.test.js` – Tests an neue Kampf-/Plünderlogik angepasst (inkl. Tageslimit-Mock und aktualisierter Plünderungsrate).
@@ -38,6 +71,16 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `docs/next-steps.md` und `docs/Verbesserungs.md` – Kampfsystem-Fortschritt und Testumfang aktualisiert.
 
 ### Fixed
+
+- `frontend/scripts/dashboard.js` – Dashboard-SSE verarbeitet Queue-Updates jetzt aus `status.queue` statt fälschlich aus der Root-Payload, sodass Bauabschluss-/Abbruch-Refreshs wieder zuverlässig auslösen.
+- `frontend/scripts/shell.js` – Spionage-SSE-Toasts nutzen jetzt die tatsächlich gesendeten Felder (`spiesDetected`, `level`/`status`) und erzeugen keine `undefined`-Hinweise mehr.
+- `docs/openapi.yaml` und `API_DOCUMENTATION.md` – Me-/SSE-Dokumentation auf den implementierten Ticket-Flow (`POST /me/stream-ticket`, danach `GET /me/stream?ticket=...`) aktualisiert.
+- `frontend/pages/bauhof.html`, `frontend/vite.config.js` und `backend/server.js` – Bauhof-Dateiname und Auslieferung auf lowercase vereinheitlicht, damit `/pages/bauhof.html` auch auf case-sensitiven Hosts konsistent funktioniert.
+- `frontend/scripts/missionen.js`, `frontend/scripts/karte.js`, `frontend/scripts/kampf.js` und `frontend/scripts/spionage.js` – dynamische Frontend-Templates gegen XSS gehärtet: kritische `innerHTML`-Interpolationen nutzen jetzt sichere DOM-Erzeugung oder zentrales HTML-Escaping.
+- `backend/routes/combat.js` und `backend/routes/espionage.js` – Read-Endpunkte (`missions`, `incoming`, `history`, `reports`) nutzen jetzt ebenfalls `apiLimiter`, damit die Rate-Limit-Abdeckung konsistent bleibt.
+- `backend/repositories/resources.repository.js`, `backend/services/buildings.service.js`, `backend/services/combat.service.js`, `backend/services/espionage.service.js` und `backend/database/schemas/user_resources.sql` – Ressourcenabbuchungen laufen jetzt all-or-nothing mit DB-seitigem Negativschutz, sodass parallele Requests Bestände nicht mehr unter 0 drücken.
+- `backend/database/setup.sql` – Prominenter DEPRECATED-Header ergänzt; verweist auf das aktive `backend/database/schemas/`-Verzeichnis.
+- `docs/BEWERTUNG.md` – Veraltungshinweis mit Stand-Datum und Links zur aktuellen Dokumentation ergänzt.
 
 - `backend/services/combat.service.js` – Kampfverluste bei kleinen Einheitenmengen (z. B. 1 vs. 1) waren immer 0, weil `Math.floor(damage/HP)` bei Werten < 1 stets 0 ergibt. Verlustberechnung ersetzt durch **rundenbasierte Simulation** (`simulateCombatRounds`): Schaden akkumuliert sich pro Runde in einem Pool; erst wenn der Pool die effektiven HP einer Einheit erreicht, stirbt sie. `rounds` und `roundLog` werden im `combatResult` gespeichert.
 - `frontend/scripts/kampfbericht.js` – Kampfbericht komplett neu gestaltet: farbiges Win/Loss-Banner, Kennzahlen-Grid, farbkodierte Einheitentabellen, ausklappbare Rundeneinzelübersicht mit Verlustmarkierung.

@@ -81,6 +81,21 @@ Response:
 }
 ```
 
+### POST `/me/stream-ticket`
+Fordert ein kurzlebiges Einmal-Ticket fuer den SSE-Stream an.
+```json
+Response:
+{
+  "ticket": "once_token_for_sse"
+}
+```
+
+### GET `/me/stream?ticket=...`
+Oeffnet den Server-Sent-Events-Stream fuer Live-Statusupdates.
+
+- Authentifizierung erfolgt ueber das zuvor angeforderte Ticket, nicht ueber einen JWT in der URL.
+- Das Ticket ist nur kurz gueltig und kann nur einmal eingeloest werden.
+
 ---
 
 ## 🪖 Units API

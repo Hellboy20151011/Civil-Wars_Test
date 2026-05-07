@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS unit_types (
     -- Sonstiges
     counter_unit VARCHAR(255), -- Effektiv gegen diese Einheit
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- KASERNEN-EINHEITEN

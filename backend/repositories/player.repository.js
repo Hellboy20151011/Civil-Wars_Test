@@ -92,10 +92,26 @@ export async function resetFailedLogin(id, client = pool) {
 /**
  * Liefert alle aktiven Spieler mit ihren Kartenkoordinaten fuer das Karten-Rendering.
  *
+/**
+ * Gibt alle aktiven Spieler mit Kartenkoordinaten zurück.
  * @param {import('pg').PoolClient|import('pg').Pool} [client=pool]
+ * @param {{ xMin: number, yMin: number, xMax: number, yMax: number } | null} [bbox=null]
  * @returns {Promise<Array<{ id: number, username: string, koordinate_x: number, koordinate_y: number }>>}
  */
-export async function findAllForMap(client = pool) {
+export async function findAllForMap(client = pool, bbox = null) {
+    if (bbox) {
+        const result = await client.query(
+            `SELECT id, username, koordinate_x, koordinate_y
+             FROM users
+             WHERE is_active = TRUE
+               AND koordinate_x IS NOT NULL AND koordinate_y IS NOT NULL
+               AND koordinate_x >= $1 AND koordinate_x <= $2
+               AND koordinate_y >= $3 AND koordinate_y <= $4
+             ORDER BY id`,
+            [bbox.xMin, bbox.xMax, bbox.yMin, bbox.yMax]
+        );
+        return result.rows;
+    }
     const result = await client.query(
         'SELECT id, username, koordinate_x, koordinate_y FROM users WHERE is_active = TRUE AND koordinate_x IS NOT NULL AND koordinate_y IS NOT NULL ORDER BY id'
     );

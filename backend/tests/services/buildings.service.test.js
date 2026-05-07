@@ -79,6 +79,16 @@ describe('resource helpers', () => {
         expect(resourcesRepo.deductResources).toHaveBeenCalledWith(1, 10, 0, 2, 0, {});
     });
 
+    it('deductResources übersetzt atomare Ressourcenkonflikte in Service-Fehler', async () => {
+        resourcesRepo.deductResources.mockRejectedValue(Object.assign(new Error('INSUFFICIENT_RESOURCES'), {
+            code: 'INSUFFICIENT_RESOURCES',
+        }));
+
+        await expect(deductResources(1, { money: 10 }, {})).rejects.toMatchObject({
+            code: 'INSUFFICIENT_RESOURCES',
+        });
+    });
+
     it('addResources forwards normalized values', async () => {
         resourcesRepo.addResources.mockResolvedValue(undefined);
         await addResources(1, { money: 10, fuel: 4 }, {});

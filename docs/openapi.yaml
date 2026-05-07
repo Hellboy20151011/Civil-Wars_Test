@@ -189,7 +189,7 @@ paths:
       summary: SSE-Stream fuer Live-Statusupdates
       parameters:
         - in: query
-          name: token
+          name: ticket
           required: true
           schema:
             type: string
@@ -201,13 +201,37 @@ paths:
               schema:
                 type: string
         '401':
-          description: Token fehlt oder ist ungueltig
+          description: Ticket fehlt oder ist ungueltig/abgelaufen
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
         '500':
           description: Fehler beim Initialisieren des Streams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /me/stream-ticket:
+    post:
+      tags: [Me]
+      summary: Einmaliges Ticket fuer den SSE-Stream anfordern
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ticket erfolgreich erstellt
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ticket]
+                properties:
+                  ticket:
+                    type: string
+        '401':
+          description: Kein oder ungueltiger Token
           content:
             application/json:
               schema:

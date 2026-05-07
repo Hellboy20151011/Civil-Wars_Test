@@ -1,29 +1,7 @@
 import { test, expect } from '@playwright/test';
 import pool from '../../database/db.js';
 import * as combatService from '../../services/combat.service.js';
-
-async function registerAndLogin(request, prefix) {
-    const suffix = `${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-    const username = `${prefix}_${suffix}`;
-    const email = `${prefix}_${suffix}@test.local`;
-    const password = 'TestPass123!';
-
-    const registerRes = await request.post('/auth/register', {
-        data: { username, email, password },
-    });
-    expect(registerRes.status()).toBe(201);
-
-    const loginRes = await request.post('/auth/login', {
-        data: { username, password },
-    });
-    expect(loginRes.status()).toBe(200);
-
-    const loginBody = await loginRes.json();
-    return {
-        token: loginBody.token,
-        userId: Number(loginBody.user.id),
-    };
-}
+import { registerAndLogin } from './helpers.js';
 
 async function getTypeIdByName(tableName, name) {
     const result = await pool.query(

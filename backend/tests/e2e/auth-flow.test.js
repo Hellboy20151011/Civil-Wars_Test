@@ -1,28 +1,5 @@
 import { test, expect } from '@playwright/test';
-
-/**
- * Hilfsfunktion: Registrierung + Login in einem Schritt.
- * Gibt { token, userId } zurück.
- */
-async function registerAndLogin(request, suffix = Date.now()) {
-    const username = `e2e_user_${suffix}`;
-    const email = `e2e_${suffix}@test.local`;
-    const password = 'TestPass123!';
-
-    const reg = await request.post('/auth/register', {
-        data: { username, email, password },
-    });
-    expect(reg.status()).toBe(201);
-
-    const login = await request.post('/auth/login', {
-        data: { username, password },
-    });
-    expect(login.status()).toBe(200);
-    const { token, refresh_token } = await login.json();
-    expect(typeof token).toBe('string');
-    expect(typeof refresh_token).toBe('string');
-    return { token, refreshToken: refresh_token, username };
-}
+import { registerAndLogin } from './helpers.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Registrierung

@@ -14,15 +14,15 @@ CREATE TABLE IF NOT EXISTS user_units (
     is_moving BOOLEAN DEFAULT FALSE,
     destination_x INTEGER,
     destination_y INTEGER,
-    arrival_time TIMESTAMP,
+    arrival_time TIMESTAMPTZ,
     
     -- Zustand
     health_percentage INTEGER DEFAULT 100, -- 0-100%
     experience_points INTEGER DEFAULT 0,
     
     -- Zeitstempel
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (unit_type_id) REFERENCES unit_types(id)

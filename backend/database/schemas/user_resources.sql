@@ -3,10 +3,10 @@ CREATE TABLE IF NOT EXISTS user_resources (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     resource_type_id INTEGER NOT NULL,
-    amount BIGINT DEFAULT 0, -- Große Zahlen möglich
+    amount BIGINT DEFAULT 0 CHECK (amount >= 0), -- Große Zahlen möglich
     
     -- Letzter Update für Produktion
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (resource_type_id) REFERENCES resource_types(id),

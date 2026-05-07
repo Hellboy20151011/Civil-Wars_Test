@@ -1,3 +1,9 @@
+> **⚠️ VERALTET – Stand: 2026-05-03**
+> Diese Bewertung beschreibt den Projektstand von Anfang Mai 2026 und ist inzwischen in weiten Teilen überholt.
+> Aktuelle Dokumentation: [README.md](../README.md), [API_DOCUMENTATION.md](../API_DOCUMENTATION.md), [docs/next-steps.md](next-steps.md), [CHANGELOG.md](../CHANGELOG.md).
+
+---
+
 # Repo-Bewertung (Developer Review) – Civil Wars Test
 
 **Repo:** https://github.com/Hellboy20151011/Civil-Wars_Test  

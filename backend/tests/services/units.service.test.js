@@ -111,6 +111,19 @@ describe('startTraining', () => {
         await expect(startTraining(1, 1)).rejects.toThrow('Nicht genug Ressourcen');
     });
 
+    it('bricht Ausbildung ab wenn die atomare Abbuchung wegen Parallelität fehlschlägt', async () => {
+        unitsRepo.findTypeById.mockResolvedValue(unitType);
+        unitsRepo.findReadyBuildingCountByName.mockResolvedValue(1);
+        buildingsService.hasEnoughResources.mockResolvedValue(true);
+        buildingsService.deductResources.mockRejectedValue(
+            Object.assign(new Error('Nicht genug Ressourcen verfügbar'), { code: 'INSUFFICIENT_RESOURCES' })
+        );
+
+        await expect(startTraining(1, 1)).rejects.toMatchObject({ code: 'INSUFFICIENT_RESOURCES' });
+        expect(unitsRepo.createUserUnit).not.toHaveBeenCalled();
+        expect(unitsRepo.incrementUserUnitQuantity).not.toHaveBeenCalled();
+    });
+
     it('erstellt neue Einheit wenn noch keine vorhanden ist', async () => {
         unitsRepo.findTypeById.mockResolvedValue(unitType);
         unitsRepo.findReadyBuildingCountByName.mockResolvedValue(1);

@@ -51,3 +51,13 @@ export async function getResourceTypeIdByName(name, client = pool) {
     const types = await getResourceTypes(client);
     return types.find((entry) => entry.name === name)?.id ?? null;
 }
+
+/**
+ * Leert alle Cache-Einträge sofort (z. B. nach Migrations-Seeds oder Tests).
+ * Beim nächsten Zugriff werden die Daten neu aus der DB geladen.
+ */
+export function invalidateCache() {
+    cache.buildingTypes.expiresAt = 0;
+    cache.unitTypes.expiresAt = 0;
+    cache.resourceTypes.expiresAt = 0;
+}

@@ -85,6 +85,7 @@ router.get(
 router.get(
     '/missions',
     requireAuth,
+    apiLimiter,
     asyncWrapper(async (req, res) => {
         const missions = await espionageService.getActiveMissions(req.user.id);
         res.json({ data: missions });
@@ -95,6 +96,7 @@ router.get(
 router.get(
     '/reports',
     requireAuth,
+    apiLimiter,
     asyncWrapper(async (req, res) => {
         const reports = await espionageService.getReports(req.user.id);
         res.json({ data: reports });

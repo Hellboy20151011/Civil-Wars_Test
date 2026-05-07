@@ -3,6 +3,7 @@
 
 import { API_BASE_URL } from '/scripts/config.js';
 import { el, render } from '/scripts/ui/component.js';
+import { formatTimeLeft } from '/scripts/utils/time.js';
 
 let liveEventSource = null;
 let liveEventSourceToken = null;
@@ -11,18 +12,6 @@ let latestResearchOverview = null;
 let researchOverviewPollTimer = null;
 let researchCountdownTimer = null;
 const LOGIN_PAGE_PATH = '/pages/index.html';
-
-function formatTimeLeft(targetDate) {
-  const ms = new Date(targetDate) - Date.now();
-  if (ms <= 0) return 'Fertig';
-  const totalSec = Math.ceil(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
 
 function stopResearchTimers() {
   if (researchOverviewPollTimer) {
@@ -244,7 +233,8 @@ async function startLiveUpdates(token) {
   source.addEventListener('spy_detected', (event) => {
     try {
       const d = JSON.parse(event.data || '{}');
-      showToast(`🚨 Spion(e) entdeckt! ${d.spiesCaught} Spion(e) von ${d.originUsername} gefasst.`, 'warning');
+      const spiesDetected = Number(d.spiesDetected ?? 0);
+      showToast(`🚨 Spion(e) entdeckt! ${spiesDetected} Spion(e) von ${d.originUsername} gefasst.`, 'warning');
     } catch (err) {
       console.error('SSE spy_detected parse error:', err);
     }
@@ -253,11 +243,10 @@ async function startLiveUpdates(token) {
   source.addEventListener('spy_mission_update', (event) => {
     try {
       const d = JSON.parse(event.data || '{}');
-      if (d.status === 'aborted') {
+	    if (d.level === 'failed' || d.status === 'aborted') {
         showToast(`🕵️ Spionage bei ${d.targetUsername} fehlgeschlagen – alle Spione erwischt.`, 'danger');
       } else {
-        const note = d.spiesCaught > 0 ? ` (${d.spiesCaught} erwischt)` : '';
-        showToast(`🕵️ Spionage bei ${d.targetUsername} abgeschlossen${note}. Spione kehren zurück.`, 'info');
+	      showToast(`🕵️ Spionage bei ${d.targetUsername} abgeschlossen. Spione kehren zurück.`, 'info');
       }
       globalThis.dispatchEvent(new globalThis.CustomEvent('spy-mission-update', { detail: d }));
     } catch (err) {

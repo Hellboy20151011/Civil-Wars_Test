@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS user_buildings (
     
     -- Bau-Status
     is_constructing BOOLEAN DEFAULT FALSE,
-    construction_start_time TIMESTAMP,
-    construction_end_time TIMESTAMP,
+    construction_start_time TIMESTAMPTZ,
+    construction_end_time TIMESTAMPTZ,
     
     -- Position
     location_x INTEGER,
@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS user_buildings (
     current_fuel_production INTEGER DEFAULT 0,
     
     -- Zeitstempel
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (building_type_id) REFERENCES building_types(id)

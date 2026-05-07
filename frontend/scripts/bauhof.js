@@ -1,6 +1,6 @@
 import { initShell, getAuth } from '/scripts/shell.js';
-import { API_BASE_URL } from '/scripts/config.js';
 import { el, render } from '/scripts/ui/component.js';
+import { createApiClient } from '/scripts/api/client.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
@@ -93,19 +93,10 @@ function changeCategory(categoryKey, pushHistory = true) {
 }
 
 // ── Hilfsfunktion: API-Call ───────────────────────────────
-async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    cache: 'no-store',
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${auth.token}`,
-      ...options.headers,
-    },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.message || 'Fehler'), { status: res.status });
-  return data;
+const { apiFetch: apiFetchBase } = createApiClient(auth);
+/** API-Call mit cache-Bypass für Bauhof-GETs. */
+function apiFetch(path, options = {}) {
+  return apiFetchBase(path, { cache: 'no-store', ...options });
 }
 
 // Kategorien mit steigenden Baukosten (+3% pro bereits gebautem Exemplar)

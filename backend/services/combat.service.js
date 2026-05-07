@@ -18,7 +18,7 @@ import { broadcastToUser } from './live-updates.service.js';
 import { logger } from '../logger.js';
 import { createServiceError } from './service-error.js';
 import { createRequire } from 'module';
-import { calcDistance, calcArrivalTime } from '../utils/game-math.js';
+import { calcDistance, calcArrivalTime, calculateFuelCost } from '../utils/game-math.js';
 
 const require = createRequire(import.meta.url);
 const MATCHUPS = require('../data/combat-matchups.json');
@@ -159,15 +159,6 @@ function getUnitMatchup(attackerName, defenderName) {
  */
 function slowestSpeed(unitTypes) {
     return Math.min(...unitTypes.map((u) => Number(u.movement_speed)));
-}
-
-function calculateFuelCost(distance, units) {
-    return units.reduce((acc, unit) => {
-        const quantity = Math.max(0, Number(unit.quantitySent ?? 0));
-        const fuelPerUnit = Number(unit.fuel_cost);
-        const normalizedFuelPerUnit = Number.isFinite(fuelPerUnit) ? fuelPerUnit : 0;
-        return acc + Math.ceil((normalizedFuelPerUnit * distance * quantity) / 10);
-    }, 0);
 }
 
 function toEffectiveHitpoints(unit) {
@@ -373,7 +364,14 @@ export async function launchAttack(attackerId, defenderId, units) {
         if (Number(resources.treibstoff ?? 0) < fuelCost) {
             throw createServiceError('Nicht genug Treibstoff für den Angriff', 400, 'INSUFFICIENT_RESOURCES');
         }
-        await resourcesRepo.deductResources(attackerId, 0, 0, 0, fuelCost, client);
+        try {
+            await resourcesRepo.deductResources(attackerId, 0, 0, 0, fuelCost, client);
+        } catch (error) {
+            if (error?.code === 'INSUFFICIENT_RESOURCES') {
+                throw createServiceError('Nicht genug Treibstoff für den Angriff', 400, 'INSUFFICIENT_RESOURCES');
+            }
+            throw error;
+        }
 
         // Mission anlegen
         const mission = await combatMissionsRepo.createMission(

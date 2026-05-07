@@ -7,7 +7,14 @@ vi.mock('../../repositories/building.repository.js');
 vi.mock('../../repositories/resources.repository.js');
 vi.mock('../../repositories/transaction.repository.js');
 vi.mock('../../services/live-updates.service.js');
-vi.mock('../../utils/game-math.js');
+vi.mock('../../utils/game-math.js', async (importOriginal) => {
+    const real = await importOriginal();
+    return {
+        ...real,
+        calcDistance: vi.fn(),
+        calcArrivalTime: vi.fn(),
+    };
+});
 
 import * as combatMissionsRepo from '../../repositories/combat-missions.repository.js';
 import * as playerRepo from '../../repositories/player.repository.js';

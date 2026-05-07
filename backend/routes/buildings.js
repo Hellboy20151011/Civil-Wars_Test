@@ -56,19 +56,12 @@ router.post(
     apiLimiter,
     validateBody(buildSchema),
     asyncWrapper(async (req, res) => {
-        try {
-            const payload = await buildingsService.buildBuilding(
-                req.user.id,
-                req.body.building_type_id,
-                req.body.anzahl
-            );
-            res.status(201).json(payload);
-        } catch (error) {
-            if (error.status) {
-                return res.status(error.status).json({ message: error.message });
-            }
-            throw error;
-        }
+        const payload = await buildingsService.buildBuilding(
+            req.user.id,
+            req.body.building_type_id,
+            req.body.anzahl
+        );
+        res.status(201).json(payload);
     })
 );
 

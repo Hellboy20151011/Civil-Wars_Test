@@ -1,9 +1,11 @@
 import { initShell, getAuth } from '/scripts/shell.js';
-import { API_BASE_URL } from '/scripts/config.js';
 import { el, render } from '/scripts/ui/component.js';
+import { createApiClient } from '/scripts/api/client.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
+
+const { apiFetch } = createApiClient(auth);
 
 const UNIT_CATEGORIES = [
   {
@@ -90,20 +92,6 @@ function changeCategory(categoryKey, pushHistory = true) {
   }
   renderMilitaer(document.getElementById('Militaer'));
   syncSidebarCategorySelection();
-}
-
-async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${auth.token}`,
-      ...options.headers,
-    },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.message || 'Fehler'), { status: res.status });
-  return data;
 }
 
 function getUnitCostsText(unitType) {

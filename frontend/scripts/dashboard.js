@@ -1,41 +1,15 @@
 import { initShell, getAuth } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
 import { el, render } from '/scripts/ui/component.js';
+import { formatTimeLeft } from '/scripts/utils/time.js';
+import { createApiClient } from '/scripts/api/client.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
-async function apiFetch(path, options = {}) {
-	const res = await fetch(`${API_BASE_URL}${path}`, {
-		...options,
-		headers: {
-			'Content-Type': 'application/json',
-			Authorization: `Bearer ${auth.token}`,
-			...options.headers,
-		},
-	});
-
-	const data = await res.json().catch(() => ({}));
-	if (!res.ok) {
-		throw Object.assign(new Error(data.message || 'Fehler'), { status: res.status });
-	}
-
-	return data;
-}
+const { apiFetch } = createApiClient(auth);
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
-
-function formatTimeLeft(targetDate) {
-	const ms = new Date(targetDate) - Date.now();
-	if (ms <= 0) return 'Fertig';
-	const totalSec = Math.ceil(ms / 1000);
-	const h = Math.floor(totalSec / 3600);
-	const m = Math.floor((totalSec % 3600) / 60);
-	const s = totalSec % 60;
-	if (h > 0) return `${h}h ${m}m`;
-	if (m > 0) return `${m}m ${s}s`;
-	return `${s}s`;
-}
 
 function calcProgress(startDate, endDate) {
 	const total = new Date(endDate) - new Date(startDate);
@@ -341,7 +315,8 @@ async function renderDashboard() {
 	source.addEventListener('status', async (evt) => {
 		try {
 			const data = JSON.parse(evt.data);
-			const newQueueLength = data.queue?.length ?? 0;
+			const nextStatus = data.status ?? {};
+			const newQueueLength = nextStatus.queue?.length ?? 0;
 
 			// Queue hat sich verkleinert → Bau fertig oder abgebrochen
 			if (newQueueLength < lastQueueLength) {

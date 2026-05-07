@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS building_types (
     -- Bauzeit in Ticks
     build_time_ticks DECIMAL(4,2) DEFAULT 1,
     
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- VERSORGUNGSGEBÄUDE

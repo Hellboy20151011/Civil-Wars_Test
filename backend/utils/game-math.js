@@ -24,3 +24,21 @@ export function calcArrivalTime(distance, speed) {
     const tickMs = config.gameloop.tickIntervalMs;
     return new Date(Date.now() + travelTicks * tickMs);
 }
+
+/**
+ * Treibstoffkosten für eine Einheitenliste über eine bestimmte Distanz.
+ * @param {number} distance - Euklidische Distanz in Gittereinheiten
+ * @param {Array<{ fuel_cost: number, quantitySent?: number, quantitySending?: number, quantity?: number }>} units
+ * @returns {number} Gesamttreibstoffkosten (aufgerundet)
+ */
+export function calculateFuelCost(distance, units) {
+    return units.reduce((acc, unit) => {
+        const quantity = Math.max(
+            0,
+            Number(unit.quantitySent ?? unit.quantitySending ?? unit.quantity ?? 0)
+        );
+        const fuelPerUnit = Number(unit.fuel_cost);
+        const normalizedFuel = Number.isFinite(fuelPerUnit) ? fuelPerUnit : 0;
+        return acc + Math.ceil((normalizedFuel * distance * quantity) / 10);
+    }, 0);
+}

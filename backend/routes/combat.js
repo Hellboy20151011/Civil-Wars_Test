@@ -42,6 +42,7 @@ router.post(
 router.get(
     '/missions',
     requireAuth,
+    apiLimiter,
     asyncWrapper(async (req, res) => {
         const missions = await combatService.getActiveMissions(req.user.id);
         res.json({ data: missions });
@@ -52,6 +53,7 @@ router.get(
 router.get(
     '/incoming',
     requireAuth,
+    apiLimiter,
     asyncWrapper(async (req, res) => {
         const attacks = await combatService.getIncomingAttacks(req.user.id);
         res.json({ data: attacks });
@@ -62,6 +64,7 @@ router.get(
 router.get(
     '/history',
     requireAuth,
+    apiLimiter,
     asyncWrapper(async (req, res) => {
         const history = await combatService.getMissionHistory(req.user.id);
         res.json({ data: history });
@@ -72,6 +75,7 @@ router.get(
 router.get(
     '/history/:missionId',
     requireAuth,
+    apiLimiter,
     asyncWrapper(async (req, res) => {
         const missionId = Number(req.params.missionId);
         if (!Number.isInteger(missionId) || missionId <= 0) {

@@ -1,5 +1,6 @@
 import { initShell, getAuth, showToast, refreshShellStatus } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
+import { escapeHtml } from '/scripts/utils/escape.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
@@ -37,6 +38,51 @@ const ctx = canvas.getContext('2d');
 const tooltip = document.getElementById('map-tooltip');
 const info = document.getElementById('map-info');
 const container = document.getElementById('map-container');
+
+function renderActionInfoHtml(target, distance) {
+    return `
+        <strong>Spieler:</strong> ${escapeHtml(target.username)}<br>
+        <strong>Position:</strong> (${escapeHtml(target.koordinate_x)}, ${escapeHtml(target.koordinate_y)})<br>
+        <strong>Distanz:</strong> ${escapeHtml(distance)} Felder
+    `;
+}
+
+function renderAttackInfoHtml(target, distance, fuelCost, availableFuel) {
+    const fuelSection = fuelCost == null
+        ? ''
+        : `<strong>Treibstoffbedarf:</strong> ${escapeHtml(Number(fuelCost).toLocaleString())} L<br>
+                <strong>Verfügbar:</strong> ${escapeHtml(Number(availableFuel).toLocaleString())} L<br>`;
+
+    return `
+        <strong>Ziel:</strong> (${escapeHtml(target.koordinate_x)}, ${escapeHtml(target.koordinate_y)})<br>
+        <strong>Distanz:</strong> ${escapeHtml(distance)} Felder<br>
+        ${fuelSection}
+        <small>Reisezeit abhängig von der langsamsten Einheit.</small>
+    `;
+}
+
+function renderPanelErrorHtml(message, color = '#f87171') {
+    return `<div style="color:${color}">${escapeHtml(message)}</div>`;
+}
+
+function renderSpyIntroHtml(target, distance) {
+    return `
+            <strong>Ziel:</strong> ${escapeHtml(target.username)} (${escapeHtml(target.koordinate_x)}, ${escapeHtml(target.koordinate_y)})<br>
+            <strong>Distanz:</strong> ${escapeHtml(distance)} Felder<br>
+            <small style="color:#94a3b8">Mehr Spione = höhere Erfolgswahrscheinlichkeit und detailliertere Berichte.</small>
+        `;
+}
+
+function renderSpyPreviewHtml(preview, availableFuel) {
+    return `
+                    <strong>Ziel:</strong> ${escapeHtml(preview.targetUsername)} (${escapeHtml(preview.targetCoords.x)}, ${escapeHtml(preview.targetCoords.y)})<br>
+                    <strong>Distanz:</strong> ${escapeHtml(preview.distance)} Felder<br>
+                    <strong>Reisezeit:</strong> ~${escapeHtml(preview.travelMinutes)} min<br>
+                    <strong>Treibstoffbedarf:</strong> ${escapeHtml(Number(preview.fuelCost).toLocaleString())} L<br>
+                    <strong>Verfügbar:</strong> ${escapeHtml(Number(availableFuel).toLocaleString())} L<br>
+                    <small style="color:#94a3b8">Treibstoff wird beim Absenden sofort abgezogen.</small>
+                `;
+}
 
 // ── Canvas-Größe anpassen ──────────────────────────────────────────────────────
 function resizeCanvas() {
@@ -299,11 +345,7 @@ function openActionPanel(target) {
           ).toFixed(1)
         : '?';
 
-    actionInfo.innerHTML = `
-        <strong>Spieler:</strong> ${target.username}<br>
-        <strong>Position:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
-        <strong>Distanz:</strong> ${distance} Felder
-    `;
+    actionInfo.innerHTML = renderActionInfoHtml(target, distance);
 
     actionPanel.style.display = 'block';
 }
@@ -337,11 +379,7 @@ async function openAttackPanel(target) {
         : '?';
         const distance = typeof distanceValue === 'number' ? distanceValue.toFixed(1) : distanceValue;
 
-    attackInfo.innerHTML = `
-        <strong>Ziel:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
-        <strong>Distanz:</strong> ${distance} Felder<br>
-        <small>Reisezeit abhängig von der langsamsten Einheit.</small>
-    `;
+    attackInfo.innerHTML = renderAttackInfoHtml(target, distance);
 
     // Eigene Einheiten + Ressourcen laden
     try {
@@ -372,16 +410,16 @@ async function openAttackPanel(target) {
             const row = document.createElement('div');
             row.className = 'attack-unit-row';
             row.innerHTML = `
-                <span class="attack-unit-name">${u.name}</span>
-                <span class="attack-unit-avail">/${u.quantity}</span>
+                <span class="attack-unit-name">${escapeHtml(u.name)}</span>
+                <span class="attack-unit-avail">/${escapeHtml(u.quantity)}</span>
                 <input
                     class="attack-unit-qty"
                     type="number"
                     min="0"
-                    max="${u.quantity}"
+                    max="${escapeHtml(u.quantity)}"
                     value="0"
-                    data-unit-id="${u.id}"
-                    data-fuel-cost="${Number(u.fuel_cost ?? 0)}"
+                    data-unit-id="${escapeHtml(u.id)}"
+                    data-fuel-cost="${escapeHtml(Number(u.fuel_cost ?? 0))}"
                 />
             `;
             attackUnitsList.appendChild(row);
@@ -407,11 +445,7 @@ async function openAttackPanel(target) {
                 btnLaunch.disabled = true;
                 if (fuelBadge) fuelBadge.style.display = 'none';
                 attackPanelMsg.textContent = '';
-                attackInfo.innerHTML = `
-                    <strong>Ziel:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
-                    <strong>Distanz:</strong> ${distance} Felder<br>
-                    <small>Reisezeit abhängig von der langsamsten Einheit.</small>
-                `;
+                attackInfo.innerHTML = renderAttackInfoHtml(target, distance);
                 return;
             }
 
@@ -420,13 +454,7 @@ async function openAttackPanel(target) {
             btnLaunch.disabled = !hasFuel;
             if (fuelBadge) fuelBadge.style.display = hasFuel ? 'none' : 'inline-flex';
 
-            attackInfo.innerHTML = `
-                <strong>Ziel:</strong> (${target.koordinate_x}, ${target.koordinate_y})<br>
-                <strong>Distanz:</strong> ${distance} Felder<br>
-                <strong>Treibstoffbedarf:</strong> ${fuelCost.toLocaleString()} L<br>
-                <strong>Verfügbar:</strong> ${availableFuel.toLocaleString()} L<br>
-                <small>Reisezeit abhängig von der langsamsten Einheit.</small>
-            `;
+            attackInfo.innerHTML = renderAttackInfoHtml(target, distance, fuelCost, availableFuel);
 
             if (!hasFuel) {
                 attackPanelMsg.style.color = '#f87171';
@@ -439,7 +467,7 @@ async function openAttackPanel(target) {
 
         attackUnitsList.addEventListener('input', setAttackLaunchState);
     } catch (err) {
-        attackUnitsList.innerHTML = `<div style="color:#f87171">${err.message}</div>`;
+        attackUnitsList.innerHTML = renderPanelErrorHtml(err.message);
     }
 }
 
@@ -539,26 +567,22 @@ async function openSpyPanel(target) {
               ).toFixed(1)
             : '?';
 
-        spyPreviewInfo.innerHTML = `
-            <strong>Ziel:</strong> ${target.username} (${target.koordinate_x}, ${target.koordinate_y})<br>
-            <strong>Distanz:</strong> ${distance} Felder<br>
-            <small style="color:#94a3b8">Mehr Spione = höhere Erfolgswahrscheinlichkeit und detailliertere Berichte.</small>
-        `;
+        spyPreviewInfo.innerHTML = renderSpyIntroHtml(target, distance);
 
         spyUnitsList.innerHTML = '';
         for (const u of intelUnits) {
             const row = document.createElement('div');
             row.className = 'attack-unit-row';
             row.innerHTML = `
-                <span class="attack-unit-name">${u.name}</span>
-                <span class="attack-unit-avail">/${u.quantity}</span>
+                <span class="attack-unit-name">${escapeHtml(u.name)}</span>
+                <span class="attack-unit-avail">/${escapeHtml(u.quantity)}</span>
                 <input
                     class="attack-unit-qty"
                     type="number"
                     min="0"
-                    max="${u.quantity}"
+                    max="${escapeHtml(u.quantity)}"
                     value="0"
-                    data-unit-id="${u.id}"
+                    data-unit-id="${escapeHtml(u.id)}"
                 />
             `;
             spyUnitsList.appendChild(row);
@@ -612,14 +636,7 @@ async function openSpyPanel(target) {
                 if (!r.ok) return;
                 const d = await r.json();
                 const p = d.data;
-                spyPreviewInfo.innerHTML = `
-                    <strong>Ziel:</strong> ${p.targetUsername} (${p.targetCoords.x}, ${p.targetCoords.y})<br>
-                    <strong>Distanz:</strong> ${p.distance} Felder<br>
-                    <strong>Reisezeit:</strong> ~${p.travelMinutes} min<br>
-                    <strong>Treibstoffbedarf:</strong> ${p.fuelCost.toLocaleString()} L<br>
-                    <strong>Verfügbar:</strong> ${availableFuel.toLocaleString()} L<br>
-                    <small style="color:#94a3b8">Treibstoff wird beim Absenden sofort abgezogen.</small>
-                `;
+                spyPreviewInfo.innerHTML = renderSpyPreviewHtml(p, availableFuel);
                 setLaunchState(Number(p.fuelCost) <= availableFuel, Number(p.fuelCost));
             } catch {
                 // Vorschau nicht kritisch
@@ -627,7 +644,7 @@ async function openSpyPanel(target) {
         }
 
     } catch (err) {
-        spyPreviewInfo.innerHTML = `<div style="color:#f87171">${err.message}</div>`;
+        spyPreviewInfo.innerHTML = renderPanelErrorHtml(err.message);
     }
 }
 

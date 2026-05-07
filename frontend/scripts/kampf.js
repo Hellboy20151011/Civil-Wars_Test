@@ -1,37 +1,21 @@
 import { initShell, getAuth, refreshShellStatus } from '/scripts/shell.js';
-import { API_BASE_URL } from '/scripts/config.js';
+import { escapeHtml } from '/scripts/utils/escape.js';
+import { createApiClient } from '/scripts/api/client.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
 
+const { apiGet, apiPost } = createApiClient(auth);
+
 const container = document.getElementById('kampf-planung');
+
+function renderErrorCard(message) {
+  return `<div class="spy-error">${escapeHtml(message)}</div>`;
+}
 
 function getTargetId() {
   const id = Number(new URLSearchParams(window.location.search).get('target_id'));
   return Number.isFinite(id) && id > 0 ? id : null;
-}
-
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { Authorization: `Bearer ${auth.token}` },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Abruf fehlgeschlagen');
-  return data;
-}
-
-async function apiPost(path, body) {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${auth.token}`,
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Aktion fehlgeschlagen');
-  return data;
 }
 
 function renderNoTarget() {
@@ -79,7 +63,7 @@ async function initPlanning() {
       <div class="spy-card">
         <div class="spy-card-header">
           <span class="spy-card-icon">⚔</span>
-          <strong>Angriff auf ${target.username}</strong>
+          <strong>Angriff auf ${escapeHtml(target.username)}</strong>
         </div>
         <div class="spy-card-content">Keine verfuegbaren Kampfeinheiten.</div>
       </div>
@@ -91,11 +75,11 @@ async function initPlanning() {
     <div class="spy-card">
       <div class="spy-card-header">
         <span class="spy-card-icon">⚔</span>
-        <strong>Angriff auf ${target.username}</strong>
+        <strong>Angriff auf ${escapeHtml(target.username)}</strong>
       </div>
       <div class="spy-card-body">
-        <span>📍 Ziel: (${target.koordinate_x}, ${target.koordinate_y})</span>
-        <span>📏 Distanz: ${dist.toFixed(1)} Felder</span>
+        <span>📍 Ziel: (${escapeHtml(target.koordinate_x)}, ${escapeHtml(target.koordinate_y)})</span>
+        <span>📏 Distanz: ${escapeHtml(dist.toFixed(1))} Felder</span>
       </div>
       <div id="attack-units-list"></div>
       <div class="spy-card-content">
@@ -115,9 +99,9 @@ async function initPlanning() {
     const row = document.createElement('div');
     row.className = 'attack-unit-row';
     row.innerHTML = `
-      <span class="attack-unit-name">${u.name}</span>
-      <span class="attack-unit-avail">/${u.quantity}</span>
-      <input class="attack-unit-qty" type="number" min="0" max="${u.quantity}" value="0" data-unit-id="${u.id}" data-fuel-cost="${Number(u.fuel_cost ?? 0)}" />
+      <span class="attack-unit-name">${escapeHtml(u.name)}</span>
+      <span class="attack-unit-avail">/${escapeHtml(u.quantity)}</span>
+      <input class="attack-unit-qty" type="number" min="0" max="${escapeHtml(u.quantity)}" value="0" data-unit-id="${escapeHtml(u.id)}" data-fuel-cost="${escapeHtml(Number(u.fuel_cost ?? 0))}" />
     `;
     list.appendChild(row);
   }
@@ -188,5 +172,5 @@ await initShell();
 try {
   await initPlanning();
 } catch (err) {
-  container.innerHTML = `<div class="spy-error">${err.message}</div>`;
+  container.innerHTML = renderErrorCard(err.message);
 }

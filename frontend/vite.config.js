@@ -21,7 +21,7 @@ export default defineConfig({
             input: {
                 index: path.resolve(rootDir, 'pages/index.html'),
                 dashboard: path.resolve(rootDir, 'pages/dashboard.html'),
-                bauhof: path.resolve(rootDir, 'pages/Bauhof.html'),
+                bauhof: path.resolve(rootDir, 'pages/bauhof.html'),
                 militaer: path.resolve(rootDir, 'pages/militaer.html'),
                 missionen: path.resolve(rootDir, 'pages/missionen.html'),
                 karte: path.resolve(rootDir, 'pages/karte.html'),

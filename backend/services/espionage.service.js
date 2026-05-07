@@ -28,7 +28,7 @@ import { broadcastToUser } from './live-updates.service.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { createServiceError } from './service-error.js';
-import { calcDistance, calcArrivalTime } from '../utils/game-math.js';
+import { calcDistance, calcArrivalTime, calculateFuelCost } from '../utils/game-math.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HILFSFUNKTIONEN
@@ -72,15 +72,6 @@ function calcSuccessRate(intelLevel, counterIntelLevel, unitName) {
     return Math.min(95, Math.max(10, base)) / 100;
 }
 
-function calculateFuelCost(distance, units) {
-    return units.reduce((acc, unit) => {
-        const quantity = Math.max(0, Number(unit.quantitySending ?? unit.quantity ?? 1));
-        const fuelPerUnit = Number(unit.fuel_cost);
-        const normalizedFuelPerUnit = Number.isFinite(fuelPerUnit) ? fuelPerUnit : 0;
-        return acc + Math.ceil((normalizedFuelPerUnit * distance * quantity) / 10);
-    }, 0);
-}
-
 /**
  * Baut den Spionage-Fehlschlag-Bericht.
  */
@@ -96,7 +87,7 @@ function buildFailedReport(targetUsername, totalDefense, spiesLost, totalAttack)
 }
 
 /**
- * Baut den Bericht für Stufe 1 (+10–30 % Überlegenheit).
+ * Baut den Bericht für Stufe 1 (+10-30 % Überlegenheit).
  */
 function buildLevel1Report(targetUsername, plunderableCount, totalDefense, totalAttack) {
     return {
@@ -110,7 +101,7 @@ function buildLevel1Report(targetUsername, plunderableCount, totalDefense, total
 }
 
 /**
- * Baut den Bericht für Stufe 2 (+30–65 % Überlegenheit).
+ * Baut den Bericht für Stufe 2 (+30-65 % Überlegenheit).
  */
 function buildLevel2Report(targetUsername, productionBuildings, unitDefenseTotals, totalDefense, totalAttack) {
     return {
@@ -126,7 +117,7 @@ function buildLevel2Report(targetUsername, productionBuildings, unitDefenseTotal
 }
 
 /**
- * Baut den vollständigen Bericht für Stufe 3 (> 65 % Überlegenheit).
+ * Baut den vollständigen Bericht für Stufe 3 (> 65 % Überlegenheit).
  */
 function buildLevel3Report(targetUsername, unitSummary, productionBuildings, totalDefense, totalAttack) {
     const units = {};
@@ -233,7 +224,14 @@ export async function launchSpyMission(spyPlayerId, targetPlayerId, units) {
             throw createServiceError('Nicht genug Treibstoff für die Mission', 400, 'INSUFFICIENT_RESOURCES');
         }
 
-        await resourcesRepo.deductResources(spyPlayerId, 0, 0, 0, fuelCost, client);
+        try {
+            await resourcesRepo.deductResources(spyPlayerId, 0, 0, 0, fuelCost, client);
+        } catch (error) {
+            if (error?.code === 'INSUFFICIENT_RESOURCES') {
+                throw createServiceError('Nicht genug Treibstoff für die Mission', 400, 'INSUFFICIENT_RESOURCES');
+            }
+            throw error;
+        }
 
         // Mission anlegen
         const mission = await spyRepo.createMission({

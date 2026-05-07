@@ -46,7 +46,6 @@ const schemaFilesInOrder = [
     'resource_types.sql',
     'building_types.sql',
     'units.sql',
-    'user_profiles.sql',
     'user_resources.sql',
     'user_buildings.sql',
     'user_units.sql',

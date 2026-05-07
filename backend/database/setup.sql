@@ -1,4 +1,16 @@
 -- ============================================================
+-- DEPRECATED – dieses Setup-Skript ist veraltet.
+--
+-- Es beschreibt das ursprüngliche flache Datenbankschema (eine Zeile
+-- pro Spieler für Ressourcen, deutschsprachige Spaltennamen, "eisen"
+-- statt "stahl" usw.) und wird nicht mehr für den laufenden Betrieb
+-- verwendet.
+--
+-- Aktuelles Schema: backend/database/schemas/*.sql
+-- Schemaaufbau:    backend/scripts/resetdb.js
+-- ============================================================
+
+-- ============================================================
 -- Civil-Wars Datenbank Setup
 -- Frisches Schema – DB vorher leeren oder neu anlegen:
 --   dropdb -U postgres civil_wars_test

@@ -166,14 +166,21 @@ export async function checkPowerAvailable(userId, powerNeeded, client) {
 }
 
 export async function deductResources(userId, resources, client) {
-    await resourcesRepo.deductResources(
-        userId,
-        resources.money || 0,
-        resources.stone || 0,
-        resources.steel || 0,
-        resources.fuel || 0,
-        client
-    );
+    try {
+        await resourcesRepo.deductResources(
+            userId,
+            resources.money || 0,
+            resources.stone || 0,
+            resources.steel || 0,
+            resources.fuel || 0,
+            client
+        );
+    } catch (error) {
+        if (error?.code === 'INSUFFICIENT_RESOURCES') {
+            throw createServiceError('Nicht genug Ressourcen verfügbar', 400, 'INSUFFICIENT_RESOURCES');
+        }
+        throw error;
+    }
 }
 
 export async function addResources(userId, resources, client) {
