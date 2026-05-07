@@ -19,6 +19,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Changed
 
+- `docs/Analyse_2026-05-07.md` – Tagesanalyse vervollständigt und beim Merge-Konflikt gegen `main` die vollständige Fassung beibehalten.
 - `backend/services/espionage.service.js` – Komplettes Rework der Spionage-Logik: Ersetzt den probabilistischen Einzelspion-Ansatz durch ein aggregiertes Verhältnismodell. Neues System: `Gesamtangriff = SUM(spy_attack × quantity_sent)`, `Gesamtabwehr = SUM(spy_defense × quantity)`; vier Ergebnisstufen (Fehlschlag / Stufe 1–3) basierend auf dem Verhältnis; bei Fehlschlag gehen alle Spione verloren, bei Stufe 1–3 kehren alle zurück; Stufe 3 benachrichtigt den Verteidiger nicht.
 - `backend/repositories/spy-missions.repository.js` – `findMissionUnits` um `spy_attack` erweitert; neue Funktionen `findTotalSpyDefense`, `findPlunderableBuildingCount`, `findProductionBuildingsForReport`, `findUnitDefenseTotalsForReport`.
 - `backend/database/schemas/units.sql` – `unit_types`-Tabelle um Spalten `spy_attack` und `spy_defense` erweitert; UPDATE-Statements für Intel-Einheitenwerte ergänzt.
