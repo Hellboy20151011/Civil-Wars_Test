@@ -1896,6 +1896,67 @@ body {
 .spy-caught { color: #f59e0b; font-weight: 600; }
 .spy-safe { color: #22c55e; font-weight: 600; }
 
+/* Spionagebericht – neue Styles */
+.spy-report-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+.spy-report-badge.success { background: #14532d; color: #bbf7d0; }
+.spy-report-badge.fail    { background: #450a0a; color: #fca5a5; }
+
+.spy-report-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.spy-stat {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  min-width: 130px;
+}
+.spy-stat-label { font-size: 11px; color: var(--text-dim); margin-bottom: 2px; }
+.spy-stat-value { font-size: 15px; font-weight: 700; color: var(--text-main); }
+.spy-stat-value.danger { color: #f87171; }
+
+.spy-report-section {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-surface);
+}
+.spy-report-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted, var(--text-dim));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.spy-report-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.spy-report-row:last-child { border-bottom: none; }
+.spy-report-row strong { color: var(--text-main); }
+.spy-report-row.muted { color: var(--text-dim); font-style: italic; justify-content: flex-start; }
+
 .spy-hint { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; }
 .spy-hint a { color: #60a5fa; }
 .spy-hint-small { font-size: 11px; color: var(--text-dim); }

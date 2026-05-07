@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS unit_types (
     -- Spezialfähigkeiten
     special_ability VARCHAR(255),
 
+    -- Spionage-Statistiken (nur relevant für category='intel')
+    spy_attack  INTEGER NOT NULL DEFAULT 0,
+    spy_defense INTEGER NOT NULL DEFAULT 0,
+
     -- Sonstiges
     counter_unit VARCHAR(255), -- Effektiv gegen diese Einheit
 
@@ -80,6 +84,12 @@ INSERT INTO unit_types (name, category, building_requirement, description, money
 ('Patriot-System', 'defense', 'Luftverteidigung Level 3', 'Hochmodernes Flugabwehr-Raketensystem zur Abwehr ballistischer Raketen und Kampfjets.', 550000, 1100, 120, 5, 220, 55, 65, 0, 'Raketenabwehr, Hochpräzisions-SAM', NULL),
 
 -- GEHEIMDIENST-EINHEITEN
-('Spion', 'intel', 'Geheimdienstzentrum Level 1', 'Verdeckter Agent für Aufklärung und Informationsbeschaffung hinter feindlichen Linien. Höhere Anzahl erhöht Erfolgswahrscheinlichkeit und Berichtdetail.', 50000, 0, 80, 2, 60, 0, 5, 5, 'Spionage, Tarnung', NULL),
-('SR-71 Aufklärer', 'intel', 'Geheimdienstzentrum Level 2', 'Hochgeschwindigkeits-Aufklärungsjet für schnelle und weitreichende Informationsbeschaffung.', 320000, 180, 650, 4, 80, 0, 8, 12, 'Schnelle Spionage, Luftaufklärung (Reichweite 20)', NULL),
-('Spionagesatellit', 'intel', 'Geheimdienstzentrum Level 3', 'Orbitales Aufklärungssystem mit nahezu garantierter Erfolgsrate und vollständigen Berichten.', 1200000, 500, 1200, 8, 100, 0, 12, 20, 'Vollständige Aufklärung, kaum abfangbar', NULL);
+('Spion', 'intel', 'Geheimdienstzentrum Level 1', 'Verdeckter Agent für Aufklärung und Informationsbeschaffung hinter feindlichen Linien. Höhere Anzahl erhöht Erfolgswahrscheinlichkeit und Berichtdetail.', 50000, 0, 80, 2, 0, 0, 5, 5, 'Spionage, Tarnung', NULL),
+('SR-71 Aufklärer', 'intel', 'Geheimdienstzentrum Level 2', 'Hochgeschwindigkeits-Aufklärungsjet für schnelle und weitreichende Informationsbeschaffung.', 320000, 180, 650, 4, 0, 0, 8, 25, 'Schnelle Spionage, Luftaufklärung (Reichweite 20)', NULL),
+('Spionagesatellit', 'intel', 'Geheimdienstzentrum Level 3', 'Orbitales Aufklärungssystem mit nahezu garantierter Erfolgsrate und vollständigen Berichten.', 1200000, 500, 1200, 8, 0, 0, 12, 50, 'Vollständige Aufklärung, kaum abfangbar', NULL)
+ON CONFLICT (name) DO NOTHING;
+
+-- Spionage-Angriff/Abwehr-Werte für Intel-Einheiten setzen
+UPDATE unit_types SET spy_attack = 20,  spy_defense = 30 WHERE name = 'Spion';
+UPDATE unit_types SET spy_attack = 50,  spy_defense = 45 WHERE name = 'SR-71 Aufklärer';
+UPDATE unit_types SET spy_attack = 150, spy_defense = 20 WHERE name = 'Spionagesatellit';

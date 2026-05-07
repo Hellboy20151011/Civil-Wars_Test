@@ -108,7 +108,7 @@ async function _tryBuild(npcId, buildingName, buildings) {
  */
 async function _tryTrainInfantry(npcId) {
     try {
-        const unitType = await unitsRepo.findTypeByName('Infanterist');
+        const unitType = await unitsRepo.findTypeByName('Soldat');
         if (!unitType) return false;
         await unitsService.startTraining(npcId, unitType.id, 5);
         logger.info({ npcId }, '[NPC] Infanteristen ausgebildet');
@@ -180,7 +180,7 @@ async function tickNpc(npc) {
     if (!status) return;
 
     const { hasActiveConstruction } = status;
-    const buildings = await buildingRepo.findDetailedByUser(npcId);
+    const buildings = await buildingRepo.findDetailedByUser(npc.id);
 
     // ── Bauentscheidung ────────────────────────────────────────────────────────
     if (!hasActiveConstruction) {

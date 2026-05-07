@@ -78,11 +78,11 @@ export async function findReturningMissions(now, client = pool) {
 }
 
 /**
- * Einheitenzuordnungen für eine Mission.
+ * Einheitenzuordnungen für eine Mission (inkl. spy_attack für neue Angriffswertberechnung).
  */
 export async function findMissionUnits(missionId, client = pool) {
     const res = await client.query(
-        `SELECT smu.*, ut.name, ut.movement_speed, ut.category
+        `SELECT smu.*, ut.name, ut.movement_speed, ut.category, ut.spy_attack
          FROM spy_mission_units smu
          JOIN user_units uu ON uu.id = smu.user_unit_id
          JOIN unit_types ut ON ut.id = uu.unit_type_id
@@ -90,6 +90,77 @@ export async function findMissionUnits(missionId, client = pool) {
         [missionId]
     );
     return res.rows;
+}
+
+/**
+ * Gesamter Spionageabwehrwert eines Spielers (SUM spy_defense * quantity aller Intel-Einheiten).
+ */
+export async function findTotalSpyDefense(userId, client = pool) {
+    const res = await client.query(
+        `SELECT COALESCE(SUM(ut.spy_defense * uu.quantity), 0) AS total_defense
+         FROM user_units uu
+         JOIN unit_types ut ON ut.id = uu.unit_type_id
+         WHERE uu.user_id = $1
+           AND ut.category = 'intel'
+           AND uu.quantity > 0`,
+        [userId]
+    );
+    return Number(res.rows[0]?.total_defense ?? 0);
+}
+
+/**
+ * Anzahl plünderbarer Gebäude (exakte Namen aus dem Kampfsystem).
+ * @param {number}   userId
+ * @param {string[]} plunderableNames – Liste der Gebäudenamen, die plünderbar sind
+ */
+export async function findPlunderableBuildingCount(userId, plunderableNames, client = pool) {
+    const res = await client.query(
+        `SELECT COUNT(*) AS total_count
+         FROM user_buildings ub
+         JOIN building_types bt ON bt.id = ub.building_type_id
+         WHERE ub.user_id = $1
+           AND bt.name = ANY($2)
+           AND ub.is_constructing = FALSE`,
+        [userId, plunderableNames]
+    );
+    return Number(res.rows[0]?.total_count ?? 0);
+}
+
+/**
+ * Genaue Auflistung der Produktionsgebäude (Stufe 2 Report).
+ */
+export async function findProductionBuildingsForReport(userId, client = pool) {
+    const res = await client.query(
+        `SELECT bt.name, bt.category, COUNT(*) AS count
+         FROM user_buildings ub
+         JOIN building_types bt ON bt.id = ub.building_type_id
+         WHERE ub.user_id = $1
+           AND bt.category = ANY(ARRAY['infrastructure', 'housing'])
+           AND ub.is_constructing = FALSE
+         GROUP BY bt.name, bt.category
+         ORDER BY bt.category, bt.name`,
+        [userId]
+    );
+    return res.rows.map(r => ({ ...r, count: Number(r.count) }));
+}
+
+/**
+ * Gesamtzahl nicht-Intel-Einheiten und Verteidigungen (Stufe 2 Report).
+ */
+export async function findUnitDefenseTotalsForReport(userId, client = pool) {
+    const res = await client.query(
+        `SELECT
+             COALESCE(SUM(uu.quantity) FILTER (WHERE ut.category NOT IN ('defense','intel')), 0) AS total_units,
+             COALESCE(SUM(uu.quantity) FILTER (WHERE ut.category = 'defense'), 0)               AS total_defenses
+         FROM user_units uu
+         JOIN unit_types ut ON ut.id = uu.unit_type_id
+         WHERE uu.user_id = $1 AND uu.quantity > 0`,
+        [userId]
+    );
+    return {
+        totalUnits:    Number(res.rows[0]?.total_units    ?? 0),
+        totalDefenses: Number(res.rows[0]?.total_defenses ?? 0),
+    };
 }
 
 /**

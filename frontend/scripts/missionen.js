@@ -262,60 +262,80 @@ function renderSpyReport(r) {
   card.className = 'spy-card';
   const report = r.report ?? {};
   const date = new Date(r.created_at).toLocaleString('de-DE');
-  const successRatePercent = Number.isFinite(Number(report.successRatePercent))
-    ? Number(report.successRatePercent)
-    : 0;
 
   let contentHtml;
   if (!report.success) {
-    contentHtml = `<div class="spy-report-fail">
-      ❌ Alle Spione wurden erwischt (${report.spiesCaught ?? r.spies_sent} gefangen).<br>
-      Erfolgsquote: <strong>${successRatePercent}%</strong><br>
-      Keine Informationen gesammelt.
-    </div>`;
+    contentHtml = `
+      <div class="spy-report-badge fail">❌ Fehlgeschlagen</div>
+      <div class="spy-report-stats">
+        <div class="spy-stat"><span class="spy-stat-label">⚔ Eigener Angriff</span><span class="spy-stat-value">${report.totalAttack ?? '?'}</span></div>
+        <div class="spy-stat"><span class="spy-stat-label">🛡 Geg. Abwehr (±20%)</span><span class="spy-stat-value">~${report.defenseValueFuzzy ?? '?'}</span></div>
+        <div class="spy-stat"><span class="spy-stat-label">💀 Spione verloren</span><span class="spy-stat-value danger">${report.spiesLost ?? r.spies_sent}</span></div>
+      </div>`;
   } else {
-    const detail = report.detail ?? 'low';
-    const caughtNote = report.spiesCaught > 0
-      ? `<span class="spy-caught">${report.spiesCaught} Spion(e) erwischt</span>`
-      : '<span class="spy-safe">Keine Spione erwischt</span>';
+    const detail = report.detail ?? 'level1';
+    const levelLabels = { level1: '🔎 Stufe 1', level2: '🔍 Stufe 2', level3: '🕵️ Stufe 3' };
+    const levelDesc   = { level1: 'Einfache Aufklärung', level2: 'Erweiterte Mission', level3: 'Vollständige Aufklärung (unentdeckt)' };
 
-    if (detail === 'low') {
-      const cats = (report.buildings?.categories ?? []).join(', ');
+    const statsHtml = `
+      <div class="spy-report-stats">
+        <div class="spy-stat"><span class="spy-stat-label">⚔ Eigener Angriff</span><span class="spy-stat-value">${report.totalAttack ?? '?'}</span></div>
+        ${detail === 'level1'
+          ? `<div class="spy-stat"><span class="spy-stat-label">🛡 Geg. Abwehr (±10%)</span><span class="spy-stat-value">~${report.defenseValueFuzzy ?? '?'}</span></div>`
+          : detail === 'level2'
+          ? `<div class="spy-stat"><span class="spy-stat-label">🛡 Geg. Abwehr (±5%)</span><span class="spy-stat-value">~${report.totalDefense ?? '?'}</span></div>`
+          : `<div class="spy-stat"><span class="spy-stat-label">🛡 Geg. Abwehr (exakt)</span><span class="spy-stat-value">${report.totalDefense ?? '?'}</span></div>`
+        }
+      </div>`;
+
+    if (detail === 'level1') {
       contentHtml = `
-        <p>${caughtNote}</p>
-        <p><strong>Erfolgsquote:</strong> ${successRatePercent}%</p>
-        <p><strong>Gebäudekategorien erkannt:</strong> ${cats || '–'}</p>
-      `;
-    } else if (detail === 'medium') {
-      const bldgs = Object.entries(report.buildings ?? {})
-        .map(([cat, cnt]) => `${cat}: ${cnt}`)
-        .join(', ');
-      const unitCats = (report.units?.categories ?? []).join(', ');
+        <div class="spy-report-badge success">${levelLabels[detail]} – ${levelDesc[detail]}</div>
+        ${statsHtml}
+        <div class="spy-report-section">
+          <div class="spy-report-row"><span>🏚 Raubbare Gebäude (ca.):</span><strong>${report.plunderableBuildingsApprox ?? '?'}</strong></div>
+        </div>`;
+    } else if (detail === 'level2') {
+      const bldgs = (report.productionBuildings ?? [])
+        .map((b) => `<div class="spy-report-row"><span>${b.name}</span><strong>${b.count ?? b.level ?? '?'}×</strong></div>`)
+        .join('');
       contentHtml = `
-        <p>${caughtNote}</p>
-        <p><strong>Erfolgsquote:</strong> ${successRatePercent}%</p>
-        <p><strong>Gebäude:</strong> ${bldgs || '–'}</p>
-        <p><strong>Einheitenkategorien:</strong> ${unitCats || '–'}</p>
-      `;
+        <div class="spy-report-badge success">${levelLabels[detail]} – ${levelDesc[detail]}</div>
+        ${statsHtml}
+        <div class="spy-report-section">
+          <div class="spy-report-section-title">🏗 Produktionsgebäude</div>
+          ${bldgs || '<div class="spy-report-row muted">Keine</div>'}
+        </div>
+        <div class="spy-report-section">
+          <div class="spy-report-row"><span>⚔️ Einheiten gesamt</span><strong>${report.totalUnits ?? '?'}</strong></div>
+          <div class="spy-report-row"><span>🛡 Verteidigungen gesamt</span><strong>${report.totalDefenses ?? '?'}</strong></div>
+        </div>`;
     } else {
-      const bldgs = Object.entries(report.buildings ?? {})
-        .map(([cat, cnt]) => `<li>${cat}: ${cnt}</li>`)
+      const bldgs = (report.productionBuildings ?? [])
+        .map((b) => `<div class="spy-report-row"><span>${b.name}</span><strong>${b.count ?? b.level ?? '?'}×</strong></div>`)
         .join('');
       const units = Object.entries(report.units ?? {})
         .filter(([, v]) => v.quantity > 0)
-        .map(([name, v]) => `<li>${name} (${v.category}): ${v.quantity}</li>`)
+        .map(([name, v]) => `<div class="spy-report-row"><span>${name}</span><strong>${v.quantity}</strong></div>`)
         .join('');
       const defenses = (report.defenses ?? [])
-        .map((d) => `<li>${d.name}: ${d.quantity}</li>`)
+        .map((d) => `<div class="spy-report-row"><span>${d.name}</span><strong>${d.quantity}</strong></div>`)
         .join('');
-
       contentHtml = `
-        <p>${caughtNote}</p>
-        <p><strong>Erfolgsquote:</strong> ${successRatePercent}%</p>
-        <details open><summary><strong>🏗 Gebäude</strong></summary><ul>${bldgs || '<li>Keine</li>'}</ul></details>
-        <details open><summary><strong>⚔️ Einheiten</strong></summary><ul>${units || '<li>Keine</li>'}</ul></details>
-        <details open><summary><strong>🛡 Verteidigungen</strong></summary><ul>${defenses || '<li>Keine</li>'}</ul></details>
-      `;
+        <div class="spy-report-badge success">${levelLabels[detail]} – ${levelDesc[detail]}</div>
+        ${statsHtml}
+        <details open class="spy-report-section">
+          <summary class="spy-report-section-title">🏗 Produktionsgebäude</summary>
+          ${bldgs || '<div class="spy-report-row muted">Keine</div>'}
+        </details>
+        <details open class="spy-report-section">
+          <summary class="spy-report-section-title">⚔️ Einheiten</summary>
+          ${units || '<div class="spy-report-row muted">Keine</div>'}
+        </details>
+        <details open class="spy-report-section">
+          <summary class="spy-report-section-title">🛡 Verteidigungen</summary>
+          ${defenses || '<div class="spy-report-row muted">Keine</div>'}
+        </details>`;
     }
   }
 
@@ -325,7 +345,10 @@ function renderSpyReport(r) {
       <strong>Bericht: ${r.target_username}</strong>
       <span class="spy-card-date">${date}</span>
     </div>
-    <div class="spy-card-meta">Entsandte Spione: ${r.spies_sent} | Zurückgekehrt: ${r.spies_returned ?? '–'}</div>
+    <div class="spy-card-meta">
+      <span>👥 Entsandt: <strong>${r.spies_sent}</strong></span>
+      <span>🏠 Zurückgekehrt: <strong>${r.spies_returned ?? '–'}</strong></span>
+    </div>
     <div class="spy-card-content">${contentHtml}</div>
   `;
   return card;

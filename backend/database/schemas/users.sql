@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS users (
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	last_login_at TIMESTAMPTZ,
 	failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-	locked_until TIMESTAMPTZ
+	locked_until TIMESTAMPTZ,
+	is_npc BOOLEAN NOT NULL DEFAULT FALSE,
+	npc_type VARCHAR(20) NULL CHECK (npc_type IN ('defensive', 'aggressive'))
 );
 
 ALTER TABLE users
@@ -21,3 +23,5 @@ ALTER TABLE users
 ALTER TABLE users
 	ADD CONSTRAINT users_coordinates_unique
 	UNIQUE (koordinate_x, koordinate_y);
+
+CREATE INDEX IF NOT EXISTS idx_users_is_npc ON users (is_npc) WHERE is_npc = TRUE;

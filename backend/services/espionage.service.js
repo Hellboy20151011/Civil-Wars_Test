@@ -3,19 +3,20 @@
  *
  * Ablauf:
  *   1. launchSpyMission()             – Spieler sendet Spione
- *   2. processArrivingSpyMissions()   – Tick: Spione kommen an → Erfolg/Misserfolg berechnen,
- *                                       Bericht erstellen, Rückreise starten
- *   3. processReturningSpyMissions()  – Tick: Spione zurück → Mengen anpassen, Mission abschließen
+ *   2. processArrivingSpyMissions()   – Tick: Spione kommen an → Stufe berechnen,
+ *                                       Bericht erstellen, Rükreise starten
+ *   3. processReturningSpyMissions()  – Tick: Spione zurück → Mengen zurückgeben, Mission abschließen
  *
- * Erfolgsformel (pro Spion unabhängig):
- *   base = 50 + 10 * intelLevel(Angreifer) - 15 * counterIntelLevel(Verteidiger)
- *          + 5 * unitBonus(SR-71/Satellit)
- *   clamp(10, 95) pro Spion
+ * Aggregationsformel:
+ *   Gesamtangriff  = SUM(spy_attack  * quantity_sent)  (gesendete Spione)
+ *   Gesamtabwehr   = SUM(spy_defense * quantity)        (Intel-Einheiten des Verteidigers zu Hause)
+ *   ratio          = Gesamtangriff / Gesamtabwehr  (0 = keine Abwehr → immer Stufe 3)
  *
- * Berichtsdetail skaliert mit Erfolgsrate:
- *   < 30%  → nur Gebäudekategorien ohne Mengen
- *   30–60% → Gebäude mit Mengen, Einheitenkategorien ohne Mengen
- *   > 60%  → vollständiger Bericht (Gebäude, alle Einheiten, Verteidigungen)
+ * Stufen:
+ *   ratio < 1.05  → Fehlschlag  – alle Spione verloren, Verteidiger benachrichtigt
+ *   1.05 – 1.30   → Stufe 1    – raubbare Gebäude grob (±5%) + Abwehr ±5%
+ *   1.30 – 1.65   → Stufe 2    – Produktionsgebäude exakt + Gesamtzahl Einheiten/Verteidigung
+ *   > 1.65        → Stufe 3    – vollständige Auflistung, Verteidiger NICHT benachrichtigt
  */
 
 import * as spyRepo from '../repositories/spy-missions.repository.js';
@@ -33,23 +34,41 @@ import { calcDistance, calcArrivalTime } from '../utils/game-math.js';
 // HILFSFUNKTIONEN
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Gebäude, die im Kampfsystem plünderbar sind (identisch mit combat.service.js)
+const PLUNDERABLE_BUILDINGS = [
+    'Wohnhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Hochhaus',
+    'Kraftwerk', 'Steinbruch', 'Stahlwerk', 'Ölpumpe', 'Öl-Raffinerie',
+];
+
 /**
- * Erfolgswahrscheinlichkeit für einen einzelnen Spion (0–1).
- * @param {number} intelLevel        – Geheimdienstzentrum-Level des Angreifers (0–3)
- * @param {number} counterIntelLevel – Gegenspionage-Level des Verteidigers (0–3)
- * @param {string} unitName          – Einheitenname für Bonus
- * @returns {number} 0.10 … 0.95
+ * Liefert einen zufälligen Wert innerhalb von ±varianceFraction um den Basiswert.
+ */
+function fuzz(base, varianceFraction) {
+    const factor = 1 + (Math.random() * 2 - 1) * varianceFraction;
+    return Math.round(base * factor);
+}
+
+/**
+ * Bestimmt die Stufe anhand des Verhältnisses Angriff/Abwehr.
+ * @returns {'failed'|'level1'|'level2'|'level3'}
+ */
+function determineSpyLevel(totalAttack, totalDefense) {
+    if (totalDefense <= 0) return 'level3';
+    const ratio = totalAttack / totalDefense;
+    if (ratio < 1.05) return 'failed';
+    if (ratio < 1.30) return 'level1';
+    if (ratio < 1.65) return 'level2';
+    return 'level3';
+}
+
+/**
+ * @deprecated – wird nicht mehr verwendet, nur für Rückwärtskompatibilität behalten
  */
 function calcSuccessRate(intelLevel, counterIntelLevel, unitName) {
-    // Ohne Gegenspionageverteidigung gelingt jede Aktion sicher.
     if (Number(counterIntelLevel) <= 0) return 1;
-
     let base = 50 + 10 * intelLevel - 15 * counterIntelLevel;
-
-    // Fortgeschrittene Geheimdiensteinheiten haben Boni
     if (unitName === 'SR-71 Aufklärer') base += 15;
     if (unitName === 'Spionagesatellit') base += 30;
-
     return Math.min(95, Math.max(10, base)) / 100;
 }
 
@@ -63,64 +82,69 @@ function calculateFuelCost(distance, units) {
 }
 
 /**
- * Baut den Spionage-Bericht abhängig von der Erfolgsrate.
- * @param {number}   successRate  – 0.1–0.95
- * @param {number}   spiesCaught  – erwischte Spione
- * @param {string}   targetUsername
- * @param {object}   buildingSummary – { category: count }
- * @param {Array}    unitSummary     – [{ name, category, quantity }]
- * @returns {object} report-Objekt
+ * Baut den Spionage-Fehlschlag-Bericht.
  */
-function buildReport(successRate, spiesCaught, targetUsername, buildingSummary, unitSummary) {
-    const successRatePercent = Math.round(Math.max(0, Math.min(1, Number(successRate) || 0)) * 100);
+function buildFailedReport(targetUsername, totalDefense, spiesLost, totalAttack) {
+    return {
+        success: false,
+        detail: 'failed',
+        targetUsername,
+        spiesLost,
+        totalAttack,
+        defenseValueFuzzy: fuzz(totalDefense, 0.20),
+    };
+}
 
-    if (successRate < 0.30) {
-        // Nur Kategorienübersicht
-        return {
-            success: true,
-            detail: 'low',
-            targetUsername,
-            spiesCaught,
-            successRatePercent,
-            buildings: {
-                categories: Object.keys(buildingSummary),
-            },
-        };
-    }
+/**
+ * Baut den Bericht für Stufe 1 (+10–30 % Überlegenheit).
+ */
+function buildLevel1Report(targetUsername, plunderableCount, totalDefense, totalAttack) {
+    return {
+        success: true,
+        detail: 'level1',
+        targetUsername,
+        totalAttack,
+        plunderableBuildingsApprox: fuzz(plunderableCount, 0.05),
+        defenseValueFuzzy: fuzz(totalDefense, 0.10),
+    };
+}
 
-    if (successRate < 0.60) {
-        // Gebäude mit Mengen, Einheitenkategorien
-        const unitCategories = [...new Set(unitSummary.map((u) => u.category))];
-        return {
-            success: true,
-            detail: 'medium',
-            targetUsername,
-            spiesCaught,
-            successRatePercent,
-            buildings: buildingSummary,
-            units: { categories: unitCategories },
-        };
-    }
+/**
+ * Baut den Bericht für Stufe 2 (+30–65 % Überlegenheit).
+ */
+function buildLevel2Report(targetUsername, productionBuildings, unitDefenseTotals, totalDefense, totalAttack) {
+    return {
+        success: true,
+        detail: 'level2',
+        targetUsername,
+        totalAttack,
+        totalDefense: fuzz(totalDefense, 0.05),
+        productionBuildings,
+        totalUnits:    unitDefenseTotals.totalUnits,
+        totalDefenses: unitDefenseTotals.totalDefenses,
+    };
+}
 
-    // Vollständiger Bericht
+/**
+ * Baut den vollständigen Bericht für Stufe 3 (> 65 % Überlegenheit).
+ */
+function buildLevel3Report(targetUsername, unitSummary, productionBuildings, totalDefense, totalAttack) {
     const units = {};
     for (const u of unitSummary) {
         if (u.category !== 'intel') {
             units[u.name] = { category: u.category, quantity: Number(u.quantity) };
         }
     }
-
     const defenses = unitSummary
         .filter((u) => u.category === 'defense')
         .map((u) => ({ name: u.name, quantity: Number(u.quantity) }));
-
     return {
         success: true,
-        detail: 'full',
+        detail: 'level3',
         targetUsername,
-        spiesCaught,
-        successRatePercent,
-        buildings: buildingSummary,
+        totalAttack,
+        totalDefense,
+        productionBuildings: productionBuildings ?? [],
         units,
         defenses,
     };
@@ -266,89 +290,67 @@ export async function processArrivingSpyMissions() {
 async function processOneMission(mission, client) {
     const missionUnits = await spyRepo.findMissionUnits(mission.id, client);
 
-    // Geheimdienstzentrum-Level des Angreifers + Gegenspionage-Level des Verteidigers
-    const [intelLevel, counterIntelLevel] = await Promise.all([
-        spyRepo.findIntelLevel(mission.spy_id, client),
-        spyRepo.findCounterIntelLevel(mission.target_id, client),
-    ]);
+    // Gesamtangriff (gesendete Spione) und Gesamtabwehr (Verteidiger zu Hause)
+    const totalAttack  = missionUnits.reduce((sum, mu) => sum + Number(mu.spy_attack) * mu.quantity_sent, 0);
+    const totalDefense = await spyRepo.findTotalSpyDefense(mission.target_id, client);
 
-    let successfulSpies = 0;
-    let caughtSpies = 0;
-    let bestSuccessRate = 0;
-
-    for (const mu of missionUnits) {
-        const rate = calcSuccessRate(intelLevel, counterIntelLevel, mu.name);
-        bestSuccessRate = Math.max(bestSuccessRate, rate);
-
-        for (let i = 0; i < mu.quantity_sent; i++) {
-            if (Math.random() < rate) {
-                successfulSpies++;
-            } else {
-                caughtSpies++;
-            }
-        }
-    }
-
-    // Ohne Gegenspionage wird die Mission garantiert erfolgreich ausgewertet.
-    if (Number(counterIntelLevel) <= 0) {
-        successfulSpies = mission.spies_sent;
-        caughtSpies = 0;
-        bestSuccessRate = 1;
-    }
-
-    const totalSent = mission.spies_sent;
-    const survivalRate = successfulSpies / totalSent;
+    const level = determineSpyLevel(totalAttack, totalDefense);
 
     // Rückreisezeit: gleiche Distanz, gleiche Geschwindigkeit
-    const speed = Math.min(...missionUnits.map((u) => Number(u.movement_speed)));
+    const speed      = Math.min(...missionUnits.map((u) => Number(u.movement_speed)));
     const returnTime = calcArrivalTime(mission.distance, speed);
 
     let report;
     let newStatus;
+    let notifyDefender = true;
 
-    if (successfulSpies === 0) {
-        // Alle Spione erwischt
-        report = {
-            success: false,
-            targetUsername: mission.target_username,
-            spiesCaught: caughtSpies,
-            successRatePercent: 0,
-        };
+    if (level === 'failed') {
+        // Alle Spione verloren
+        report    = buildFailedReport(mission.target_username, totalDefense, mission.spies_sent, totalAttack);
         newStatus = 'aborted';
     } else {
-        // Mindestens ein Spion erfolgreich
-        const [buildingSummary, unitSummary] = await Promise.all([
-            spyRepo.findBuildingSummaryForReport(mission.target_id, client),
-            spyRepo.findUnitSummaryForReport(mission.target_id, client),
-        ]);
-
-        report = buildReport(
-            bestSuccessRate * survivalRate,
-            caughtSpies,
-            mission.target_username,
-            buildingSummary,
-            unitSummary
-        );
         newStatus = 'traveling_back';
+
+        if (level === 'level1') {
+            const plunderableCount = await spyRepo.findPlunderableBuildingCount(
+                mission.target_id, PLUNDERABLE_BUILDINGS, client
+            );
+            report = buildLevel1Report(mission.target_username, plunderableCount, totalDefense, totalAttack);
+
+        } else if (level === 'level2') {
+            const [productionBuildings, unitDefenseTotals] = await Promise.all([
+                spyRepo.findProductionBuildingsForReport(mission.target_id, client),
+                spyRepo.findUnitDefenseTotalsForReport(mission.target_id, client),
+            ]);
+            report = buildLevel2Report(mission.target_username, productionBuildings, unitDefenseTotals, totalDefense, totalAttack);
+
+        } else {
+            // level3 – vollständiger Bericht, Verteidiger NICHT benachrichtigt
+            const [unitSummary, productionBuildings] = await Promise.all([
+                spyRepo.findUnitSummaryForReport(mission.target_id, client),
+                spyRepo.findProductionBuildingsForReport(mission.target_id, client),
+            ]);
+            report         = buildLevel3Report(mission.target_username, unitSummary, productionBuildings, totalDefense, totalAttack);
+            notifyDefender = false;
+        }
     }
 
     await spyRepo.setMissionResult(mission.id, newStatus, report, returnTime, client);
 
-    // Verteidiger benachrichtigen (wenn Spione erwischt wurden)
-    if (caughtSpies > 0) {
+    // Verteidiger benachrichtigen (außer bei Stufe 3)
+    if (notifyDefender) {
         broadcastToUser(mission.target_id, 'spy_detected', {
-            spiesCaught: caughtSpies,
+            spiesDetected: level === 'failed' ? mission.spies_sent : 0,
             originUsername: mission.spy_username,
         });
     }
 
-    // Angreifer benachrichtigen: Mission abgeschlossen oder unterwegs zurück
+    // Angreifer benachrichtigen
     broadcastToUser(mission.spy_id, 'spy_mission_update', {
         missionId: mission.id,
-        status: newStatus,
+        status:    newStatus,
+        level,
         targetUsername: mission.target_username,
-        spiesCaught: caughtSpies,
-        successfulSpies,
     });
 }
 
@@ -375,19 +377,13 @@ export async function processReturningSpyMissions() {
 
 async function finalizeReturnedMission(mission, client) {
     const missionUnits = await spyRepo.findMissionUnits(mission.id, client);
-    const report = mission.report ?? {};
-    const spiesCaught = Number(report.spiesCaught ?? 0);
-    const totalSent = mission.spies_sent;
-    const surviving = totalSent - spiesCaught;
+    // Bei erfolgreichen Missionen (traveling_back) kehren alle Spione zurück.
+    // Fehlgeschlagene Missionen ('aborted') erreichen diese Funktion nie.
+    const surviving = mission.spies_sent;
 
-    // Einheiten zurückgeben (nur Überlebende)
-    let remainingToReturn = surviving;
     for (const mu of missionUnits) {
-        if (remainingToReturn <= 0) break;
-        const returnQty = Math.min(remainingToReturn, mu.quantity_sent);
-        await unitsRepo.addUnitQuantity(mu.user_unit_id, returnQty, client);
-        await spyRepo.setUnitQuantityReturned(mission.id, mu.user_unit_id, returnQty, client);
-        remainingToReturn -= returnQty;
+        await unitsRepo.addUnitQuantity(mu.user_unit_id, mu.quantity_sent, client);
+        await spyRepo.setUnitQuantityReturned(mission.id, mu.user_unit_id, mu.quantity_sent, client);
     }
 
     await spyRepo.completeMission(mission.id, surviving, client);

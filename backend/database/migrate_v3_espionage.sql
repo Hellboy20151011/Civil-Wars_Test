@@ -10,13 +10,13 @@ INSERT INTO unit_types (name, category, building_requirement, description, money
 VALUES
     ('Spion', 'intel', 'Geheimdienstzentrum Level 1',
      'Verdeckter Agent für Aufklärung und Informationsbeschaffung. Höhere Anzahl erhöht Erfolgswahrscheinlichkeit.',
-     50000, 0, 80, 2, 60, 0, 5, 5, 'Spionage, Tarnung', NULL),
+     50000, 0, 80, 2, 0, 0, 5, 5, 'Spionage, Tarnung', NULL),
     ('SR-71 Aufklärer', 'intel', 'Geheimdienstzentrum Level 2',
      'Hochgeschwindigkeits-Aufklärungsjet für schnelle weitreichende Informationsbeschaffung.',
-     320000, 180, 650, 4, 80, 0, 8, 12, 'Schnelle Spionage, Luftaufklärung (Reichweite 20)', NULL),
+     320000, 180, 650, 4, 0, 0, 8, 25, 'Schnelle Spionage, Luftaufklärung (Reichweite 20)', NULL),
     ('Spionagesatellit', 'intel', 'Geheimdienstzentrum Level 3',
      'Orbitales Aufklärungssystem mit nahezu garantierter Erfolgsrate.',
-     1200000, 500, 1200, 8, 100, 0, 12, 20, 'Vollständige Aufklärung, kaum abfangbar', NULL)
+     1200000, 500, 1200, 8, 0, 0, 12, 50, 'Vollständige Aufklärung, kaum abfangbar', NULL)
 ON CONFLICT (name) DO NOTHING;
 
 -- 2. Spionage-Missions-Tabellen anlegen

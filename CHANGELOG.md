@@ -11,6 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Added
 
+- `backend/database/migrate_v7_spy_stats.sql` – Migration: Spalten `spy_attack` und `spy_defense` in `unit_types`; setzt Werte für Spion (20/30), SR-71 Aufklärer (50/40), Spionagesatellit (120/60).
 - `backend/database/migrate_v6_npc.sql` – Migration: Spalten `is_npc BOOLEAN` und `npc_type VARCHAR(20)` in `users`-Tabelle; Index `idx_users_is_npc`.
 - `backend/repositories/npc.repository.js` – `findActiveNpcs()` und `createNpc()` für NPC-Accounts.
 - `backend/services/npc.service.js` – KI-Tick-Service: NPCs bauen eigenständig Gebäude nach Priorität, trainieren Einheiten und (bei `aggressive`-Typ) starten Angriffe auf nahegelegene Spieler.
@@ -18,6 +19,9 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Changed
 
+- `backend/services/espionage.service.js` – Komplettes Rework der Spionage-Logik: Ersetzt den probabilistischen Einzelspion-Ansatz durch ein aggregiertes Verhältnismodell. Neues System: `Gesamtangriff = SUM(spy_attack × quantity_sent)`, `Gesamtabwehr = SUM(spy_defense × quantity)`; vier Ergebnisstufen (Fehlschlag / Stufe 1–3) basierend auf dem Verhältnis; bei Fehlschlag gehen alle Spione verloren, bei Stufe 1–3 kehren alle zurück; Stufe 3 benachrichtigt den Verteidiger nicht.
+- `backend/repositories/spy-missions.repository.js` – `findMissionUnits` um `spy_attack` erweitert; neue Funktionen `findTotalSpyDefense`, `findPlunderableBuildingCount`, `findProductionBuildingsForReport`, `findUnitDefenseTotalsForReport`.
+- `backend/database/schemas/units.sql` – `unit_types`-Tabelle um Spalten `spy_attack` und `spy_defense` erweitert; UPDATE-Statements für Intel-Einheitenwerte ergänzt.
 - `backend/services/buildings.service.js` – Infrastruktur- und Unterkunftsgebäude (Kategorie `infrastructure` / `housing`) werden mit jedem gebauten Exemplar um **3% linear** teurer (Formel: `floor(baseCost × (1 + n × 0,03))`). Konstanten `SCALABLE_CATEGORIES`, `COST_SCALE_PER_BUILDING` und Hilfsfunktion `calculateScaledTotal` hinzugefügt.
 - `frontend/scripts/bauhof.js` – Baukostenanzeige und „Max baubar"-Berechnung berücksichtigen jetzt die gestaffelten Kosten für Infrastruktur- und Unterkunftsgebäude. Hilfsfunktionen `getScaledUnitCost`, `calcScaledTotal`, `maxBuildableWithScaling` sowie Konstanten `SCALABLE_CATEGORIES`/`COST_SCALE_RATE` ergänzt.
 

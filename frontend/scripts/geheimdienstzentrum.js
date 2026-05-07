@@ -54,10 +54,11 @@ function getUnitCostsText(ut) {
     return parts.length > 0 ? parts.join('  ') : 'Kostenlos';
 }
 
-function buildUnitRow(unitType, container) {
+function buildUnitCard(unitType, container) {
     const gdhLevel = getGdhLevel(state.myBuildings);
     const unlocked = isUnlocked(unitType, gdhLevel);
     const owned = state.myUnits.find((u) => u.unit_type_id === unitType.id || u.name === unitType.name);
+    const ownedCount = Number(owned?.quantity ?? owned?.anzahl ?? 0);
 
     const input = el('input', {
         className: 'build-quantity-input',
@@ -66,27 +67,24 @@ function buildUnitRow(unitType, container) {
             min: '1',
             max: '999',
             value: '1',
-            style: 'width:60px',
             ...(unlocked ? {} : { disabled: '' }),
         },
     });
 
     const button = el('button', {
         className: 'primary-action',
-        text: unlocked ? (owned ? 'Weitere ausbilden' : 'Ausbilden') : `Benötigt: ${unitType.building_requirement}`,
+        text: 'Ausbilden',
         attrs: unlocked ? {} : { disabled: '' },
         on: unlocked ? {
             click: async () => {
                 button.disabled = true;
                 input.disabled = true;
-
                 try {
                     const quantity = Math.max(1, Math.min(999, Number(input.value) || 1));
                     const result = await apiFetch('/units/train', {
                         method: 'POST',
                         body: JSON.stringify({ unit_type_id: unitType.id, quantity }),
                     });
-
                     state.message = result.message ?? '';
                     [state.myUnits, state.myBuildings] = await Promise.all([
                         apiFetch('/units/me'),
@@ -102,21 +100,38 @@ function buildUnitRow(unitType, container) {
         } : {},
     });
 
-    const ownedText = owned ? `Vorhanden: ${owned.quantity ?? owned.anzahl ?? 0}` : 'Nicht vorhanden';
+    const requirementLabel = `Benötigt: ${unitType.building_requirement ?? 'Geheimdienstzentrum'} (aktuell Level ${gdhLevel})`;
+    const spyAtk = unitType.spy_attack ?? 0;
+    const spyDef = unitType.spy_defense ?? 0;
 
-    return el('div', {
-        className: `building-type-row${unlocked ? '' : ' gdh-locked'}`,
+    return el('article', {
+        className: `building-card${unlocked ? '' : ' is-locked'}`,
         children: [
-            el('strong', { text: unitType.name }),
-            el('span', { className: 'build-cost', text: unitType.description ?? '' }),
-            el('span', { className: 'build-cost', text: getUnitCostsText(unitType) }),
+            el('h4', { text: unitType.name }),
+            !unlocked ? el('span', { className: 'unit-lock-badge', text: 'Gesperrt' }) : null,
+            el('p', {
+                className: 'building-card-description',
+                text: unitType.description || 'Geheimdiensteinheit für verdeckte Operationen.',
+            }),
+            el('span', {
+                className: 'building-count',
+                text: `Vorhanden: ${ownedCount.toLocaleString('de-DE')}`,
+            }),
+            el('span', {
+                className: `build-cost unit-requirement${unlocked ? '' : ' unit-requirement--missing'}`,
+                text: requirementLabel,
+            }),
             el('span', {
                 className: 'build-cost',
-                text: `HP: ${unitType.hitpoints}  🥷 Intel  🛡️ ${unitType.defense_points}  ⚡ Ausb.: ${unitType.training_time_ticks} Tick(s)`,
+                text: getUnitCostsText(unitType),
             }),
-            el('span', { className: 'build-cost gdh-owned', text: ownedText }),
+            el('span', {
+                className: 'build-power',
+                text: `⚔️ Spionage ${spyAtk}  🛡️ Abwehr ${spyDef}  🚀 Speed ${unitType.movement_speed}  ⚡ Ausb.: ${unitType.training_time_ticks} Tick(s)`,
+            }),
+            !unlocked ? el('span', { className: 'unit-lock-hint', text: 'Geheimdienstzentrum-Level erhöhen' }) : null,
             el('div', {
-                attrs: { style: 'display:flex;gap:8px;align-items:center' },
+                className: 'building-card-actions',
                 children: [input, button],
             }),
         ],
@@ -143,16 +158,16 @@ function renderPage(container) {
         nodes.push(el('p', { className: 'dash-message', text: state.message }));
     }
 
-    const cardChildren = [el('h3', { text: 'Geheimdiensteinheiten' })];
+    const cardChildren = [];
 
     for (const ut of state.unitTypes) {
-        cardChildren.push(buildUnitRow(ut, container));
+        cardChildren.push(buildUnitCard(ut, container));
     }
 
     nodes.push(
         el('div', {
             className: 'category-grid',
-            children: [el('article', { className: 'category-card', children: cardChildren })],
+            children: cardChildren,
         })
     );
 
