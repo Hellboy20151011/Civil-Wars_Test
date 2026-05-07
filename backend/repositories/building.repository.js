@@ -145,6 +145,19 @@ export async function findQueueByUser(userId, client = pool) {
     return result.rows;
 }
 
+export async function findQueuedPowerConsumption(userId, client = pool) {
+    const result = await client.query(
+        `SELECT COALESCE(SUM(bt.power_consumption), 0)::INTEGER AS queued_power
+         FROM user_buildings ub
+         JOIN building_types bt ON bt.id = ub.building_type_id
+         WHERE ub.user_id = $1
+           AND ub.is_constructing = TRUE
+           AND ub.construction_end_time > NOW()`,
+        [userId]
+    );
+    return Number(result.rows[0]?.queued_power ?? 0);
+}
+
 export async function findExistingQueueEntry(userId, buildingTypeId, client = pool) {
     const result = await client.query(
         `SELECT id
@@ -226,7 +239,14 @@ export async function createQueueEntry(
     const buildMs = Math.max(0, Math.round(ticks * TICK_MS));
 
     const result = await client.query(
-        `INSERT INTO user_buildings (
+        `WITH queue_anchor AS (
+            SELECT COALESCE(MAX(construction_end_time), NOW()) AS anchor
+            FROM user_buildings
+            WHERE user_id = $1
+              AND is_constructing = TRUE
+              AND construction_end_time > NOW()
+        )
+        INSERT INTO user_buildings (
             user_id,
             building_type_id,
             level,
@@ -234,16 +254,23 @@ export async function createQueueEntry(
             construction_start_time,
             construction_end_time
         )
-         SELECT $1, $2, 1, TRUE, NOW(), NOW() + ($3 * INTERVAL '1 millisecond')
-         FROM generate_series(1, $4)
-         RETURNING id, user_id, building_type_id, construction_start_time AS erstellt_am, construction_end_time AS fertig_am`,
+        SELECT
+            $1,
+            $2,
+            1,
+            TRUE,
+            qa.anchor + ((gs.n - 1) * $3 * INTERVAL '1 millisecond'),
+            qa.anchor + (gs.n * $3 * INTERVAL '1 millisecond')
+        FROM queue_anchor qa
+        CROSS JOIN generate_series(1, $4) AS gs(n)
+        RETURNING id, user_id, building_type_id, construction_start_time AS erstellt_am, construction_end_time AS fertig_am`,
         [userId, buildingTypeId, buildMs, quantity]
     );
 
-    const first = result.rows[0] ?? null;
+    const last = result.rows[result.rows.length - 1] ?? null;
 
     return {
-        ...first,
+        ...last,
         anzahl: quantity,
     };
 }

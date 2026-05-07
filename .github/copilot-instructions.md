@@ -393,3 +393,329 @@ Keine Quickfixes erzeugen, die:
 - Inkonsistenzen schaffen
 - Dokumentation veralten lassen
 - Sicherheitsprobleme verursachen
+
+
+## Idempotenz-Regeln
+
+Kritische Aktionen müssen gegen doppelte Ausführung abgesichert sein.
+
+Besonders:
+
+- Bau starten
+- Kampf starten
+- Produktionsabholung
+- Forschung starten
+- Belohnungen
+- Käufe
+
+dürfen bei mehrfachen Requests nicht mehrfach ausgeführt werden.
+
+Verwende bevorzugt:
+
+- DB-Constraints
+- Idempotency Keys
+- Status-Prüfungen
+- atomare UPDATE-Statements
+- Transaktionen
+
+## Server-Authoritative-Regeln
+
+Der Client gilt niemals als vertrauenswürdig.
+
+Der Server berechnet und validiert:
+
+- Ressourcen
+- Kampfresultate
+- Produktionswerte
+- Bauzeiten
+- Cooldowns
+- Bewegungszeiten
+- Plünderung
+- Forschung
+- Energieversorgung
+
+Frontend-Werte gelten nur als Anzeige.
+
+Keine spielrelevante Logik ausschließlich im Frontend.
+
+## Logging und Observability
+
+Neue kritische Systeme müssen strukturiertes Logging unterstützen.
+
+Besonders loggen:
+
+- Kampfstarts
+- Ressourcenänderungen
+- Auth-Fehler
+- Transaktionsfehler
+- Produktionsfehler
+- SSE-Disconnects
+- Rate-Limits
+- unerwartete Exceptions
+
+Keine sensitiven Daten loggen.
+
+Fehlerlogs müssen genügend Kontext enthalten:
+
+- Spieler-ID
+- Eventtyp
+- betroffene Entität
+- Timestamp
+
+## SSE-/Realtime-Regeln
+
+SSE-/Realtime-Events müssen:
+
+- versionierbar bleiben
+- konsistente Payloads besitzen
+- reconnect-sicher sein
+- keine vollständigen State-Dumps unnötig senden
+
+Events bevorzugt granular statt komplette Spielzustände senden.
+
+Neue Events müssen dokumentiert werden.
+
+## Anti-Cheat-Regeln
+
+Neue Features immer auf mögliche Exploits prüfen.
+
+Besonders:
+
+- Race Conditions
+- doppelte Requests
+- Timing-Exploits
+- negative Ressourcen
+- Integer-Overflows
+- manipulierte Clientdaten
+- fehlende Ownership-Prüfungen
+- Replay-Angriffe
+
+Alle spielrelevanten Aktionen serverseitig validieren.
+
+## Ownership- und Berechtigungsregeln
+
+Alle geschützten Ressourcen müssen serverseitig prüfen:
+
+- gehört die Entität dem Spieler?
+- darf der Spieler die Aktion ausführen?
+- gehört die Einheit/Stadt/Basis wirklich dem Nutzer?
+
+Keine Berechtigungsprüfung ausschließlich im Frontend.
+
+## Datenlöschung
+
+Spielrelevante Daten bevorzugt soft löschen oder archivieren.
+
+Besonders:
+
+- Kämpfe
+- Reports
+- Nachrichten
+- Transaktionen
+- Logs
+
+dürfen nicht unbeabsichtigt endgültig verloren gehen.
+
+## Migrations-Regeln
+
+Migrationen müssen:
+
+- vorwärts reproduzierbar
+- möglichst rollbackbar
+- deterministisch
+
+sein.
+
+Keine destruktiven Schemaänderungen ohne Prüfung bestehender Daten.
+
+## API-Versionierung
+
+Breaking Changes an APIs oder SSE-Events benötigen:
+
+- Versionsprüfung
+- Migrationsstrategie
+- oder Kompatibilitätsschicht
+
+Keine stillen Breaking Changes.
+
+## Frontend-Performance
+
+Vermeide:
+
+- unnötige DOM-Rebuilds
+- vollständige Re-Renders
+- große Interval-Schleifen
+- unnötige Event-Listener
+- Memory-Leaks
+
+Timer und Listener müssen sauber entfernt werden.
+
+## Dead-Code-Regeln
+
+Keine ungenutzten:
+
+- Funktionen
+- Komponenten
+- Utilities
+- DTOs
+- Events
+- Tabellen
+- CSS-Klassen
+
+im Repository behalten.
+
+Alte Implementierungen entfernen oder klar als deprecated markieren.
+
+## Architekturgrenzen
+
+Services dürfen nicht zu God-Objects werden.
+
+Große Systeme modular aufteilen:
+
+- combat/
+- production/
+- economy/
+- movement/
+- diplomacy/
+- research/
+
+Bevorzugt kleine fokussierte Services statt zentrale Mega-Dateien.
+
+## Deterministische Spielregeln
+
+Spielberechnungen müssen deterministisch sein.
+
+Identische Inputs müssen identische Ergebnisse erzeugen.
+
+Zufallswerte zentral und nachvollziehbar erzeugen.
+
+## Zeitregeln
+
+Der Server ist die einzige gültige Zeitquelle.
+
+Keine spielrelevanten Berechnungen auf Basis lokaler Clientzeit.
+
+Cooldowns, Produktionen und Bauzeiten serverseitig berechnen.
+
+## Konfigurierbarkeit
+
+Gameplay-Werte möglichst zentral konfigurierbar halten.
+
+Beispiele:
+
+- Produktionsraten
+- Bauzeiten
+- Kampfwerte
+- Cooldowns
+- Spawnraten
+- Energieverbrauch
+
+Keine Magic Numbers im Code.
+
+## Fehler- und Fallback-Regeln
+
+Keine stillen Fallbacks implementieren, die Fehler verdecken.
+
+Beispiele:
+
+- leere Catch-Blöcke
+- automatische Default-Werte ohne Logging
+- verschluckte Promise-Rejections
+- stilles Ignorieren fehlender Daten
+
+Fehler müssen nachvollziehbar logbar oder behandelbar bleiben.
+
+## Temporary-Code-Regeln
+
+Keine temporären Workarounds committen ohne Kennzeichnung.
+
+Temporärer Code muss:
+
+- klar markiert
+- dokumentiert
+- oder als TODO/FIXME gekennzeichnet werden
+
+Keine stillen Hotfixes ohne Kontext.
+
+## Async-Regeln
+
+Async-Code konsistent behandeln.
+
+Vermeide:
+
+- unhandled Promise Rejections
+- fehlende await-Aufrufe
+- verschachtelte Promise-Ketten
+- Fire-and-forget ohne Fehlerbehandlung
+
+Asynchrone Fehler müssen zentral behandelbar bleiben.
+
+Copilot darf niemals bestehende Architekturregeln umgehen, nur um Features schneller umzusetzen.
+
+## Timer- und Scheduler-Regeln
+
+Cronjobs, Scheduler und Timer dürfen keine komplexe Spiellogik enthalten.
+
+Sie dürfen nur:
+
+- Services triggern
+- Status prüfen
+- Jobs koordinieren
+
+Geschäftslogik bleibt in Services.
+
+## API-Response-Regeln
+
+API-Responses konsistent strukturieren.
+
+Bevorzugt standardisierte Formate für:
+
+- Erfolg
+- Fehler
+- Pagination
+- Validation Errors
+
+Keine inkonsistenten Response-Strukturen zwischen Endpunkten.
+
+## Event-Konstanten
+
+Eventnamen und SSE-Events zentral definieren.
+
+Keine verstreuten Magic Strings für:
+
+- Eventnamen
+- Actions
+- Statuswerte
+- Rollen
+- Typen
+
+## Ownership-Sicherheit in Queries
+
+DB-Queries für spielrelevante Daten bevorzugt direkt mit owner_id/user_id absichern.
+
+Keine Entitäten erst laden und Ownership später separat prüfen, wenn dies race-condition-anfällig sein könnte.
+
+## Skalierbarkeit
+
+Neue Systeme auf horizontale Skalierbarkeit prüfen.
+
+Vermeide:
+
+- globalen In-Memory-State
+- singletonabhängige Spiellogik
+- serverlokale Spielzustände
+- nicht replizierbare Sessions
+
+## Review-Regeln
+
+Generierter Code darf nicht ungeprüft übernommen werden.
+
+Immer prüfen auf:
+
+- Sicherheitsprobleme
+- Architekturverstöße
+- doppelte Logik
+- unnötige Komplexität
+- fehlende Fehlerbehandlung
+- Performanceprobleme
+

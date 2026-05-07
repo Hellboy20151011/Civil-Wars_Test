@@ -20,26 +20,69 @@ import { logger } from '../logger.js';
 
 // Minimale Einheiten für einen Angriff (aggressive NPCs)
 const MIN_ATTACK_UNITS = 5;
+// Unterhalb dieser freien Energie kann kein geplanter NPC-Bau starten
+// (kleinster Verbrauch in der Priorität: Wohnhaus mit 5).
+const MIN_USEFUL_FREE_POWER = 5;
+
+// Einkommensziele für Phase 2 – NPC baut Ressourcengebäude weiter bis diese
+// Vorräte dauerhaft gehalten werden können.
+const STEIN_TARGET     = 10_000;
+const STAHL_TARGET     =  5_000;
+const TREIBSTOFF_TARGET =  3_000;
+// Pro Ölpumpe werden 5 Öl-Raffinerien benötigt (Verarbeitungsverhältnis).
+const RAFFINERIEN_PRO_PUMPE = 5;
 
 // Baupriorität: [ gebäudeTypName, condition-fn(status) | null ]
 // condition-fn erhält { resources, buildingSummary, stromFrei } und gibt true zurück wenn gebaut werden soll
+//
+// Zwei Phasen:
+//   Phase 1 – Je ein Exemplar jedes Ressourcengebäudes sicherstellen
+//   Phase 2 – Weitere Exemplare bauen bis Einkommensziele erreicht sind
+
 const DEFENSIVE_BUILD_PRIORITY = [
-    { name: 'Kraftwerk',         condition: (s) => s.stromFrei < 0 },
-    { name: 'Wohnhaus',          condition: (s) => s.resources.geld < 200_000 },
-    { name: 'Steinbruch',        condition: (s) => s.resources.stein < 2_000 },
-    { name: 'Stahlwerk',         condition: (s) => s.resources.stahl < 1_000 },
-    { name: 'Reihenhaus',        condition: (s) => s.resources.geld >= 200_000 },
-    { name: 'Mehrfamilienhaus',  condition: (s) => s.resources.geld >= 500_000 },
-    { name: 'Hochhaus',          condition: null }, // immer wenn Ressourcen reichen
+    // ── Phase 1: Einmalig je ein Exemplar jedes Ressourcengebäudes ─────────
+    { name: 'Kraftwerk',             condition: (s) => s.stromFrei < MIN_USEFUL_FREE_POWER },
+    { name: 'Wohnhaus',              condition: (s) => (s.buildingSummary['Wohnhaus'] ?? 0) < 1 },
+    { name: 'Steinbruch',            condition: (s) => (s.buildingSummary['Steinbruch'] ?? 0) < 1 },
+    { name: 'Stahlwerk',             condition: (s) => (s.buildingSummary['Stahlwerk'] ?? 0) < 1 },
+    { name: 'Ölpumpe',               condition: (s) => (s.buildingSummary['Ölpumpe'] ?? 0) < 1 },
+    { name: 'Öl-Raffinerie',         condition: (s) =>
+        (s.buildingSummary['Ölpumpe'] ?? 0) >= 1 && (s.buildingSummary['Öl-Raffinerie'] ?? 0) < 1 },
+    { name: 'Landverteidigung Level 1', condition: (s) =>
+        (s.buildingSummary['Landverteidigung Level 1'] ?? 0) < 1 && s.resources.geld >= 120_000 },
+    // ── Phase 2: Skalieren bis Einkommensziele ─────────────────────────────
+    { name: 'Wohnhaus',         condition: (s) => s.resources.geld < 200_000 },
+    { name: 'Steinbruch',       condition: (s) => s.resources.stein < STEIN_TARGET },
+    { name: 'Stahlwerk',        condition: (s) => s.resources.stahl < STAHL_TARGET },
+    { name: 'Ölpumpe',          condition: (s) => s.resources.treibstoff < TREIBSTOFF_TARGET },
+    { name: 'Öl-Raffinerie',    condition: (s) =>
+        (s.buildingSummary['Öl-Raffinerie'] ?? 0) < (s.buildingSummary['Ölpumpe'] ?? 0) * RAFFINERIEN_PRO_PUMPE },
+    { name: 'Reihenhaus',       condition: (s) => s.resources.geld >= 200_000 },
+    { name: 'Mehrfamilienhaus', condition: (s) => s.resources.geld >= 500_000 },
+    { name: 'Hochhaus',         condition: null }, // immer wenn Ressourcen reichen
 ];
 
 const AGGRESSIVE_BUILD_PRIORITY = [
-    { name: 'Kraftwerk',  condition: (s) => s.stromFrei < 0 },
-    { name: 'Wohnhaus',   condition: (s) => s.resources.geld < 150_000 },
-    { name: 'Kaserne',    condition: (s) => (s.buildingSummary['Kaserne'] ?? 0) < 2 },
-    { name: 'Steinbruch', condition: (s) => s.resources.stein < 2_000 },
-    { name: 'Stahlwerk',  condition: (s) => s.resources.stahl < 1_000 },
-    { name: 'Reihenhaus', condition: (s) => s.resources.geld >= 200_000 },
+    // ── Phase 1: Einmalig je ein Exemplar jedes Ressourcengebäudes ─────────
+    { name: 'Kraftwerk',     condition: (s) => s.stromFrei < MIN_USEFUL_FREE_POWER },
+    { name: 'Wohnhaus',      condition: (s) => (s.buildingSummary['Wohnhaus'] ?? 0) < 1 },
+    { name: 'Steinbruch',    condition: (s) => (s.buildingSummary['Steinbruch'] ?? 0) < 1 },
+    { name: 'Stahlwerk',     condition: (s) => (s.buildingSummary['Stahlwerk'] ?? 0) < 1 },
+    { name: 'Ölpumpe',       condition: (s) => (s.buildingSummary['Ölpumpe'] ?? 0) < 1 },
+    { name: 'Öl-Raffinerie', condition: (s) =>
+        (s.buildingSummary['Ölpumpe'] ?? 0) >= 1 && (s.buildingSummary['Öl-Raffinerie'] ?? 0) < 1 },
+    { name: 'Kaserne',       condition: (s) =>
+        (s.buildingSummary['Ölpumpe'] ?? 0) >= 1 &&
+        (s.buildingSummary['Öl-Raffinerie'] ?? 0) >= 1 &&
+        (s.buildingSummary['Kaserne'] ?? 0) < 2 },
+    // ── Phase 2: Skalieren bis Einkommensziele ─────────────────────────────
+    { name: 'Wohnhaus',      condition: (s) => s.resources.geld < 150_000 },
+    { name: 'Steinbruch',    condition: (s) => s.resources.stein < STEIN_TARGET },
+    { name: 'Stahlwerk',     condition: (s) => s.resources.stahl < STAHL_TARGET },
+    { name: 'Ölpumpe',       condition: (s) => s.resources.treibstoff < TREIBSTOFF_TARGET },
+    { name: 'Öl-Raffinerie', condition: (s) =>
+        (s.buildingSummary['Öl-Raffinerie'] ?? 0) < (s.buildingSummary['Ölpumpe'] ?? 0) * RAFFINERIEN_PRO_PUMPE },
+    { name: 'Reihenhaus',    condition: (s) => s.resources.geld >= 200_000 },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,6 +130,10 @@ function _nextBuildLocation(buildings) {
 
 /**
  * Versucht, ein Gebäude zu bauen. Gibt true zurück wenn gestartet.
+ *
+ * Hinweis: NPCs nutzen bewusst den NPC-spezifischen Baupfad
+ * `startBuildingConstruction(...)` (mit Koordinaten), damit die KI
+ * Gebäude auf dem Raster platziert. Spieler nutzen `buildBuilding(...)`.
  */
 async function _tryBuild(npcId, buildingName, buildings) {
     try {
@@ -97,7 +144,7 @@ async function _tryBuild(npcId, buildingName, buildings) {
         await buildingService.startBuildingConstruction(npcId, buildingType.id, loc.x, loc.y);
         logger.info({ npcId, buildingName, loc }, '[NPC] Bau gestartet');
         return true;
-    } catch (err) {
+    } catch {
         // Fehlschlag ist erwartet (z.B. Ressourcen knapp) – kein Error-Log nötig
         return false;
     }
@@ -122,8 +169,7 @@ async function _tryTrainInfantry(npcId) {
  * Gibt den nächsten menschlichen (Non-NPC) Spieler zurück, der angreifbar ist.
  */
 async function _findNearestHumanTarget(npc) {
-    const allPlayers = await playerRepo.findAllForMap();
-    const humans = allPlayers.filter((p) => Number(p.id) !== Number(npc.id));
+    const humans = await playerRepo.findActiveHumanTargetsForMap(npc.id);
     if (humans.length === 0) return null;
 
     let nearest = null;
@@ -220,4 +266,8 @@ export async function tickAllNpcs() {
     }
 
     logger.debug({ count: npcs.length }, '[NPC] Alle NPC-Ticks abgeschlossen');
+}
+
+export async function getNpcDebugSummary() {
+    return npcRepo.findNpcDebugSummary();
 }

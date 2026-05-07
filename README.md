@@ -146,7 +146,7 @@ npm run format
 ```text
 backend/
   routes/         ← Express-Router (HTTP-Handler): auth, resources, buildings, me, units
-  services/       ← Business-Logik: economy.service, units.service, gameloop-scheduler, gameloop
+  services/       ← Business-Logik: economy.service, units.service, gameloop-scheduler
   middleware/     ← Auth, Validation, Rate-Limiting, Error Handling
   repositories/   ← Datenbankzugriff (SQL-Abfragen)
   database/       ← Schema-Dateien, Connection Pool

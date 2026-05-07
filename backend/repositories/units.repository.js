@@ -59,7 +59,8 @@ export async function findReadyBuildingCountByName(userId, buildingName, client 
     return Number(result.rows[0]?.count ?? 0);
 }
 
-export async function findUserUnitById(userUnitId, client = pool) {
+export async function findUserUnitById(userUnitId, client = pool, options = {}) {
+    const lockClause = options.forUpdate ? ' FOR UPDATE' : '';
     const result = await client.query(
         `SELECT uu.id,
                 uu.user_id,
@@ -78,7 +79,7 @@ export async function findUserUnitById(userUnitId, client = pool) {
                 ut.defense_points
          FROM user_units uu
          JOIN unit_types ut ON uu.unit_type_id = ut.id
-         WHERE uu.id = $1`,
+         WHERE uu.id = $1${lockClause}`,
         [userUnitId]
     );
     return result.rows[0] ?? null;
@@ -108,16 +109,33 @@ export async function createUserUnit(userId, unitTypeId, quantity, client = pool
     );
 }
 
-export async function findMovableUnit(userUnitId, userId, client = pool) {
+export async function findMovableUnit(userUnitId, userId, client = pool, options = {}) {
+    const lockClause = options.forUpdate ? ' FOR UPDATE' : '';
     const result = await client.query(
         `SELECT uu.*, ut.movement_speed, ut.fuel_cost, ut.category, ut.name
          FROM user_units uu
          JOIN unit_types ut ON uu.unit_type_id = ut.id
-         WHERE uu.id = $1 AND uu.user_id = $2`,
+         WHERE uu.id = $1 AND uu.user_id = $2${lockClause}`,
         [userUnitId, userId]
     );
 
     return result.rows[0] ?? null;
+}
+
+export async function findMovableUnitsByIds(userId, unitIds, client = pool, options = {}) {
+    if (!Array.isArray(unitIds) || unitIds.length === 0) return [];
+    const lockClause = options.forUpdate ? ' FOR UPDATE' : '';
+
+    const result = await client.query(
+        `SELECT uu.*, ut.movement_speed, ut.fuel_cost, ut.category, ut.name
+         FROM user_units uu
+         JOIN unit_types ut ON uu.unit_type_id = ut.id
+         WHERE uu.user_id = $1
+           AND uu.id = ANY($2::int[])${lockClause}`,
+        [userId, unitIds]
+    );
+
+    return result.rows;
 }
 
 export async function setUnitMovement(userUnitId, destinationX, destinationY, arrivalTime, client = pool) {
@@ -168,13 +186,14 @@ export async function arriveDueUnitsByUser(userId, atTime, client = pool) {
     return result.rows.length;
 }
 
-export async function findAttackerUnit(attackingUnitId, client = pool) {
+export async function findAttackerUnit(attackingUnitId, userId, client = pool) {
     const result = await client.query(
         `SELECT uu.*, ut.attack_points
          FROM user_units uu
          JOIN unit_types ut ON uu.unit_type_id = ut.id
-         WHERE uu.id = $1`,
-        [attackingUnitId]
+         WHERE uu.id = $1
+           AND uu.user_id = $2`,
+        [attackingUnitId, userId]
     );
 
     return result.rows[0] ?? null;
@@ -211,10 +230,20 @@ export async function addUnitExperience(unitId, amount, client = pool) {
 }
 
 export async function decrementUserUnitQuantity(userUnitId, amount, client = pool) {
-    await client.query(
-        'UPDATE user_units SET quantity = quantity - $1 WHERE id = $2',
+    const result = await client.query(
+        `UPDATE user_units
+         SET quantity = quantity - $1
+         WHERE id = $2
+           AND quantity >= $1
+         RETURNING id`,
         [amount, userUnitId]
     );
+
+    if (result.rowCount === 0) {
+        const error = new Error('INSUFFICIENT_UNITS');
+        error.code = 'INSUFFICIENT_UNITS';
+        throw error;
+    }
 }
 
 export async function addUnitQuantity(userUnitId, amount, client = pool) {

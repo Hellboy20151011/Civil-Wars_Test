@@ -332,20 +332,59 @@ export async function launchAttack(attackerId, defenderId, units) {
             throw createServiceError('Spielerkoordinaten fehlen', 400, 'MISSING_COORDINATES');
         }
 
-        // Einheiten validieren + Daten laden
-        const unitRecords = [];
+        // Einheiten validieren + Daten laden (batch statt N Einzelqueries)
+        const requestedByUnitId = new Map();
         for (const entry of units) {
-            const userUnitId = entry.userUnitId ?? entry.user_unit_id;
-            const unit = await unitsRepo.findMovableUnit(userUnitId, attackerId, client);
-            if (!unit) throw createServiceError(`Einheit ${userUnitId} nicht gefunden oder gehört nicht dir`, 404, 'UNIT_NOT_FOUND');
+            const userUnitId = Number(entry.userUnitId ?? entry.user_unit_id);
+            const quantity = Number(entry.quantity);
+
+            if (!Number.isInteger(userUnitId) || userUnitId <= 0) {
+                throw createServiceError('Ungültige Einheit in Angriffsliste', 400, 'INVALID_UNIT_ID');
+            }
+            if (!Number.isInteger(quantity) || quantity <= 0) {
+                throw createServiceError('Ungültige Einheitenmenge', 400, 'INVALID_UNIT_QUANTITY');
+            }
+
+            requestedByUnitId.set(userUnitId, (requestedByUnitId.get(userUnitId) ?? 0) + quantity);
+        }
+
+        const unitIds = [...requestedByUnitId.keys()];
+        const movableUnits = await unitsRepo.findMovableUnitsByIds(attackerId, unitIds, client, {
+            forUpdate: true,
+        });
+        const movableById = new Map(movableUnits.map((unit) => [Number(unit.id), unit]));
+
+        const unitRecords = [];
+        for (const userUnitId of unitIds) {
+            const unit = movableById.get(userUnitId);
+            const requestedQuantity = requestedByUnitId.get(userUnitId);
+
+            if (!unit) {
+                throw createServiceError(
+                    `Einheit ${userUnitId} nicht gefunden oder gehört nicht dir`,
+                    404,
+                    'UNIT_NOT_FOUND'
+                );
+            }
             if (unit.category === 'defense') {
-                throw createServiceError('Verteidigungsstellungen können nicht für Angriffe eingesetzt werden', 400, 'INVALID_UNIT_CATEGORY');
+                throw createServiceError(
+                    'Verteidigungsstellungen können nicht für Angriffe eingesetzt werden',
+                    400,
+                    'INVALID_UNIT_CATEGORY'
+                );
             }
-            if (unit.is_moving) throw createServiceError(`Einheit ${unit.id} ist bereits unterwegs`, 409, 'UNIT_BUSY');
-            if (unit.quantity < entry.quantity) {
-                throw createServiceError(`Nicht genug Einheiten (vorhanden: ${unit.quantity}, gefordert: ${entry.quantity})`, 400, 'INSUFFICIENT_UNITS');
+            if (unit.is_moving) {
+                throw createServiceError(`Einheit ${unit.id} ist bereits unterwegs`, 409, 'UNIT_BUSY');
             }
-            unitRecords.push({ ...unit, quantitySent: entry.quantity });
+            if (Number(unit.quantity) < requestedQuantity) {
+                throw createServiceError(
+                    `Nicht genug Einheiten (vorhanden: ${unit.quantity}, gefordert: ${requestedQuantity})`,
+                    400,
+                    'INSUFFICIENT_UNITS'
+                );
+            }
+
+            unitRecords.push({ ...unit, quantitySent: requestedQuantity });
         }
 
         // Geschwindigkeit = langsamste Einheit
@@ -387,7 +426,18 @@ export async function launchAttack(attackerId, defenderId, units) {
         // Einheiten der Mission zuordnen + aus dem "freien Pool" reservieren (quantity reduzieren)
         for (const unit of unitRecords) {
             await combatMissionsRepo.addMissionUnit(mission.id, unit.id, unit.quantitySent, client);
-            await unitsRepo.decrementUserUnitQuantity(unit.id, unit.quantitySent, client);
+            try {
+                await unitsRepo.decrementUserUnitQuantity(unit.id, unit.quantitySent, client);
+            } catch (error) {
+                if (error?.code === 'INSUFFICIENT_UNITS') {
+                    throw createServiceError(
+                        `Nicht genug Einheiten (vorhanden: ${unit.quantity}, gefordert: ${unit.quantitySent})`,
+                        400,
+                        'INSUFFICIENT_UNITS'
+                    );
+                }
+                throw error;
+            }
         }
 
         logger.info(

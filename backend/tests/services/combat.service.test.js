@@ -96,7 +96,7 @@ describe('launchAttack', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
-        unitsRepo.findMovableUnit.mockResolvedValue(null);
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([]);
 
         await expect(launchAttack(1, 2, [{ userUnitId: 99, quantity: 1 }])).rejects.toMatchObject({
             code: 'UNIT_NOT_FOUND',
@@ -107,7 +107,9 @@ describe('launchAttack', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
-        unitsRepo.findMovableUnit.mockResolvedValue({ id: 1, is_moving: true, quantity: 5, movement_speed: 2 });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            { id: 1, is_moving: true, quantity: 5, movement_speed: 2 },
+        ]);
 
         await expect(launchAttack(1, 2, [{ userUnitId: 1, quantity: 1 }])).rejects.toMatchObject({
             code: 'UNIT_BUSY',
@@ -118,15 +120,17 @@ describe('launchAttack', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
-        unitsRepo.findMovableUnit.mockResolvedValue({
-            id: 1,
-            is_moving: false,
-            quantity: 5,
-            movement_speed: 1,
-            fuel_cost: 1,
-            category: 'defense',
-            name: '2cm Flak',
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1,
+                is_moving: false,
+                quantity: 5,
+                movement_speed: 1,
+                fuel_cost: 1,
+                category: 'defense',
+                name: '2cm Flak',
+            },
+        ]);
 
         await expect(launchAttack(1, 2, [{ userUnitId: 1, quantity: 1 }])).rejects.toMatchObject({
             code: 'INVALID_UNIT_CATEGORY',
@@ -137,7 +141,9 @@ describe('launchAttack', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
-        unitsRepo.findMovableUnit.mockResolvedValue({ id: 1, is_moving: false, quantity: 2, movement_speed: 2 });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            { id: 1, is_moving: false, quantity: 2, movement_speed: 2 },
+        ]);
 
         await expect(launchAttack(1, 2, [{ userUnitId: 1, quantity: 5 }])).rejects.toMatchObject({
             code: 'INSUFFICIENT_UNITS',
@@ -148,7 +154,9 @@ describe('launchAttack', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 5, koordinate_y: 5, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
-        unitsRepo.findMovableUnit.mockResolvedValue({ id: 1, is_moving: false, quantity: 5, movement_speed: 2 });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            { id: 1, is_moving: false, quantity: 5, movement_speed: 2 },
+        ]);
         calcDistance.mockReturnValue(0);
 
         await expect(launchAttack(1, 2, [{ userUnitId: 1, quantity: 1 }])).rejects.toMatchObject({
@@ -161,9 +169,11 @@ describe('launchAttack', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
-        unitsRepo.findMovableUnit.mockResolvedValue({
-            id: 1, is_moving: false, quantity: 10, movement_speed: 2, fuel_cost: 3,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1, is_moving: false, quantity: 10, movement_speed: 2, fuel_cost: 3,
+            },
+        ]);
         calcDistance.mockReturnValue(10);
         calcArrivalTime.mockReturnValue(arrivalTime);
         combatMissionsRepo.createMission.mockResolvedValue({ id: 42 });
@@ -184,13 +194,15 @@ describe('launchAttack', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'atk' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'def' });
-        unitsRepo.findMovableUnit.mockResolvedValue({
-            id: 1,
-            is_moving: false,
-            quantity: 10,
-            movement_speed: 2,
-            fuel_cost: 5,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1,
+                is_moving: false,
+                quantity: 10,
+                movement_speed: 2,
+                fuel_cost: 5,
+            },
+        ]);
         calcDistance.mockReturnValue(10);
         resourcesRepo.findByUserIdLocked.mockResolvedValue({ treibstoff: 1 });
 

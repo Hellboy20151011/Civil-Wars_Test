@@ -12,6 +12,7 @@ import mapRouter from './routes/map.js';
 import combatRouter from './routes/combat.js';
 import espionageRouter from './routes/espionage.js';
 import researchRouter from './routes/research.js';
+import npcRouter from './routes/npc.js';
 import { createDocsRouter } from './routes/docs.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { startGameLoop } from './services/gameloop-scheduler.js';
@@ -44,6 +45,7 @@ app.use('/map', mapRouter);
 app.use('/combat', combatRouter);
 app.use('/espionage', espionageRouter);
 app.use('/research', researchRouter);
+app.use('/npc', npcRouter);
 
 if (config.docs.enableSwaggerUi) {
     app.use('/api-docs', createDocsRouter());

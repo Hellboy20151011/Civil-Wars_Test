@@ -1,4 +1,4 @@
-import { initShell, getAuth, showToast, refreshShellStatus } from '/scripts/shell.js';
+import { initShell, getAuth } from '/scripts/shell.js';
 import { API_BASE_URL } from '/scripts/config.js';
 import { escapeHtml } from '/scripts/utils/escape.js';
 
@@ -32,6 +32,10 @@ let dragStartY = 0;
 let hoveredPlayer = null;
 let clickedPlayer = null;   // Ziel für den Angriffs-Dialog
 let ownId = auth.user?.id ?? null;
+let playersFetchTimer = null;
+let playersRequestController = null;
+let mapReady = false;
+let maxViewportArea = 120000;
 
 const canvas = document.getElementById('map-canvas');
 const ctx = canvas.getContext('2d');
@@ -47,48 +51,13 @@ function renderActionInfoHtml(target, distance) {
     `;
 }
 
-function renderAttackInfoHtml(target, distance, fuelCost, availableFuel) {
-    const fuelSection = fuelCost == null
-        ? ''
-        : `<strong>Treibstoffbedarf:</strong> ${escapeHtml(Number(fuelCost).toLocaleString())} L<br>
-                <strong>Verfügbar:</strong> ${escapeHtml(Number(availableFuel).toLocaleString())} L<br>`;
-
-    return `
-        <strong>Ziel:</strong> (${escapeHtml(target.koordinate_x)}, ${escapeHtml(target.koordinate_y)})<br>
-        <strong>Distanz:</strong> ${escapeHtml(distance)} Felder<br>
-        ${fuelSection}
-        <small>Reisezeit abhängig von der langsamsten Einheit.</small>
-    `;
-}
-
-function renderPanelErrorHtml(message, color = '#f87171') {
-    return `<div style="color:${color}">${escapeHtml(message)}</div>`;
-}
-
-function renderSpyIntroHtml(target, distance) {
-    return `
-            <strong>Ziel:</strong> ${escapeHtml(target.username)} (${escapeHtml(target.koordinate_x)}, ${escapeHtml(target.koordinate_y)})<br>
-            <strong>Distanz:</strong> ${escapeHtml(distance)} Felder<br>
-            <small style="color:#94a3b8">Mehr Spione = höhere Erfolgswahrscheinlichkeit und detailliertere Berichte.</small>
-        `;
-}
-
-function renderSpyPreviewHtml(preview, availableFuel) {
-    return `
-                    <strong>Ziel:</strong> ${escapeHtml(preview.targetUsername)} (${escapeHtml(preview.targetCoords.x)}, ${escapeHtml(preview.targetCoords.y)})<br>
-                    <strong>Distanz:</strong> ${escapeHtml(preview.distance)} Felder<br>
-                    <strong>Reisezeit:</strong> ~${escapeHtml(preview.travelMinutes)} min<br>
-                    <strong>Treibstoffbedarf:</strong> ${escapeHtml(Number(preview.fuelCost).toLocaleString())} L<br>
-                    <strong>Verfügbar:</strong> ${escapeHtml(Number(availableFuel).toLocaleString())} L<br>
-                    <small style="color:#94a3b8">Treibstoff wird beim Absenden sofort abgezogen.</small>
-                `;
-}
 
 // ── Canvas-Größe anpassen ──────────────────────────────────────────────────────
 function resizeCanvas() {
     canvas.width = container.clientWidth;
     canvas.height = container.clientHeight;
     draw();
+    if (mapReady) schedulePlayersReload();
 }
 
 // ── Koordinaten-Transformation ─────────────────────────────────────────────────
@@ -194,21 +163,19 @@ function hideTooltip() {
 
 // ── Daten laden ────────────────────────────────────────────────────────────────
 async function loadMap() {
-    const [cfgRes, playersRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/map/config`, { headers: { Authorization: `Bearer ${auth.token}` } }),
-        fetch(`${API_BASE_URL}/map/players`, { headers: { Authorization: `Bearer ${auth.token}` } }),
-    ]);
+    const cfgRes = await fetch(`${API_BASE_URL}/map/config`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+    });
 
-    if (!cfgRes.ok || !playersRes.ok) {
+    if (!cfgRes.ok) {
         info.textContent = 'Karte konnte nicht geladen werden.';
         return;
     }
 
     const cfg = await cfgRes.json();
-    const data = await playersRes.json();
 
     gridSize = cfg.grid_size ?? 999;
-    players = data.players ?? [];
+    maxViewportArea = Number(cfg.max_viewport_area) || 120000;
 
     // Initiales Skalierung: Gesamtes Gitter auf die kürzere Seite der Canvas passen
     const W = canvas.width;
@@ -217,9 +184,106 @@ async function loadMap() {
     // Zentrieren
     offsetX = (W - scale * gridSize) / 2;
     offsetY = (H - scale * gridSize) / 2;
+    mapReady = true;
+    await loadPlayersInView();
+}
 
-    info.textContent = `${players.length} Spieler auf ${gridSize}×${gridSize} Karte`;
-    draw();
+function splitBboxIntoRequests(bbox) {
+    if (!Number.isFinite(maxViewportArea) || maxViewportArea <= 0) {
+        return [bbox];
+    }
+
+    const width = bbox.xMax - bbox.xMin + 1;
+    const height = bbox.yMax - bbox.yMin + 1;
+    if (width * height <= maxViewportArea) {
+        return [bbox];
+    }
+
+    const maxChunkWidth = Math.max(1, Math.floor(Math.sqrt(maxViewportArea)));
+    const maxChunkHeight = Math.max(1, Math.floor(maxViewportArea / maxChunkWidth));
+
+    const chunks = [];
+    for (let yStart = bbox.yMin; yStart <= bbox.yMax; yStart += maxChunkHeight) {
+        const yEnd = Math.min(bbox.yMax, yStart + maxChunkHeight - 1);
+        for (let xStart = bbox.xMin; xStart <= bbox.xMax; xStart += maxChunkWidth) {
+            const xEnd = Math.min(bbox.xMax, xStart + maxChunkWidth - 1);
+            chunks.push({ xMin: xStart, yMin: yStart, xMax: xEnd, yMax: yEnd });
+        }
+    }
+
+    return chunks;
+}
+
+function getViewportBbox() {
+    return {
+        xMin: Math.max(1, Math.floor((0 - offsetX) / scale + 0.5)),
+        yMin: Math.max(1, Math.floor((0 - offsetY) / scale + 0.5)),
+        xMax: Math.min(gridSize, Math.ceil((canvas.width - offsetX) / scale + 0.5)),
+        yMax: Math.min(gridSize, Math.ceil((canvas.height - offsetY) / scale + 0.5)),
+    };
+}
+
+function buildPlayersUrlWithBbox(bbox) {
+    const { xMin, yMin, xMax, yMax } = bbox;
+    const url = new URL(`${API_BASE_URL}/map/players`);
+    url.searchParams.set('x_min', String(xMin));
+    url.searchParams.set('y_min', String(yMin));
+    url.searchParams.set('x_max', String(xMax));
+    url.searchParams.set('y_max', String(yMax));
+    return url.toString();
+}
+
+async function loadPlayersInView() {
+    if (!mapReady) return;
+
+    if (playersRequestController) {
+        playersRequestController.abort();
+    }
+    playersRequestController = new AbortController();
+    const viewportBbox = getViewportBbox();
+    const requestBboxes = splitBboxIntoRequests(viewportBbox);
+
+    try {
+        const responses = await Promise.all(
+            requestBboxes.map((bbox) =>
+                fetch(buildPlayersUrlWithBbox(bbox), {
+                    headers: { Authorization: `Bearer ${auth.token}` },
+                    signal: playersRequestController.signal,
+                })
+            )
+        );
+
+        if (responses.some((res) => !res.ok)) return;
+
+        const payloads = await Promise.all(responses.map((res) => res.json()));
+        const mergedPlayersById = new Map();
+        for (const payload of payloads) {
+            for (const player of payload.players ?? []) {
+                mergedPlayersById.set(player.id, player);
+            }
+        }
+
+        players = [...mergedPlayersById.values()];
+        hoveredPlayer = hoveredPlayer && players.some((p) => p.id === hoveredPlayer.id) ? hoveredPlayer : null;
+        if (clickedPlayer && !players.some((p) => p.id === clickedPlayer.id)) {
+            closeAllPanels();
+        }
+
+        info.textContent = `${players.length} Spieler im sichtbaren Bereich (${gridSize}×${gridSize})`;
+        draw();
+    } catch (err) {
+        if (err?.name !== 'AbortError') {
+            console.error('Spieler konnten nicht geladen werden:', err);
+        }
+    }
+}
+
+function schedulePlayersReload(delayMs = 180) {
+    if (!mapReady) return;
+    if (playersFetchTimer) clearTimeout(playersFetchTimer);
+    playersFetchTimer = setTimeout(() => {
+        loadPlayersInView();
+    }, delayMs);
 }
 
 // ── Zoom ───────────────────────────────────────────────────────────────────────
@@ -230,6 +294,7 @@ function zoomAt(cx, cy, factor) {
     offsetY = cy - ratio * (cy - offsetY);
     scale = newScale;
     draw();
+    schedulePlayersReload();
 }
 
 // ── Event-Handler ──────────────────────────────────────────────────────────────
@@ -248,7 +313,12 @@ canvas.addEventListener('mousedown', (e) => {
     dragStartY = e.clientY - offsetY;
 });
 
-window.addEventListener('mouseup', () => { isDragging = false; });
+window.addEventListener('mouseup', () => {
+    if (isDragging) {
+        isDragging = false;
+        schedulePlayersReload();
+    }
+});
 
 canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -350,346 +420,7 @@ function openActionPanel(target) {
     actionPanel.style.display = 'block';
 }
 
-// ── Angriffs-Panel ─────────────────────────────────────────────────────────────
-const attackPanel      = document.getElementById('attack-panel');
-const attackTargetName = document.getElementById('attack-target-name');
-const attackInfo       = document.getElementById('attack-info');
-const attackUnitsList  = document.getElementById('attack-units-list');
-const btnLaunch        = document.getElementById('btn-launch-attack');
-const attackPanelMsg   = document.getElementById('attack-panel-msg');
-
-document.getElementById('attack-panel-close').addEventListener('click', closeAllPanels);
-
-async function openAttackPanel(target) {
-    clickedPlayer = target;
-    attackTargetName.textContent = target.username;
-    attackPanel.style.display = 'block';
-    attackInfo.innerHTML = 'Einheiten werden geladen…';
-    attackUnitsList.innerHTML = '';
-    btnLaunch.disabled = true;
-    attackPanelMsg.textContent = '';
-
-        // Distanz berechnen
-    const ownPlayer = players.find((p) => p.id === ownId);
-        const distanceValue = ownPlayer
-                ? Math.sqrt(
-              Math.pow(target.koordinate_x - ownPlayer.koordinate_x, 2) +
-              Math.pow(target.koordinate_y - ownPlayer.koordinate_y, 2)
-                    )
-        : '?';
-        const distance = typeof distanceValue === 'number' ? distanceValue.toFixed(1) : distanceValue;
-
-    attackInfo.innerHTML = renderAttackInfoHtml(target, distance);
-
-    // Eigene Einheiten + Ressourcen laden
-    try {
-        const [unitsRes, meRes] = await Promise.all([
-            fetch(`${API_BASE_URL}/units/me`, {
-                headers: { Authorization: `Bearer ${auth.token}` },
-            }),
-            fetch(`${API_BASE_URL}/me`, {
-                headers: { Authorization: `Bearer ${auth.token}` },
-            }),
-        ]);
-        if (!unitsRes.ok) throw new Error('Einheiten konnten nicht geladen werden');
-        if (!meRes.ok) throw new Error('Ressourcen konnten nicht geladen werden');
-        const data = await unitsRes.json();
-        const meData = await meRes.json();
-        let availableFuel = Number(meData?.resources?.treibstoff ?? 0);
-        const units = (Array.isArray(data) ? data : (data.units ?? [])).filter(
-            (u) => u.quantity > 0 && !u.is_moving && u.category !== 'defense' && u.category !== 'intel'
-        );
-
-        if (units.length === 0) {
-            attackUnitsList.innerHTML = '<div style="color:#64748b;padding:6px 0">Keine verfügbaren Einheiten.</div>';
-            return;
-        }
-
-        attackUnitsList.innerHTML = '';
-        for (const u of units) {
-            const row = document.createElement('div');
-            row.className = 'attack-unit-row';
-            row.innerHTML = `
-                <span class="attack-unit-name">${escapeHtml(u.name)}</span>
-                <span class="attack-unit-avail">/${escapeHtml(u.quantity)}</span>
-                <input
-                    class="attack-unit-qty"
-                    type="number"
-                    min="0"
-                    max="${escapeHtml(u.quantity)}"
-                    value="0"
-                    data-unit-id="${escapeHtml(u.id)}"
-                    data-fuel-cost="${escapeHtml(Number(u.fuel_cost ?? 0))}"
-                />
-            `;
-            attackUnitsList.appendChild(row);
-        }
-
-        const fuelBadge = document.getElementById('attack-fuel-badge');
-
-        const calculateAttackFuelCost = () => {
-            if (typeof distanceValue !== 'number') return 0;
-            return [...attackUnitsList.querySelectorAll('.attack-unit-qty')]
-                .filter((inp) => parseInt(inp.value, 10) > 0)
-                .reduce((sum, inp) => {
-                    const qty = parseInt(inp.value, 10);
-                    const fuelPerUnit = Number(inp.dataset.fuelCost ?? 0);
-                    return sum + Math.ceil((fuelPerUnit * distanceValue * qty) / 10);
-                }, 0);
-        };
-
-        const setAttackLaunchState = () => {
-            const anySelected = [...attackUnitsList.querySelectorAll('.attack-unit-qty')]
-                .some((inp) => parseInt(inp.value, 10) > 0);
-            if (!anySelected) {
-                btnLaunch.disabled = true;
-                if (fuelBadge) fuelBadge.style.display = 'none';
-                attackPanelMsg.textContent = '';
-                attackInfo.innerHTML = renderAttackInfoHtml(target, distance);
-                return;
-            }
-
-            const fuelCost = calculateAttackFuelCost();
-            const hasFuel = fuelCost <= availableFuel;
-            btnLaunch.disabled = !hasFuel;
-            if (fuelBadge) fuelBadge.style.display = hasFuel ? 'none' : 'inline-flex';
-
-            attackInfo.innerHTML = renderAttackInfoHtml(target, distance, fuelCost, availableFuel);
-
-            if (!hasFuel) {
-                attackPanelMsg.style.color = '#f87171';
-                attackPanelMsg.textContent = `Zu wenig Treibstoff: ${fuelCost.toLocaleString()} L benötigt, ${availableFuel.toLocaleString()} L verfügbar.`;
-            } else if (!attackPanelMsg.textContent || attackPanelMsg.style.color === 'rgb(248, 113, 113)') {
-                attackPanelMsg.style.color = '#94a3b8';
-                attackPanelMsg.textContent = '';
-            }
-        };
-
-        attackUnitsList.addEventListener('input', setAttackLaunchState);
-    } catch (err) {
-        attackUnitsList.innerHTML = renderPanelErrorHtml(err.message);
-    }
-}
-
-btnLaunch.addEventListener('click', async () => {
-    if (!clickedPlayer) return;
-
-    const unitInputs = [...attackUnitsList.querySelectorAll('.attack-unit-qty')];
-    const units = unitInputs
-        .map((inp) => ({ user_unit_id: parseInt(inp.dataset.unitId, 10), quantity: parseInt(inp.value, 10) }))
-        .filter((u) => u.quantity > 0);
-
-    if (units.length === 0) return;
-    if (btnLaunch.disabled) return;
-
-    btnLaunch.disabled = true;
-    attackPanelMsg.textContent = 'Starte Angriff…';
-
-    try {
-        const res = await fetch(`${API_BASE_URL}/combat/attack`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${auth.token}`,
-            },
-            body: JSON.stringify({ defender_id: clickedPlayer.id, units }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message ?? 'Fehler beim Starten des Angriffs');
-
-        await refreshShellStatus(auth.token);
-
-        const eta = new Date(data.data.arrivalTime);
-        const mins = Math.round((eta - Date.now()) / 60000);
-        attackPanelMsg.style.color = '#22c55e';
-        attackPanelMsg.textContent = `✓ Einheiten unterwegs – Ankunft in ~${mins} min`;
-        showToast(`⚔️ Angriff auf ${clickedPlayer.username} gestartet! Ankunft in ~${mins} min.`, 'info');
-
-        setTimeout(closeAllPanels, 3000);
-    } catch (err) {
-        attackPanelMsg.style.color = '#f87171';
-        attackPanelMsg.textContent = err.message;
-        btnLaunch.disabled = false;
-    }
-});
-
-// ── Spionage-Panel ─────────────────────────────────────────────────────────────
-const spyPanel       = document.getElementById('spy-panel');
-const spyTargetName  = document.getElementById('spy-target-name');
-const spyPreviewInfo = document.getElementById('spy-preview-info');
-const spyUnitsList   = document.getElementById('spy-units-list');
-const btnLaunchSpy   = document.getElementById('btn-launch-spy');
-const spyPanelMsg    = document.getElementById('spy-panel-msg');
-
-document.getElementById('spy-panel-close').addEventListener('click', closeAllPanels);
-
-async function openSpyPanel(target) {
-    clickedPlayer = target;
-    spyTargetName.textContent = target.username;
-    spyPanel.style.display = 'block';
-    spyPreviewInfo.innerHTML = 'Geheimdiensteinheiten werden geladen…';
-    spyUnitsList.innerHTML = '';
-    btnLaunchSpy.disabled = true;
-    spyPanelMsg.textContent = '';
-
-    try {
-        const [unitsRes, meRes] = await Promise.all([
-            fetch(`${API_BASE_URL}/units/me`, {
-                headers: { Authorization: `Bearer ${auth.token}` },
-            }),
-            fetch(`${API_BASE_URL}/me`, {
-                headers: { Authorization: `Bearer ${auth.token}` },
-            }),
-        ]);
-        if (!unitsRes.ok) throw new Error('Einheiten konnten nicht geladen werden');
-        if (!meRes.ok) throw new Error('Ressourcen konnten nicht geladen werden');
-        const data = await unitsRes.json();
-        const meData = await meRes.json();
-        let availableFuel = Number(meData?.resources?.treibstoff ?? 0);
-        const intelUnits = (Array.isArray(data) ? data : (data.units ?? [])).filter(
-            (u) => u.category === 'intel' && u.quantity > 0 && !u.is_moving
-        );
-
-        if (intelUnits.length === 0) {
-            spyPreviewInfo.innerHTML = `
-                <div style="color:#f59e0b;padding:8px 0">
-                    Keine Geheimdiensteinheiten verfügbar.<br>
-                    <small>Baue ein <strong>Geheimdienstzentrum Level 1</strong> und bilde <strong>Spione</strong> aus.</small>
-                </div>`;
-            return;
-        }
-
-        const ownPlayer = players.find((p) => p.id === ownId);
-        const distance = ownPlayer
-            ? Math.sqrt(
-                  Math.pow(target.koordinate_x - ownPlayer.koordinate_x, 2) +
-                  Math.pow(target.koordinate_y - ownPlayer.koordinate_y, 2)
-              ).toFixed(1)
-            : '?';
-
-        spyPreviewInfo.innerHTML = renderSpyIntroHtml(target, distance);
-
-        spyUnitsList.innerHTML = '';
-        for (const u of intelUnits) {
-            const row = document.createElement('div');
-            row.className = 'attack-unit-row';
-            row.innerHTML = `
-                <span class="attack-unit-name">${escapeHtml(u.name)}</span>
-                <span class="attack-unit-avail">/${escapeHtml(u.quantity)}</span>
-                <input
-                    class="attack-unit-qty"
-                    type="number"
-                    min="0"
-                    max="${escapeHtml(u.quantity)}"
-                    value="0"
-                    data-unit-id="${escapeHtml(u.id)}"
-                />
-            `;
-            spyUnitsList.appendChild(row);
-        }
-
-        spyUnitsList.addEventListener('input', updateSpyPreview);
-
-        const setLaunchState = (canLaunch, fuelCost = 0) => {
-            const hasSelection = fuelCost > 0;
-            btnLaunchSpy.disabled = !canLaunch;
-            const fuelBadge = document.getElementById('spy-fuel-badge');
-            if (!hasSelection) {
-                if (fuelBadge) fuelBadge.style.display = 'none';
-                spyPanelMsg.textContent = '';
-                return;
-            }
-            if (!canLaunch) {
-                if (fuelBadge) fuelBadge.style.display = 'inline-flex';
-                spyPanelMsg.style.color = '#f87171';
-                spyPanelMsg.textContent = `Zu wenig Treibstoff: ${Number(fuelCost).toLocaleString('de-DE')} L benötigt, ${Number(availableFuel).toLocaleString('de-DE')} L verfügbar.`;
-            } else if (!spyPanelMsg.textContent || spyPanelMsg.style.color === 'rgb(248, 113, 113)') {
-                if (fuelBadge) fuelBadge.style.display = 'none';
-                spyPanelMsg.style.color = '#94a3b8';
-                spyPanelMsg.textContent = '';
-            }
-        };
-
-        async function updateSpyPreview() {
-            const inputs = [...spyUnitsList.querySelectorAll('.attack-unit-qty')];
-            const any = inputs.some((inp) => parseInt(inp.value, 10) > 0);
-
-            if (!any) {
-                setLaunchState(false, 0);
-                return;
-            }
-
-            const unitIds = inputs
-                .filter((inp) => parseInt(inp.value, 10) > 0)
-                .map((inp) => inp.dataset.unitId)
-                .join(',');
-            const quantities = inputs
-                .filter((inp) => parseInt(inp.value, 10) > 0)
-                .map((inp) => parseInt(inp.value, 10))
-                .join(',');
-
-            try {
-                const r = await fetch(
-                    `${API_BASE_URL}/espionage/preview?target_id=${target.id}&unit_ids=${unitIds}&quantities=${quantities}`,
-                    { headers: { Authorization: `Bearer ${auth.token}` } }
-                );
-                if (!r.ok) return;
-                const d = await r.json();
-                const p = d.data;
-                spyPreviewInfo.innerHTML = renderSpyPreviewHtml(p, availableFuel);
-                setLaunchState(Number(p.fuelCost) <= availableFuel, Number(p.fuelCost));
-            } catch {
-                // Vorschau nicht kritisch
-            }
-        }
-
-    } catch (err) {
-        spyPreviewInfo.innerHTML = renderPanelErrorHtml(err.message);
-    }
-}
-
-btnLaunchSpy.addEventListener('click', async () => {
-    if (!clickedPlayer) return;
-
-    const unitInputs = [...spyUnitsList.querySelectorAll('.attack-unit-qty')];
-    const units = unitInputs
-        .map((inp) => ({ user_unit_id: parseInt(inp.dataset.unitId, 10), quantity: parseInt(inp.value, 10) }))
-        .filter((u) => u.quantity > 0);
-
-    if (units.length === 0) return;
-
-    if (btnLaunchSpy.disabled) return;
-
-    btnLaunchSpy.disabled = true;
-    spyPanelMsg.textContent = 'Spione werden entsandt…';
-
-    try {
-        const res = await fetch(`${API_BASE_URL}/espionage/launch`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${auth.token}`,
-            },
-            body: JSON.stringify({ target_id: Number(clickedPlayer.id), units }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message ?? 'Fehler beim Starten der Spionage');
-
-        await refreshShellStatus(auth.token);
-
-        const eta = new Date(data.data.arrivalTime);
-        const mins = Math.round((eta - Date.now()) / 60000);
-        spyPanelMsg.style.color = '#22c55e';
-        spyPanelMsg.textContent = `✓ Spione unterwegs – Ankunft in ~${mins} min`;
-        showToast(`🕵️ Spione zu ${clickedPlayer.username} entsandt! Ankunft in ~${mins} min.`, 'info');
-
-        setTimeout(closeAllPanels, 3000);
-    } catch (err) {
-        spyPanelMsg.style.color = '#f87171';
-        spyPanelMsg.textContent = err.message;
-        btnLaunchSpy.disabled = false;
-    }
-});
+// Karte dient als Einstieg: Angriff/Spionage laufen über dedizierte Planungsseiten.
 
 document.getElementById('btn-zoom-in').addEventListener('click', () => {
     zoomAt(canvas.width / 2, canvas.height / 2, ZOOM_FACTOR);
@@ -706,6 +437,7 @@ document.getElementById('btn-reset-view').addEventListener('click', () => {
     offsetX = (W - scale * gridSize) / 2;
     offsetY = (H - scale * gridSize) / 2;
     draw();
+    schedulePlayersReload();
 });
 
 window.addEventListener('resize', resizeCanvas);

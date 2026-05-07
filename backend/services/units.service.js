@@ -100,7 +100,9 @@ export async function startTraining(userId, unitTypeId, quantity = 1) {
 
 export async function moveUnits(userId, userUnitId, destinationX, destinationY) {
     return withTransaction(async (client) => {
-        const unit = await unitsRepo.findMovableUnit(userUnitId, userId, client);
+        const unit = await unitsRepo.findMovableUnit(userUnitId, userId, client, {
+            forUpdate: true,
+        });
         if (!unit) throw createServiceError('Einheit nicht gefunden', 404, 'UNIT_NOT_FOUND');
 
         const distance = Math.sqrt(
@@ -137,6 +139,7 @@ export async function arriveAtDestination(userUnitId) {
 /**
  * Berechnet Kampfschaden zwischen zwei Einheiten und persistiert das Ergebnis.
  *
+ * @param {number} userId - ID des angemeldeten Spielers.
  * @param {number} attackingUnitId - ID der angreifenden Einheit (`user_units.id`).
  * @param {number} targetUnitId - ID der verteidigenden Einheit (`user_units.id`).
  * @returns {Promise<{
@@ -148,10 +151,10 @@ export async function arriveAtDestination(userUnitId) {
  * }>} Ergebnis mit Basis- und Endschaden sowie Zielstatus.
  * @sideEffects Aktualisiert Ziel-Lebenspunkte/Menge und erhoeht Erfahrung des Angreifers.
  */
-export async function attackUnits(attackingUnitId, targetUnitId) {
+export async function attackUnits(userId, attackingUnitId, targetUnitId) {
     return withTransaction(async (client) => {
         const [attacker, target] = await Promise.all([
-            unitsRepo.findAttackerUnit(attackingUnitId, client),
+            unitsRepo.findAttackerUnit(attackingUnitId, userId, client),
             unitsRepo.findDefenderUnit(targetUnitId, client),
         ]);
 

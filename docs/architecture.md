@@ -32,7 +32,6 @@ Client (Frontend / API-Client)
   - backend/services/economy.service.js
   - backend/services/buildings.service.js
   - backend/services/units.service.js
-  - backend/services/gameloop.js
   - backend/services/gameloop-scheduler.js
   - backend/services/live-updates.service.js
 

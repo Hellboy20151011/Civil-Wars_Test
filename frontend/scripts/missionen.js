@@ -511,9 +511,12 @@ await Promise.all([loadCombatMissions(), loadCombatReports(), loadSpyMissions(),
 
 setInterval(tickCountdowns, 1000);
 setInterval(async () => {
+  if (document.hidden) return;
   clearCountdowns();
-  await Promise.all([loadCombatMissions(), loadSpyMissions()]);
-}, 10000);
-setInterval(async () => {
-  await Promise.all([loadCombatReports(), loadSpyReports()]);
+  await Promise.all([
+    loadCombatMissions(),
+    loadCombatReports(),
+    loadSpyMissions(),
+    loadSpyReports(),
+  ]);
 }, 30000);

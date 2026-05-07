@@ -1,6 +1,6 @@
 # Next Steps – Civil Wars Test
 
-> **Stand:** 2026-05-03 | **Aktualisiert:** 2026-05-03 | **Branch:** `main`  
+> **Stand:** 2026-05-07 | **Aktualisiert:** 2026-05-07 | **Branch:** `main`  
 > Prioritäten: **P0** = sofort, **P1** = diese Woche, **P2** = nächster Sprint  
 > Aufwand: **S** = < 1 h · **M** = 1–4 h · **L** = 4–16 h · **XL** = > 16 h  
 > **Legende:** ✅ = erledigt · ⏳ = ausstehend

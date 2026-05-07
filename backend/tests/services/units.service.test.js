@@ -213,13 +213,13 @@ describe('attackUnits', () => {
     it('wirft Fehler wenn Angreifer nicht gefunden', async () => {
         unitsRepo.findAttackerUnit.mockResolvedValue(null);
         unitsRepo.findDefenderUnit.mockResolvedValue({ id: 2 });
-        await expect(attackUnits(99, 2)).rejects.toThrow('Einheit nicht gefunden');
+        await expect(attackUnits(1, 99, 2)).rejects.toThrow('Einheit nicht gefunden');
     });
 
     it('wirft Fehler wenn Verteidiger nicht gefunden', async () => {
         unitsRepo.findAttackerUnit.mockResolvedValue({ id: 1 });
         unitsRepo.findDefenderUnit.mockResolvedValue(null);
-        await expect(attackUnits(1, 99)).rejects.toThrow('Einheit nicht gefunden');
+        await expect(attackUnits(1, 1, 99)).rejects.toThrow('Einheit nicht gefunden');
     });
 
     it('berechnet Schaden und setzt Gesundheit korrekt', async () => {
@@ -233,7 +233,7 @@ describe('attackUnits', () => {
         unitsRepo.updateUnitHealth.mockResolvedValue(undefined);
         unitsRepo.addUnitExperience.mockResolvedValue(undefined);
 
-        const result = await attackUnits(1, 2);
+        const result = await attackUnits(1, 1, 2);
         // actualDamage = max(1, 100 - 20*0.5) = 90
         // healthLoss = (90/200)*100 = 45
         // newHealth = max(0, 100-45) = 55
@@ -256,7 +256,7 @@ describe('attackUnits', () => {
         unitsRepo.zeroUnitQuantity.mockResolvedValue(undefined);
         unitsRepo.addUnitExperience.mockResolvedValue(undefined);
 
-        const result = await attackUnits(1, 2);
+        const result = await attackUnits(1, 1, 2);
         expect(result.targetDestroyed).toBe(true);
         expect(unitsRepo.zeroUnitQuantity).toHaveBeenCalledWith(2, {});
     });
@@ -272,7 +272,7 @@ describe('attackUnits', () => {
         unitsRepo.updateUnitHealth.mockResolvedValue(undefined);
         unitsRepo.addUnitExperience.mockResolvedValue(undefined);
 
-        const result = await attackUnits(1, 2);
+        const result = await attackUnits(1, 1, 2);
         expect(result.actualDamage).toBe(1);
     });
 });

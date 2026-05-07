@@ -30,7 +30,7 @@ Auflistung aller benannten Variablen, Konstanten und Module-Exports im Projekt, 
 
 ---
 
-### `backend/scripts/server.js`
+### `backend/server.js`
 
 | Name | Typ | Beschreibung |
 |------|-----|--------------|
@@ -42,7 +42,7 @@ Auflistung aller benannten Variablen, Konstanten und Module-Exports im Projekt, 
 
 ---
 
-### `backend/scripts/auth.js`
+### `backend/routes/auth.js`
 
 | Name | Typ | Beschreibung |
 |------|-----|--------------|
@@ -69,7 +69,7 @@ Auflistung aller benannten Variablen, Konstanten und Module-Exports im Projekt, 
 
 ---
 
-### `backend/scripts/resources.js`
+### `backend/routes/resources.js`
 
 | Name | Typ | Beschreibung |
 |------|-----|--------------|
@@ -79,7 +79,7 @@ Auflistung aller benannten Variablen, Konstanten und Module-Exports im Projekt, 
 
 ---
 
-### `backend/scripts/buildings.js`
+### `backend/routes/buildings.js`
 
 | Name | Typ | Beschreibung |
 |------|-----|--------------|
@@ -99,7 +99,7 @@ Auflistung aller benannten Variablen, Konstanten und Module-Exports im Projekt, 
 
 ---
 
-### `backend/scripts/me.js`
+### `backend/routes/me.js`
 
 | Name | Typ | Beschreibung |
 |------|-----|--------------|

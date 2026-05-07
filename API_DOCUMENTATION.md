@@ -62,24 +62,19 @@ Request:
 
 Response:
 {
-  "success": true,
-  "message": "Rathaus wird gebaut",
-  "data": {
-    "buildTimeInTicks": 5,
-    "completionTime": "2026-05-02T10:15:00.000Z"
+  "message": "Kraftwerk wird gebaut (fertig um 20:25).",
+  "auftrag": {
+    "id": 123,
+    "user_id": 1,
+    "building_type_id": 7,
+    "erstellt_am": "2026-05-07T20:23:00.000Z",
+    "fertig_am": "2026-05-07T20:25:00.000Z",
+    "anzahl": 1
   }
 }
 ```
 
-### POST `/buildings/:id/upgrade`
-Gebäude upgraden (kostet 1.5x der Kosten der aktuellen Stufe)
-```json
-Response:
-{
-  "success": true,
-  "message": "Rathaus wird auf Level 2 aktualisiert"
-}
-```
+Hinweis: Es gibt derzeit keinen Endpoint `POST /buildings/:id/upgrade`.
 
 ### POST `/me/stream-ticket`
 Fordert ein kurzlebiges Einmal-Ticket fuer den SSE-Stream an.
@@ -222,18 +217,19 @@ Response:
 
 ## 💰 Resources API
 
-### GET `/resources`
+### GET `/resources/me`
 Alle Ressourcen des Spielers
 ```json
 Response:
-[
-  {
-    "resource_type_id": 1,
-    "name": "Geld",
-    "unit": "€",
-    "amount": 50000
+{
+  "resources": {
+    "geld": 50000,
+    "stein": 1200,
+    "stahl": 800,
+    "treibstoff": 350,
+    "strom": 40
   }
-]
+}
 ```
 
 ---
@@ -280,7 +276,7 @@ Mit Account anmelden
 ```json
 Request:
 {
-  "email": "player@example.com",
+  "username": "Player1",
   "password": "SecurePassword123"
 }
 
@@ -366,3 +362,4 @@ Content-Type: application/json
 - Coordinates sind kartesisch (X, Y) mit Ursprung (0, 0) im Zentrum
 - Distanz = √((x₂-x₁)² + (y₂-y₁)²)
 - Alle Kosten werden sofort abgezogen, nicht über Zeit
+- Vollständige, maschinenlesbare API-Definition: `docs/openapi.yaml` (inkl. produktiver Router `map`, `research`, `combat`, `espionage`).

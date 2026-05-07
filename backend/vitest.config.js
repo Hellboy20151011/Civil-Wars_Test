@@ -11,9 +11,6 @@ export default defineConfig({
             reporter: ['text', 'lcov'],
             reportsDirectory: './coverage',
             include: ['services/**/*.js'],
-            exclude: [
-                'services/live-updates.service.js',
-            ],
             thresholds: {
                 lines: 80,
                 functions: 80,

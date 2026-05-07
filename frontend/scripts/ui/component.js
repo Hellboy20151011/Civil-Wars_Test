@@ -2,7 +2,6 @@ export function el(tag, options = {}) {
     const {
         className,
         text,
-        html,
         attrs,
         dataset,
         children = [],
@@ -13,7 +12,9 @@ export function el(tag, options = {}) {
 
     if (className) node.className = className;
     if (typeof text === 'string') node.textContent = text;
-    if (typeof html === 'string') node.innerHTML = html;
+    if (typeof options.html === 'string') {
+        throw new Error('Unsafe option "html" is disabled. Use text/content-safe DOM APIs instead.');
+    }
 
     if (attrs) {
         Object.entries(attrs).forEach(([name, value]) => {

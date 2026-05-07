@@ -1,8 +1,8 @@
 import { initShell, getAuth } from '/scripts/shell.js';
-import { API_BASE_URL } from '/scripts/config.js';
 import { el, render } from '/scripts/ui/component.js';
 import { formatTimeLeft } from '/scripts/utils/time.js';
 import { createApiClient } from '/scripts/api/client.js';
+import { openUserStatusStream } from '/scripts/api/sse.js';
 
 const auth = getAuth();
 if (!auth) throw new Error('Nicht eingeloggt');
@@ -169,47 +169,57 @@ function createQueueOverview(queue) {
 		});
 	}
 
-	const rows = queue.map((q) => {
-		const progress = calcProgress(q.erstellt_am, q.fertig_am);
-		const timeLeft = formatTimeLeft(q.fertig_am);
+	const current = queue[0];
+	const waitingCount = Math.max(0, queue.length - 1);
+	const lastQueued = queue[queue.length - 1];
+	const progress = calcProgress(current.erstellt_am, current.fertig_am);
+	const timeLeft = formatTimeLeft(current.fertig_am);
 
-		return el('div', {
-			className: 'dash-queue-item',
-			children: [
-				el('div', {
-					className: 'dash-queue-header',
-					children: [
-						el('span', { className: 'dash-queue-name', text: q.name }),
-						el('span', { className: 'dash-queue-time', text: timeLeft, attrs: { 'data-fertig': q.fertig_am } }),
-					],
-				}),
-				el('div', {
-					className: 'dash-progress-bar',
-					children: [
-						el('div', {
-							className: 'dash-progress-fill',
-							attrs: {
-								style: `width:${progress}%`,
-								'data-start': q.erstellt_am,
-								'data-end': q.fertig_am,
-							},
-						}),
-					],
-				}),
-				el('div', {
-					className: 'dash-queue-footer',
-					children: [
-						el('span', { className: 'dash-queue-pct', text: `${progress}%` }),
-						el('span', { text: `Fertig: ${new Date(q.fertig_am).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` }),
-					],
-				}),
-			],
-		});
+	const queueItem = el('div', {
+		className: 'dash-queue-item',
+		children: [
+			el('div', {
+				className: 'dash-queue-header',
+				children: [
+					el('span', { className: 'dash-queue-name', text: current.name }),
+					el('span', { className: 'dash-queue-time', text: timeLeft, attrs: { 'data-fertig': current.fertig_am } }),
+				],
+			}),
+			el('div', {
+				className: 'dash-progress-bar',
+				children: [
+					el('div', {
+						className: 'dash-progress-fill',
+						attrs: {
+							style: `width:${progress}%`,
+							'data-start': current.erstellt_am,
+							'data-end': current.fertig_am,
+						},
+					}),
+				],
+			}),
+			el('div', {
+				className: 'dash-queue-footer',
+				children: [
+					el('span', { className: 'dash-queue-pct', text: `${progress}%` }),
+					el('span', { text: `Fertig: ${new Date(current.fertig_am).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` }),
+				],
+			}),
+		],
 	});
+
+	const waitingNote = waitingCount > 0
+		? el('p', {
+			className: 'dash-queue-note',
+			text: waitingCount === 1
+				? `1 weiterer Bauauftrag wartet (fertig um ${new Date(lastQueued.fertig_am).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}).`
+				: `${waitingCount} weitere Bauaufträge warten (letzter fertig um ${new Date(lastQueued.fertig_am).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}).`,
+		})
+		: null;
 
 	return el('section', {
 		className: 'dash-section',
-		children: [title, ...rows],
+		children: [title, queueItem, waitingNote].filter(Boolean),
 	});
 }
 
@@ -295,21 +305,13 @@ async function renderDashboard() {
 	const stopCountdowns = startCountdowns(container);
 
 	// ── SSE: Queue automatisch aktualisieren wenn Bau fertig ─────────────────
-	let ticket;
+	let source;
 	try {
-		const ticketRes = await fetch(`${API_BASE_URL}/me/stream-ticket`, {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${auth.token}` },
-		});
-		if (!ticketRes.ok) throw new Error('Ticket-Anfrage fehlgeschlagen');
-		const ticketData = await ticketRes.json();
-		ticket = ticketData.ticket;
+		source = await openUserStatusStream(auth.token);
 	} catch (err) {
-		console.error('SSE-Ticket konnte nicht abgerufen werden:', err);
+		console.error('SSE-Stream konnte nicht gestartet werden:', err);
 		return;
 	}
-	const streamUrl = `${API_BASE_URL}/me/stream?ticket=${encodeURIComponent(ticket)}`;
-	const source = new EventSource(streamUrl);
 	let lastQueueLength = status.queue?.length ?? 0;
 
 	source.addEventListener('status', async (evt) => {

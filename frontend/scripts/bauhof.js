@@ -146,6 +146,42 @@ function formatMaxBuildable(value) {
   return Number.isFinite(value) ? value.toLocaleString('de-DE') : '∞';
 }
 
+function getEstimatedTickIntervalMs() {
+  for (const entry of bauhofState.queue) {
+    const startMs = Date.parse(entry.erstellt_am);
+    const endMs = Date.parse(entry.fertig_am);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue;
+
+    const type = bauhofState.types.find((t) => Number(t.id) === Number(entry.building_type_id));
+    const ticks = Number(type?.build_time_ticks ?? 0);
+    if (ticks <= 0) continue;
+
+    const estimatedMs = Math.round((endMs - startMs) / ticks);
+    if (estimatedMs > 0) return estimatedMs;
+  }
+
+  // Fallback für leere Queue (Dev-Default: 1 Tick = 1 Minute)
+  return 60_000;
+}
+
+function getQueueAnchorMs() {
+  let anchorMs = Date.now();
+  for (const entry of bauhofState.queue) {
+    const endMs = Date.parse(entry.fertig_am);
+    if (Number.isFinite(endMs) && endMs > anchorMs) {
+      anchorMs = endMs;
+    }
+  }
+  return anchorMs;
+}
+
+function formatClockTime(ms) {
+  return new Date(ms).toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 // Spezielle Obergrenzen durch Gebäude-Ratio-Regeln (z. B. 5 Öl-Raffinerien pro Ölpumpe)
 const BUILDING_RATIO_CAPS = [
   {
@@ -380,9 +416,43 @@ function buildBuildingCard(bt, category, container) {
       click: () => {
         if (numericMax <= 0) return;
         input.value = String(numericMax);
+        updateQueuePreview();
       },
     },
   });
+
+  const queuePreview = el('span', {
+    className: 'build-queue-preview',
+    text: '',
+  });
+
+  function updateQueuePreview() {
+    if (inQueue) {
+      queuePreview.textContent = 'Bereits in der Warteschlange.';
+      return;
+    }
+
+    const ticks = Number(bt.build_time_ticks ?? 0);
+    if (ticks <= 0 || unavailable) {
+      queuePreview.textContent = '';
+      return;
+    }
+
+    const quantity = Math.max(1, Math.min(numericMax, Number(input.value) || 1));
+    const tickMs = getEstimatedTickIntervalMs();
+    const anchorMs = getQueueAnchorMs();
+    const firstFinishMs = anchorMs + ticks * tickMs;
+    const lastFinishMs = anchorMs + ticks * tickMs * quantity;
+
+    if (quantity === 1) {
+      queuePreview.textContent = `Vorauss. fertig um ${formatClockTime(firstFinishMs)}.`;
+      return;
+    }
+
+    queuePreview.textContent = `Vorauss. 1. um ${formatClockTime(firstFinishMs)}, letzte um ${formatClockTime(lastFinishMs)}.`;
+  }
+
+  input.addEventListener('input', updateQueuePreview);
 
   if (inQueue) {
     input.disabled = true;
@@ -391,6 +461,8 @@ function buildBuildingCard(bt, category, container) {
   if (unavailable) {
     input.disabled = true;
   }
+
+  updateQueuePreview();
 
   return el('article', {
     className: 'building-card',
@@ -423,6 +495,7 @@ function buildBuildingCard(bt, category, container) {
         className: 'building-card-actions',
         children: [input, maxBuildableControl, button],
       }),
+      queuePreview,
     ],
   });
 }

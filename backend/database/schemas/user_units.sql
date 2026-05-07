@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS user_units (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     unit_type_id INTEGER NOT NULL,
-    quantity INTEGER DEFAULT 0,
+    quantity INTEGER DEFAULT 0 CHECK (quantity >= 0),
     
     -- Position
     location_x INTEGER,

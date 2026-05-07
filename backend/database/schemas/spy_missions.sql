@@ -45,10 +45,12 @@ CREATE TABLE IF NOT EXISTS spy_missions (
     return_time     TIMESTAMPTZ,
 
     -- Spionage-Bericht (JSONB – wird nach Ankunft befüllt)
-    -- Struktur bei Erfolg:
-    --   { success: true,  targetUsername, spiesCaught, buildings: {...}, units: {...}, defenses: [...] }
-    -- Struktur bei Misserfolg:
-    --   { success: false, targetUsername, spiesCaught }
+    -- Aktuelles Ergebnisformat (siehe espionage.service.js):
+    --   { status, level: 'failed'|'level1'|'level2'|'level3', targetUsername, spiesSent, spiesReturned, details }
+    -- details je Level:
+    --   level1: buildings/basic overview
+    --   level2: buildings + units + defensive summary
+    --   level3: detailreicher Vollbericht ohne Verteidiger-Benachrichtigung
     report          JSONB,
 
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()

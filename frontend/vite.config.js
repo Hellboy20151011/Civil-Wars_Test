@@ -5,6 +5,7 @@ import { defineConfig } from 'vite';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname);
+const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:3000';
 
 export default defineConfig({
     root: rootDir,
@@ -12,6 +13,13 @@ export default defineConfig({
         port: 5173,
         strictPort: true,
         open: '/pages/index.html',
+        proxy: {
+            '/api': {
+                target: devProxyTarget,
+                changeOrigin: true,
+                rewrite: (pathValue) => pathValue.replace(/^\/api/, ''),
+            },
+        },
     },
     build: {
         outDir: path.resolve(rootDir, 'dist'),

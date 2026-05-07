@@ -77,6 +77,13 @@ export const config = {
         ),
     },
 
+    debug: {
+        enableNpcDebugEndpoint: parseBoolean(
+            process.env.ENABLE_NPC_DEBUG_ENDPOINT,
+            (process.env.NODE_ENV || 'development') !== 'production'
+        ),
+    },
+
     frontend: {
         preferDist: parseBoolean(
             process.env.FRONTEND_PREFER_DIST,
@@ -89,6 +96,8 @@ export const config = {
         gridSize: Number(process.env.MAP_GRID_SIZE) || 999,
         // Maximale sinnvolle Spielerzahl bei ~0,1 % Auslastung des Gitters
         maxPlayers: Number(process.env.MAP_MAX_PLAYERS) || 1000,
+        // Maximale Fläche (in Zellen) pro /map/players-Bounding-Box
+        maxViewportArea: Number(process.env.MAP_MAX_VIEWPORT_AREA) || 120000,
     },
 
     security: {

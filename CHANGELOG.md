@@ -11,11 +11,25 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 
 ### Added
 
+- `backend/database/migrate_v10_user_units_quantity_check.sql` – Migration ergänzt DB-Constraint `user_units_quantity_non_negative` (`CHECK (quantity >= 0)`) gegen negative Einheitenbestände.
+- `backend/routes/npc.js` – Neuer Debug-Endpunkt `GET /npc/debug/summary` für Live-Einblick in NPC-Status (Gebäude, Einheiten, aktive Missionen).
+- `backend/tests/routes/npc.route.test.js` – Route-Tests für NPC-Debug-Endpunkt (aktiv/deaktiviert via Config).
+- `backend/tests/e2e/units-attack-security.test.js` – Neuer E2E-Security-Test für `POST /units/attack`: bestätigt, dass Angriffe mit fremden `attacking_unit_id` als `UNIT_NOT_FOUND` abgewiesen werden.
+- `backend/tests/services/npc.service.test.js` – Neue Unit-Tests für NPC-Verhalten (defensive Baupriorität, aggressive Training/Angriff, Fehlerisolierung, no-op ohne NPCs).
+- `backend/tests/services/live-updates.service.test.js` – Neue Unit-Tests für SSE-Tickets, Stream-Mounting, Broadcasts und Fehlerpfad.
+- `backend/tests/routes/map.route.test.js` – Neuer Route-Test für `GET /map/players` (Bounding-Box-Validierung: unvollständige Query, Grid-Überschreitung, Flächenlimit und gültiger Pfad).
+- `frontend/vitest.config.js` und `frontend/tests/ui/component.test.js` – Frontend-Testsetup mit jsdom + erste Unit-Tests für sichere DOM-Helper (`el`, `append`, `render`).
+- `frontend/scripts/utils/toast.js` – Toast-Utility als eigenes Modul ausgelagert (zuvor inline in shell.js); exportiert `showToast(message, type)`.
+- `frontend/scripts/components/sidebar.js` – Sidebar-Rendering als eigenes Modul ausgelagert (zuvor inline in shell.js); exportiert `renderSidebar(navLinks, status, onLogout)`.
+- `frontend/scripts/components/resource-panel.js` – Ressourcenleiste und Produktionspanel als eigenes Modul ausgelagert (zuvor inline in shell.js); exportiert `renderResourceBar(status)` und `renderProductionPanel(status, researchOverview)`.
 - `frontend/scripts/utils/time.js` – Gemeinsamer `formatTimeLeft()`-Helper für Countdowns/Zeitanzeigen; ersetzt duplizierte Implementierungen in shell.js, dashboard.js, forschungen.js, missionen.js.
 - `frontend/scripts/api/client.js` – Gemeinsamer API-Client `createApiClient(auth)` mit `apiFetch`, `apiGet`, `apiPost`; ersetzt duplizierte Fetch-Wrapper in 8 Frontend-Dateien.
+- `frontend/scripts/api/sse.js` – Zentrale SSE-Utility für Ticket-Abruf (`/me/stream-ticket`) und EventSource-Initialisierung.
+- `frontend/scripts/modules/mission-planning.js` – Gemeinsames Modul für Kampf-/Spionage-Planung (Target-Laden, Unit-Auswahl, Fuel-Check, Launch-Flow).
 - `backend/database/migrate_v9_timestamptz.sql` – Migration: Alle `TIMESTAMP`-Spalten auf `TIMESTAMPTZ` umgestellt (building_types, unit_types, research_projects, user_researches, user_buildings, user_resources, user_units).
 - `backend/tests/e2e/helpers.js` – Gemeinsamer E2E-Helper `registerAndLogin()` für alle E2E-Tests; ersetzt drei identische lokale Implementierungen.
 - `backend/utils/game-math.js` – `calculateFuelCost(distance, units)` als geteilte Utility-Funktion ergänzt; ersetzt doppelte Implementierungen in combat.service.js und espionage.service.js.
+- `docs/openapi.yaml` – Fehlende API-Pfade für produktiv gemountete Router ergänzt (`/map/*`, `/research/*`, `/combat/*`, `/espionage/*`) inkl. Tags.
 - `backend/database/migrate_v7_spy_stats.sql` – Migration: Spalten `spy_attack` und `spy_defense` in `unit_types`; setzt Werte für Spion (20/30), SR-71 Aufklärer (50/40), Spionagesatellit (120/60).
 - `backend/database/migrate_v6_npc.sql` – Migration: Spalten `is_npc BOOLEAN` und `npc_type VARCHAR(20)` in `users`-Tabelle; Index `idx_users_is_npc`.
 - `backend/repositories/npc.repository.js` – `findActiveNpcs()` und `createNpc()` für NPC-Accounts.
@@ -29,10 +43,34 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `docs/Review_v2_2026-05-05.md` – Leere, nie befüllte Review-Vorlage aus dem Repository entfernt.
 - `docs/hallo.csv`, `docs/hallo.html`, `docs/hallo.json` – Export-Artefakte aus `docs/` entfernt (gehören nicht zur Projektdokumentation).
 - `backend/database/schemas/user_profiles.sql` – Leere Platzhalter-Datei gelöscht; Referenz aus `backend/scripts/resetdb.js` entfernt.
+- `backend/database/setup.sql` – Veraltetes Legacy-Schema-Skript gelöscht (war nicht in `resetdb.js` referenziert; aktives Schema liegt ausschließlich unter `backend/database/schemas/`).
+- `backend/services/buildings.service.js` – `startUpgrade` und `tickProduction` entfernt (toter Code: von keiner Route und keinem aktiven Service aufgerufen; Gameloop nutzt `economyService`).
+- `backend/tests/services/buildings.service.test.js` – Tests für `startUpgrade` und `tickProduction` entfernt.
 
 ### Changed
 
+- `backend/routes/units.js`, `backend/services/units.service.js` und `backend/repositories/units.repository.js` – `POST /units/attack` erzwingt jetzt Ownership: `req.user.id` wird bis ins Repository durchgereicht und der Angreifer per `uu.user_id = $2` gefiltert.
+- `backend/repositories/units.repository.js`, `backend/services/combat.service.js` und `backend/services/espionage.service.js` – Race-Condition-Härtung: Unit-Lookups für Missionsstart nutzen jetzt Zeilen-Locks (`FOR UPDATE`), `decrementUserUnitQuantity` arbeitet atomar mit `WHERE quantity >= $1` + `RETURNING`.
+- `backend/services/units.service.js` – `moveUnits` lädt die bewegte Einheit innerhalb der Transaktion mit `FOR UPDATE`.
+- `backend/config.js`, `backend/.env.example`, `backend/repositories/npc.repository.js`, `backend/services/npc.service.js` und `backend/server.js` – konfigurierbarer NPC-Debugpfad ergänzt (`ENABLE_NPC_DEBUG_ENDPOINT`), Runtime-Summary-Query implementiert und Route `/npc` registriert.
+- `frontend/scripts/config.js` und `frontend/vite.config.js` – API-Auflösung in Dev auf `/api` + Vite-Proxy umgestellt (Target via `VITE_DEV_PROXY_TARGET`, Default `http://127.0.0.1:3000`), sodass Frontend-Requests nicht mehr fälschlich auf Port 5173 landen.
+- `backend/services/npc.service.js` – NPC-KI baut Kraftwerke jetzt bereits bei `stromFrei <= 0` (statt nur `< 0`), damit NPCs aus dem Startzustand mit 0 freier Energie nicht im Leerlauf hängen.
 - `docs/Analyse_2026-05-07.md` – Tagesanalyse vervollständigt und beim Merge-Konflikt gegen `main` die vollständige Fassung beibehalten.
+- `API_DOCUMENTATION.md` – Inkonsistenzen bereinigt: veralteten Endpoint `/buildings/:id/upgrade` entfernt, Login-Request auf `username` korrigiert, Ressourcen-Endpoint auf `/resources/me` aktualisiert und Response-Beispiel angepasst.
+- `README.md`, `VARIABLES.md`, `docs/architecture.md`, `docs/next-steps.md`, `docs/Issues.md` – veraltete Struktur-/Pfadverweise (u. a. `backend/scripts/*`, `gameloop.js`) und Datumsstände auf aktuellen Code-/Projektstand gebracht.
+- `backend/database/schemas/spy_missions.sql` – Kommentar zum Missions-Reportformat auf das aktuelle `level1/level2/level3/failed`-Modell aktualisiert.
+- `backend/database/migrate_v5_research.sql` – Alle `TIMESTAMP`-Spalten auf `TIMESTAMPTZ` umgestellt (`research_projects.created_at`, `user_researches.started_at`, `ends_at`, `completed_at`, `created_at`, `updated_at`); konsistent mit aktivem Schema und `migrate_v9_timestamptz.sql`.
+- `frontend/scripts/shell.js` – Sidebar, Resource-Bar/Produktionspanel und Toast in eigene Module ausgelagert (Abschnitt 5 Architekturmaßnahme); shell.js auf Auth, SSE-Lifecycle, Research-Polling und `initShell`-Koordination reduziert (~270 Zeilen).
+- `backend/routes/map.js` – Direkt-Import `pool` aus `database/db.js` entfernt (Architekturbruch behoben); Route ruft `playerRepo.findAllForMap(bbox)` ohne expliziten Pool-Parameter auf.
+- `backend/repositories/player.repository.js` – Parameter-Reihenfolge von `findAllForMap` geändert: `(bbox, client)` statt `(client, bbox)`, damit Aufrufer ohne Pool-Import auskommen.
+- `frontend/scripts/ui/component.js` – Unsichere `html`-Option in `el(...)` deaktiviert; Übergabe von HTML-Strings wirft jetzt Fehler statt `innerHTML` zu setzen.
+- `backend/services/buildings.service.js` – Stromprüfung bei `buildBuilding(...)` korrigiert: `BUILDING_NOT_ENOUGH_POWER` wird nur noch für Gebäude mit `power_consumption > 0` angewendet; Kraftwerke (Verbrauch `0`) bleiben auch bei negativem freiem Strom baubar.
+- `backend/repositories/building.repository.js` – Bauwarteschlange auf echte Serienverarbeitung umgestellt: neue Aufträge starten am Ende des letzten laufenden Auftrags statt parallel mit `NOW()`; Mehrfachbau (`anzahl > 1`) wird zeitlich hintereinander eingeplant.
+- `backend/services/buildings.service.js` – Rückmeldung bei Mehrfachbau präzisiert: zeigt bei serieller Queue jetzt die erste und letzte Fertigstellungszeit (`wird nacheinander gebaut ...`).
+- `frontend/scripts/bauhof.js` und `frontend/CSS/style.css` – Live-Queue-Vorschau im Bauhof ergänzt: unter den Bau-Aktionen wird jetzt die voraussichtliche erste/letzte Fertigstellungszeit für die aktuell gewählte Anzahl angezeigt (inkl. Hinweis bei bereits wartendem Auftrag).
+- `frontend/scripts/dashboard.js` und `frontend/CSS/style.css` – Bauwarteschlange im Dashboard vereinfacht: es wird nur noch der aktuell laufende Bauauftrag mit Fortschritt angezeigt; weitere Aufträge werden als kompakter Hinweis mit korrekter Singular/Plural-Form und Abschlusszeit des letzten Auftrags zusammengefasst.
+- `backend/vitest.config.js` – `services/live-updates.service.js` aus Coverage-Exclusions entfernt; Service wird jetzt regulär in die Coverage einbezogen.
+- `frontend/package.json` – Script `test` ergänzt (`vitest run`) für frontendseitige Unit-Tests.
 - `backend/services/espionage.service.js` – Komplettes Rework der Spionage-Logik: Ersetzt den probabilistischen Einzelspion-Ansatz durch ein aggregiertes Verhältnismodell. Neues System: `Gesamtangriff = SUM(spy_attack × quantity_sent)`, `Gesamtabwehr = SUM(spy_defense × quantity)`; vier Ergebnisstufen (Fehlschlag / Stufe 1–3) basierend auf dem Verhältnis; bei Fehlschlag gehen alle Spione verloren, bei Stufe 1–3 kehren alle zurück; Stufe 3 benachrichtigt den Verteidiger nicht.
 - `backend/repositories/spy-missions.repository.js` – `findMissionUnits` um `spy_attack` erweitert; neue Funktionen `findTotalSpyDefense`, `findPlunderableBuildingCount`, `findProductionBuildingsForReport`, `findUnitDefenseTotalsForReport`.
 - `backend/database/schemas/units.sql` – `unit_types`-Tabelle um Spalten `spy_attack` und `spy_defense` erweitert; UPDATE-Statements für Intel-Einheitenwerte ergänzt.
@@ -48,13 +86,15 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `frontend/scripts/geheimdienstzentrum.js` – Lokale `apiFetch`-Funktion durch `createApiClient`-Import ersetzt.
 - `frontend/scripts/militaer.js` – Lokale `apiFetch`-Funktion durch `createApiClient`-Import ersetzt.
 - `frontend/scripts/bauhof.js` – Lokale `apiFetch`-Funktion (mit `cache: 'no-store'`) durch `createApiClient`-Import mit option-basiertem Cache-Override ersetzt.
-- `frontend/scripts/kampf.js` – Lokale `apiGet`/`apiPost`-Funktionen durch `createApiClient`-Import ersetzt.
-- `frontend/scripts/spionage.js` – Lokale `apiGet`/`apiPost`-Funktionen durch `createApiClient`-Import ersetzt.
+- `frontend/scripts/kampf.js` – Seite auf gemeinsames `modules/mission-planning.js` umgestellt; lokaler Planungs-/Launch-Flow entfernt.
+- `frontend/scripts/spionage.js` – Seite auf gemeinsames `modules/mission-planning.js` umgestellt; lokaler Planungs-/Launch-Flow entfernt.
+- `frontend/scripts/karte.js` – Doppelte Angriff-/Spionage-Panel-Planungslogik entfernt; Karte dient jetzt klar als Einstieg mit Weiterleitung auf dedizierte Planungsseiten.
+- `frontend/scripts/shell.js` und `frontend/scripts/dashboard.js` – SSE-Ticket/EventSource-Bootstrap auf zentrale `api/sse.js`-Utility umgestellt.
 
 - `backend/data/combat-matchups.json` – Matchup-Matrix auf numerische Werte (`number`) und `null` normalisiert; Stringwerte (`"1,5"`) und `"x"` entfernt.
 - `backend/routes/buildings.js` – `POST /buildings/build`: try/catch mit direktem `res.status().json()` entfernt; Fehler werden jetzt via `asyncWrapper` an den zentralen `errorHandler` delegiert.
-- `backend/repositories/player.repository.js` – `findAllForMap()` akzeptiert optionalen `bbox`-Parameter (`{ xMin, yMin, xMax, yMax }`) für Kartenausschnitt-Filterung.
-- `backend/routes/map.js` – `GET /map/players` liest optionale Query-Parameter `x_min/y_min/x_max/y_max` und reicht Bounding-Box an Repository weiter.
+- `backend/repositories/player.repository.js` – `findAllForMap()` akzeptiert optionalen `bbox`-Parameter (`{ xMin, yMin, xMax, yMax }`) für Kartenausschnitt-Filterung; JSDoc-Bereinigung und neue Funktion `findActiveHumanTargetsForMap(...)` für NPC-Zielfindung ergänzt.
+- `backend/routes/map.js` – `GET /map/players` validiert optionale Query-Parameter `x_min/y_min/x_max/y_max` jetzt via Zod (`validateQuery`) und reicht die Bounding-Box nur bei gültigen Werten an das Repository weiter.
 - `backend/repositories/reference-data.repository.js` – `invalidateCache()` als öffentliche Export-Funktion ergänzt (z. B. für Tests und Seed-Scripts).
 - `backend/utils/game-math.js` – `calculateFuelCost()` hinzugefügt und zentral genutzt; lokale Duplikate in `combat.service.js` und `espionage.service.js` entfernt.
 - `backend/database/schemas/*.sql` – Alle `TIMESTAMP`-Spalten auf `TIMESTAMPTZ` umgestellt (Konsistenz, TZ-Sicherheit).
@@ -62,6 +102,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/tests/services/espionage.service.test.js`, `combat.service.test.js` – `vi.mock('../../utils/game-math.js')` auf Factory-Mock umgestellt, damit `calculateFuelCost` weiterhin die reale Implementierung nutzt.
 - `frontend/pages/index.html` – `<header>` und `<h1>` in `<body>` verschoben (HTML-Struktur korrigiert); `lang="de"` gesetzt.
 - `frontend/pages/dashboard.html` – `lang="de"` gesetzt.
+- `backend/services/live-updates.service.js` – Stream-Tickets von pseudozufälliger `Math.random()`-Erzeugung auf kryptografisch sichere `crypto.randomBytes(32)`-Generierung umgestellt.
+- `backend/services/npc.service.js` – NPC-Zielfindung nutzt jetzt explizit nur menschliche Spieler (`is_npc = false`); NPC-Baupfad (`startBuildingConstruction`) als NPC-spezifisch dokumentiert.
 - `backend/services/combat.service.js` – Kampfauflösung auf deterministische, matrixbasierte Schadensverteilung umgestellt (`Anzahl × Angriff × Matchup`), Siegerermittlung auf relative Verlustquoten geändert (Verteidiger gewinnt bei Gleichstand), Plünderung auf `20 % Loot-Pool × Verteidiger-Verlustquote` umgestellt.
 - `backend/repositories/combat-missions.repository.js` und `backend/services/combat.service.js` – Tageslimit ergänzt: maximal 6 Angriffe pro Tag je Angreifer→Verteidiger (`ATTACK_LIMIT_REACHED`).
 - `backend/tests/services/combat.service.test.js` – Tests an neue Kampf-/Plünderlogik angepasst (inkl. Tageslimit-Mock und aktualisierter Plünderungsrate).
@@ -70,8 +112,27 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/tests/services/combat.service.test.js` – Erwartete `attackPower`-Werte an gewichtete Verteilung angepasst (3 Tests).
 - `docs/next-steps.md` und `docs/Verbesserungs.md` – Kampfsystem-Fortschritt und Testumfang aktualisiert.
 
+### Added
+
+- `backend/repositories/building.repository.js` – Neue Funktion `findQueuedPowerConsumption(userId, client)`: summiert den Stromverbrauch aller Gebäude, die sich noch im Bau befinden (`is_constructing = TRUE`).
+- `backend/tests/services/buildings.service.test.js` – Neuer Testfall: Bauauftrag wird abgelehnt, wenn `verbrauch + queuedPower + neuerVerbrauch > produktion`.
+- `backend/tests/services/buildings.service.test.js` – Neuer Testfall: Bauauftrag wird abgelehnt, wenn `verbrauch + queuedPower + neuerVerbrauch > produktion`.
+- `backend/playwright.config.js` – Playwright lädt jetzt explizit `backend/.env` (cwd-unabhängig); zusätzlich `JWT_SECRET`-Fallback und sicherer `DB_PASSWORD`-Fallback, damit Backend-Module mit Direktimport in E2E-Tests (`combat.service.js`, `db.js`) stabil initialisieren.
+
+### Changed
+
+- `backend/services/buildings.service.js` – Stromprüfung in `buildBuilding` berücksichtigt jetzt auch den Verbrauch aller laufenden Bauaufträge (Queued Power): `neuerVerbrauch = verbrauch + queuedConsumption + powerConsumption × quantity`. Dadurch können Spieler keine mehrfachen stromintensiven Gebäude parallel in die Warteschlange stellen, die insgesamt die Produktion übersteigen würden.
+
 ### Fixed
 
+- `frontend/scripts/config.js` – Hardcoded Port-Logik entfernt; API-Basis-URL nutzt jetzt konsequent `window.location.origin` (Reverse-Proxy-kompatibel).
+- `frontend/scripts/config.js` – `API_BASE_URL` in Dev auf `${window.location.origin}/api` korrigiert (statt nur `/api`), sodass `new URL(...)` in `karte.js` keine `Invalid URL`-Exception mehr wirft.
+- `backend/database/schemas/user_units.sql` – Schema schützt `quantity` bereits bei Neuaufsetzungen per `CHECK (quantity >= 0)`.
+- `backend/tests/services/npc.service.test.js` – Regressionstest ergänzt: Bei `stromFrei = 0` muss die KI ein Kraftwerk priorisieren; verhindert erneute NPC-Inaktivität im Startzustand.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – NPC-KI startet Kraftwerksbau jetzt bereits bei `stromFrei < 5` (statt nur bei `<= 0`), damit bei kleinem Reststrom (1-4) kein Build-Deadlock entsteht; zusätzlicher Regressionstest für `stromFrei = 4` ergänzt.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – Aggressive NPCs bauen vor Kaserne jetzt zwingend zuerst `Ölpumpe` und `Öl-Raffinerie`; defensiven NPCs wurde `Landverteidigung Level 1` als zusätzliche Bauoption ergänzt.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – NPC-Baulogik in zwei Phasen aufgeteilt: Phase 1 sichert je ein Exemplar jedes Ressourcengebäudes (`Wohnhaus`, `Steinbruch`, `Stahlwerk`, `Ölpumpe`, `Öl-Raffinerie`), bevor Phase 2 weitere Gebäude zum Erreichen von Einkommenszielen baut; gilt für beide NPC-Typen.
+- `backend/services/npc.service.js` – Phase-2-Einkommensziele für Stein (`< 10 000`), Stahl (`< 5 000`) und Treibstoff (`< 3 000`) ergänzt; NPC baut je weitere Steinbrüche, Stahlwerke und Ölpumpen bis die Ziele erreicht sind; Öl-Raffinerien werden dabei im Verhältnis 5:1 pro Ölpumpe nachgezogen.
 - `frontend/scripts/dashboard.js` – Dashboard-SSE verarbeitet Queue-Updates jetzt aus `status.queue` statt fälschlich aus der Root-Payload, sodass Bauabschluss-/Abbruch-Refreshs wieder zuverlässig auslösen.
 - `frontend/scripts/shell.js` – Spionage-SSE-Toasts nutzen jetzt die tatsächlich gesendeten Felder (`spiesDetected`, `level`/`status`) und erzeugen keine `undefined`-Hinweise mehr.
 - `docs/openapi.yaml` und `API_DOCUMENTATION.md` – Me-/SSE-Dokumentation auf den implementierten Ticket-Flow (`POST /me/stream-ticket`, danach `GET /me/stream?ticket=...`) aktualisiert.
@@ -93,9 +154,16 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/services/combat.service.js`, `backend/repositories/units.repository.js`, `backend/tests/services/combat.service.test.js`, `frontend/scripts/karte.js`, `frontend/scripts/kampf.js` – Verteidigungsstellungen (`category = defense`) können nicht mehr für Angriffe ausgewählt oder per API gestartet werden; serverseitig wird mit `INVALID_UNIT_CATEGORY` abgewiesen.
 - `backend/services/combat.service.js` und `backend/tests/services/combat.service.test.js` – Plünderung bei Angreifer-Sieg überträgt Gebäude jetzt korrekt vom Verteidiger auf den Angreifer (statt nur beim Verteidiger zu entfernen).
 - `backend/services/combat.service.js` und `backend/tests/services/combat.service.test.js` – Angreiferverluste werden nur noch für Einheiten berechnet, die laut Matchup-Matrix vom Verteidiger überhaupt getroffen werden können (z. B. kein Seahawk-Verlust gegen reinen Soldaten-Verteidiger).
+- `backend/services/combat.service.js`, `backend/repositories/units.repository.js` und `backend/tests/services/combat.service.test.js` – Angriffsvalidierung auf Batch-Validierung umgestellt: bewegliche Einheiten werden in `launchAttack(...)` per Sammelquery (`findMovableUnitsByIds`) geladen statt pro Eintrag einzeln.
+- `backend/services/espionage.service.js` und `backend/tests/services/espionage.service.test.js` – Spionage-Startvalidierung ebenfalls auf Batch-Lookup umgestellt: Einheiten werden aggregiert je `user_unit_id` validiert statt einzeln geladen.
 - `frontend/pages/missionen.html`, `frontend/scripts/missionen.js`, `frontend/scripts/shell.js`, `frontend/vite.config.js`, `backend/server.js` – Kampf- und Spionagefunktionen (laufende Missionen + Berichte) in neue zentrale Seite `Missionen` zusammengeführt.
 - `frontend/pages/kampf.html`, `frontend/scripts/kampf.js`, `frontend/pages/spionage.html`, `frontend/scripts/spionage.js`, `frontend/scripts/karte.js` – `Kämpfe` und `Spionage` zu Planungsseiten umgestellt: Aufruf erfolgt über das Karten-Popup (`Angriff`/`Spionage`) mit Zielübergabe per Query-Parameter.
 - `frontend/scripts/shell.js` – globale Forschungs-Queue-Anzeige im rechten Produktionspanel ergänzt (aktive Forschung + Live-Countdown); Status wird periodisch via `/research/overview` aktualisiert.
+- `frontend/scripts/shell.js` – Research-Polling auf adaptives, sichtbarkeitsabhängiges Scheduling umgestellt (15s bei aktiver Forschung, 60s ohne aktive Forschung; kein Polling in Hintergrund-Tabs).
+- `frontend/scripts/karte.js` und `frontend/scripts/missionen.js` – Karten- und Missions-Refresh skaliert: Karte lädt Spieler nun per Viewport-Bounding-Box mit debounce, Missionen konsolidieren Polling auf ein einziges 30s-Intervall nur bei sichtbarem Tab.
+- `backend/routes/map.js`, `backend/config.js` und `backend/.env.example` – Serverseitige Begrenzung für Karten-Bounding-Box ergänzt: Query-Parameter müssen ganzzahlig im Kartenbereich liegen und dürfen die konfigurierbare Maximalfläche `MAP_MAX_VIEWPORT_AREA` nicht überschreiten.
+- `frontend/scripts/karte.js`, `backend/routes/map.js` und `backend/tests/routes/map.route.test.js` – Karten-Client respektiert jetzt das serverseitige Flächenlimit: `max_viewport_area` wird aus `/map/config` gelesen und Bounding-Box-Requests werden vor dem Fetch auf die erlaubte Maximalfläche reduziert; dadurch entstehen bei Zoom-Out/Initialansicht keine 400-Fehler mehr.
+- `frontend/scripts/karte.js` – Anzeigeproblem bei starkem Zoom-Out behoben: statt die sichtbare Bounding-Box auf einen Teilbereich zu verkleinern, teilt der Client große Sichtbereiche in mehrere erlaubte Requests auf und merged die Ergebnisse. Sichtbare Spieler erscheinen dadurch direkt ohne vorheriges Scrollen/zusätzliches Zoomen.
 - `backend/database/schemas/research.sql`, `backend/database/migrate_v5_research.sql`, `backend/repositories/research.repository.js`, `backend/services/research.service.js`, `backend/routes/research.js`, `backend/server.js` – Persistentes Forschungssystem mit Projekten, Laufzeiten und API (`GET /research/overview`, `POST /research/start`) eingeführt.
 - `frontend/scripts/forschungen.js` – Forschungen-Seite nutzt jetzt echte Forschungsprojekte aus dem Backend inkl. Start-Button, Live-Status und Restzeit.
 - `backend/services/units.service.js` und `frontend/scripts/militaer.js` – Freischaltung von Verteidigungsstellungen auf abgeschlossene Verteidigungsforschung umgestellt (statt direkter Gebäudelevel-Logik).
@@ -119,6 +187,10 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/services/espionage.service.js` – Ohne Gegenspionageverteidigung (`counterIntelLevel = 0`) ist Spionage jetzt garantiert erfolgreich: keine erwischten Spione, immer `successRatePercent = 100` im Bericht.
 - `frontend/scripts/spionage.js` – Spionageberichte zeigen jetzt die Erfolgsquote (`successRatePercent`) explizit an.
 
+## [0.9.0] – 2026-05-06 (rekonstruiert aus Git-Historie)
+
+Hinweis: Für Pre-1.0 existieren keine Git-Tags; diese Version wurde aus der Commit-Historie abgeleitet.
+
 ### Added
 
 - `backend/tests/e2e/combat-plunder-flow.test.js` – API-E2E-Regressionstest ergänzt, der den Kampf-Missionsfluss (Angriff starten, Kampf auflösen, Bericht prüfen) inklusive Gebäudeübertrag beim Angreifer-Sieg und Seahawk-vs-Soldat-Verlustlogik validiert.
@@ -137,11 +209,6 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/tests/services/auth.service.test.js` – 12 Unit-Tests für register/login/refresh inkl. Koordinaten-Retry, Lockout- und Refresh-Token-Pfaden
 - `backend/tests/services/me.service.test.js` – 2 Unit-Tests für Status- und Stream-Payload-Aufbau
 - `.github/CODEOWNERS` – automatische Reviewer-Zuweisung für alle Pull Requests (P6)
-
-### Fixed
-
-- `.github/workflows/ci.yml` – `actions/checkout` und `actions/setup-node` von nicht-existenter `@v6` auf stabile `@v4` korrigiert (CI-Fehler behoben)
-- `.github/workflows/release.yml` – gleiche Korrektur wie `ci.yml`
 
 ### Changed
 
@@ -300,9 +367,6 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `VARIABLES.md` – `iron_cost`/`iron_production` → `steel_cost`/`steel_production`
 - `backend/.env.example` – `CORS_ORIGIN`, `POOL_MAX`, Rate-Limit-, Gameloop- und `REFERENCE_DATA_CACHE_TTL_MS`-Variablen dokumentiert
 - `docs/next-steps.md` – erledigte Punkte als ✅ markiert
-
-### Fixed
-
 - `backend/routes/buildings.js` – Level-Gebäude erfordern zwingend das direkte Vorgängerlevel (`X-1`); Kategorien `military`/`government` erfordern vollständige Produktionsketten
 - `backend/routes/auth.js` / `backend/services/auth.service.js` – Refresh-Token in derselben Transaktion wie User- und Startdaten gespeichert (keine partielle Persistenz)
 - `backend/middleware/validate.js` – `result.error.errors` → `result.error.issues` (Zod v4); Validierungsfehler geben korrekt 400 statt 500 zurück
@@ -310,6 +374,8 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/middleware/rateLimiters.js` – Rate-Limiter in `NODE_ENV=test` und für Playwright-Requests außerhalb von `production` übersprungen
 - `.github/workflows/ci.yml` – `JWT_SECRET` Umgebungsvariable für Backend-Lint-&-Test-Job ergänzt
 - Hardcodierter Datenbankpasswort-Default (`1234`) in `db.js` entfernt
+- `.github/workflows/ci.yml` – `actions/checkout` und `actions/setup-node` von nicht-existenter `@v6` auf stabile `@v4` korrigiert (CI-Fehler behoben)
+- `.github/workflows/release.yml` – gleiche Korrektur wie `ci.yml`
 
 ### Security
 

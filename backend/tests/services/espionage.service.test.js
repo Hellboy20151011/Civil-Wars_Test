@@ -87,7 +87,7 @@ describe('launchSpyMission', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
-        unitsRepo.findUserUnitById.mockResolvedValue(null);
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([]);
 
         await expect(launchSpyMission(1, 2, [{ user_unit_id: 99, quantity: 1 }])).rejects.toMatchObject({
             code: 'UNIT_NOT_FOUND',
@@ -98,10 +98,12 @@ describe('launchSpyMission', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
-        unitsRepo.findUserUnitById.mockResolvedValue({
-            id: 1, user_id: 1, category: 'infantry', name: 'Infanterist',
-            is_moving: false, quantity: 5, movement_speed: 2,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1, user_id: 1, category: 'infantry', name: 'Infanterist',
+                is_moving: false, quantity: 5, movement_speed: 2,
+            },
+        ]);
 
         await expect(launchSpyMission(1, 2, [{ user_unit_id: 1, quantity: 1 }])).rejects.toMatchObject({
             code: 'INVALID_UNIT_CATEGORY',
@@ -112,10 +114,12 @@ describe('launchSpyMission', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
-        unitsRepo.findUserUnitById.mockResolvedValue({
-            id: 1, user_id: 1, category: 'intel', name: 'Agent',
-            is_moving: true, quantity: 5, movement_speed: 2,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1, user_id: 1, category: 'intel', name: 'Agent',
+                is_moving: true, quantity: 5, movement_speed: 2,
+            },
+        ]);
 
         await expect(launchSpyMission(1, 2, [{ user_unit_id: 1, quantity: 1 }])).rejects.toMatchObject({
             code: 'UNIT_BUSY',
@@ -126,10 +130,12 @@ describe('launchSpyMission', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
-        unitsRepo.findUserUnitById.mockResolvedValue({
-            id: 1, user_id: 1, category: 'intel', name: 'Agent',
-            is_moving: false, quantity: 1, movement_speed: 2,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1, user_id: 1, category: 'intel', name: 'Agent',
+                is_moving: false, quantity: 1, movement_speed: 2,
+            },
+        ]);
 
         await expect(launchSpyMission(1, 2, [{ user_unit_id: 1, quantity: 5 }])).rejects.toMatchObject({
             code: 'INSUFFICIENT_UNITS',
@@ -140,10 +146,12 @@ describe('launchSpyMission', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 5, koordinate_y: 5, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
-        unitsRepo.findUserUnitById.mockResolvedValue({
-            id: 1, user_id: 1, category: 'intel', name: 'Agent',
-            is_moving: false, quantity: 5, movement_speed: 2, fuel_cost: 5,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1, user_id: 1, category: 'intel', name: 'Agent',
+                is_moving: false, quantity: 5, movement_speed: 2, fuel_cost: 5,
+            },
+        ]);
         calcDistance.mockReturnValue(0);
 
         await expect(launchSpyMission(1, 2, [{ user_unit_id: 1, quantity: 1 }])).rejects.toMatchObject({
@@ -156,10 +164,12 @@ describe('launchSpyMission', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
-        unitsRepo.findUserUnitById.mockResolvedValue({
-            id: 1, user_id: 1, category: 'intel', name: 'Agent',
-            is_moving: false, quantity: 5, movement_speed: 2, fuel_cost: 5,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1, user_id: 1, category: 'intel', name: 'Agent',
+                is_moving: false, quantity: 5, movement_speed: 2, fuel_cost: 5,
+            },
+        ]);
         calcDistance.mockReturnValue(8);
         calcArrivalTime.mockReturnValue(arrivalTime);
         spyRepo.createMission.mockResolvedValue({ id: 7 });
@@ -180,16 +190,18 @@ describe('launchSpyMission', () => {
         playerRepo.findById
             .mockResolvedValueOnce({ id: 1, koordinate_x: 0, koordinate_y: 0, username: 'spy' })
             .mockResolvedValueOnce({ id: 2, koordinate_x: 5, koordinate_y: 5, username: 'target' });
-        unitsRepo.findUserUnitById.mockResolvedValue({
-            id: 1,
-            user_id: 1,
-            category: 'intel',
-            name: 'Agent',
-            is_moving: false,
-            quantity: 5,
-            movement_speed: 2,
-            fuel_cost: 5,
-        });
+        unitsRepo.findMovableUnitsByIds.mockResolvedValue([
+            {
+                id: 1,
+                user_id: 1,
+                category: 'intel',
+                name: 'Agent',
+                is_moving: false,
+                quantity: 5,
+                movement_speed: 2,
+                fuel_cost: 5,
+            },
+        ]);
         calcDistance.mockReturnValue(10);
         resourcesRepo.findByUserIdLocked.mockResolvedValue({ treibstoff: 1 });
 

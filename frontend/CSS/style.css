@@ -668,6 +668,12 @@ body {
   color: var(--text-dim);
 }
 
+.dash-queue-note {
+  margin: 8px 2px 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 
 .building-type-row {
   display: flex;
@@ -1401,6 +1407,14 @@ body {
   font-size: 0.8rem;
   line-height: 1.2;
   min-height: 30px;
+}
+
+.build-queue-preview {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  min-height: 1.1rem;
 }
 
 /* ── Toast-Benachrichtigungen ─────────────────────────── */

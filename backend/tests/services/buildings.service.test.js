@@ -22,8 +22,6 @@ import {
     getUserBuildings,
     hasEnoughResources,
     startBuildingConstruction,
-    startUpgrade,
-    tickProduction,
 } from '../../services/buildings.service.js';
 
 withTransaction.mockImplementation(async (fn) => fn({}));
@@ -31,6 +29,7 @@ withTransaction.mockImplementation(async (fn) => fn({}));
 beforeEach(() => {
     vi.clearAllMocks();
     withTransaction.mockImplementation(async (fn) => fn({}));
+    buildingRepo.findQueuedPowerConsumption.mockResolvedValue(0);
 });
 
 describe('basic getters', () => {
@@ -130,50 +129,7 @@ describe('startBuildingConstruction', () => {
     });
 });
 
-describe('startUpgrade', () => {
-    it('fails when the building does not exist', async () => {
-        buildingRepo.findUserBuildingWithType.mockResolvedValue(null);
-        await expect(startUpgrade(1, 7)).rejects.toMatchObject({ code: 'BUILDING_NOT_FOUND' });
-    });
-
-    it('fails when maximum level is reached', async () => {
-        buildingRepo.findUserBuildingWithType.mockResolvedValue({ level: 4 });
-        await expect(startUpgrade(1, 7)).rejects.toMatchObject({ code: 'BUILDING_MAX_LEVEL' });
-    });
-
-    it('starts upgrade when resources are sufficient', async () => {
-        buildingRepo.findUserBuildingWithType.mockResolvedValue({
-            id: 7,
-            level: 2,
-            money_cost: 100,
-            stone_cost: 50,
-            steel_cost: 20,
-            fuel_cost: 10,
-            build_time_ticks: 4,
-        });
-        resourcesRepo.findByUserId.mockResolvedValue({ geld: 1000, stein: 1000, stahl: 1000, treibstoff: 1000 });
-        resourcesRepo.deductResources.mockResolvedValue(undefined);
-        buildingRepo.markUpgradeStarted.mockResolvedValue(undefined);
-
-        const result = await startUpgrade(1, 7);
-
-        expect(buildingRepo.markUpgradeStarted).toHaveBeenCalledWith(7, expect.any(Date), expect.any(Date), {});
-        expect(result).toEqual({ success: true, newLevel: 3, estimatedTime: 6 });
-    });
-});
-
 describe('tick and queue helpers', () => {
-    it('tickProduction aggregates production and adds resources', async () => {
-        buildingRepo.findBuildingsByUser.mockResolvedValue([
-            { anzahl: 2, money_production: 10, stone_production: 5, steel_production: 1, fuel_production: 0 },
-            { anzahl: 1, money_production: 0, stone_production: 0, steel_production: 0, fuel_production: 7 },
-        ]);
-        resourcesRepo.addResources.mockResolvedValue(undefined);
-
-        await expect(tickProduction(1)).resolves.toEqual({ money: 20, stone: 10, steel: 2, fuel: 7 });
-        expect(resourcesRepo.addResources).toHaveBeenCalledWith(1, 20, 10, 2, 7, null, {});
-    });
-
     it('getMyBuildingsAndQueue processes finished queue before loading data', async () => {
         economyService.processFinishedQueue.mockResolvedValue(undefined);
         buildingRepo.findBuildingsByUser.mockResolvedValue([{ id: 1 }]);
@@ -261,6 +217,54 @@ describe('buildBuilding', () => {
         await expect(buildBuilding(1, 5, 1)).rejects.toMatchObject({ code: 'BUILDING_NOT_ENOUGH_POWER' });
     });
 
+    it('rejects building when queued power alone would exceed production', async () => {
+        economyService.applyProductionTicks.mockResolvedValue(undefined);
+        economyService.processFinishedQueue.mockResolvedValue(undefined);
+        economyService.getStromStatus.mockResolvedValue({ produktion: 10, verbrauch: 8 });
+        buildingRepo.findQueuedPowerConsumption.mockResolvedValue(1); // 1 already queued
+        buildingRepo.findTypeById.mockResolvedValue({
+            id: 5,
+            name: 'Radar',
+            category: 'infrastructure',
+            power_consumption: 2,
+            money_cost: 10,
+            stone_cost: 0,
+            steel_cost: 0,
+            fuel_cost: 0,
+        });
+        buildingRepo.findBuildingsByUser.mockResolvedValue([{ name: 'Wohnhaus', anzahl: 1 }, { name: 'Steinbruch', anzahl: 1 }, { name: 'Stahlwerk', anzahl: 1 }, { name: 'Öl-Raffinerie', anzahl: 1 }]);
+
+        // verbrauch(8) + queued(1) + new(2) = 11 > produktion(10)
+        await expect(buildBuilding(1, 5, 1)).rejects.toMatchObject({ code: 'BUILDING_NOT_ENOUGH_POWER' });
+    });
+
+    it('allows zero-consumption buildings even when free power is negative', async () => {
+        economyService.applyProductionTicks.mockResolvedValue(undefined);
+        economyService.processFinishedQueue.mockResolvedValue(undefined);
+        economyService.getStromStatus.mockResolvedValue({ produktion: 10, verbrauch: 15 });
+        buildingRepo.findTypeById.mockResolvedValue({
+            id: 9,
+            name: 'Kraftwerk',
+            category: 'infrastructure',
+            power_consumption: 0,
+            money_cost: 10,
+            stone_cost: 0,
+            steel_cost: 0,
+            fuel_cost: 0,
+            build_time_ticks: 2,
+        });
+        buildingRepo.findBuildingsByUser.mockResolvedValue([{ name: 'Wohnhaus', anzahl: 1 }, { name: 'Steinbruch', anzahl: 1 }, { name: 'Stahlwerk', anzahl: 1 }, { name: 'Öl-Raffinerie', anzahl: 1 }]);
+        resourcesRepo.findByUserIdLocked.mockResolvedValue(baseResources);
+        resourcesRepo.deductResources.mockResolvedValue(undefined);
+        buildingRepo.findExistingQueueEntry.mockResolvedValue(null);
+        buildingRepo.createQueueEntry.mockResolvedValue({ fertig_am: '2026-01-01T10:15:00.000Z' });
+
+        await expect(buildBuilding(1, 9, 1)).resolves.toEqual({
+            message: expect.stringContaining('Kraftwerk wird gebaut'),
+            auftrag: { fertig_am: '2026-01-01T10:15:00.000Z' },
+        });
+    });
+
     it('queues timed buildings and rejects duplicate queue entries', async () => {
         economyService.applyProductionTicks.mockResolvedValue(undefined);
         economyService.processFinishedQueue.mockResolvedValue(undefined);
@@ -288,6 +292,33 @@ describe('buildBuilding', () => {
         await expect(buildBuilding(1, 6, 1)).resolves.toEqual({
             message: expect.stringContaining('Fabrik wird gebaut'),
             auftrag: { fertig_am: '2026-01-01T10:15:00.000Z' },
+        });
+    });
+
+    it('returns sequential queue message for multi-build orders', async () => {
+        economyService.applyProductionTicks.mockResolvedValue(undefined);
+        economyService.processFinishedQueue.mockResolvedValue(undefined);
+        economyService.getStromStatus.mockResolvedValue({ produktion: 100, verbrauch: 0 });
+        buildingRepo.findTypeById.mockResolvedValue({
+            id: 10,
+            name: 'Steinbruch',
+            category: 'infrastructure',
+            power_consumption: 10,
+            money_cost: 10,
+            stone_cost: 0,
+            steel_cost: 0,
+            fuel_cost: 0,
+            build_time_ticks: 2,
+        });
+        buildingRepo.findBuildingsByUser.mockResolvedValue([{ name: 'Wohnhaus', anzahl: 1 }, { name: 'Steinbruch', anzahl: 1 }, { name: 'Stahlwerk', anzahl: 1 }, { name: 'Öl-Raffinerie', anzahl: 1 }]);
+        resourcesRepo.findByUserIdLocked.mockResolvedValue(baseResources);
+        resourcesRepo.deductResources.mockResolvedValue(undefined);
+        buildingRepo.findExistingQueueEntry.mockResolvedValue(null);
+        buildingRepo.createQueueEntry.mockResolvedValue({ fertig_am: '2026-01-01T10:20:00.000Z' });
+
+        await expect(buildBuilding(1, 10, 2)).resolves.toMatchObject({
+            message: expect.stringContaining('wird nacheinander gebaut'),
+            auftrag: { fertig_am: '2026-01-01T10:20:00.000Z' },
         });
     });
 

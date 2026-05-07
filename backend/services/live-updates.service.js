@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto';
+
 // Lazy import to avoid circular dependency (me.service → live-updates.service)
 let _meService = null;
 async function getMeService() {
@@ -17,11 +19,8 @@ const TICKET_TTL_MS = 30_000; // 30 Sekunden gültig
  * @returns {string} ticket
  */
 export function createStreamTicket(userId) {
-    // Zufälliges Ticket aus 32 Byte hex
-    const ticket = Array.from(
-        { length: 32 },
-        () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
-    ).join('');
+    // Kryptografisch sicheres Ticket aus 32 Byte hex
+    const ticket = randomBytes(32).toString('hex');
     streamTickets.set(ticket, { userId, expiresAt: Date.now() + TICKET_TTL_MS });
     return ticket;
 }

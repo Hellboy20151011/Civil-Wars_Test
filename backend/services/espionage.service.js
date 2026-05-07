@@ -181,18 +181,42 @@ export async function launchSpyMission(spyPlayerId, targetPlayerId, units) {
             throw createServiceError('Ziel befindet sich an der eigenen Position', 400, 'SAME_POSITION');
         }
 
-        // Einheiten validieren: nur 'intel'-Kategorie erlaubt
-        const unitDetails = [];
+        // Einheiten validieren: nur 'intel'-Kategorie erlaubt (Batch statt N Einzelqueries)
+        const requestedByUnitId = new Map();
         let totalSpies = 0;
 
-        for (const u of units) {
-            const unit = await unitsRepo.findUserUnitById(u.user_unit_id, client);
-            if (!unit || unit.user_id !== spyPlayerId) {
-                throw createServiceError(`Einheit ${u.user_unit_id} nicht gefunden`, 404, 'UNIT_NOT_FOUND');
+        for (const entry of units) {
+            const userUnitId = Number(entry.user_unit_id ?? entry.userUnitId);
+            const quantity = Number(entry.quantity);
+
+            if (!Number.isInteger(userUnitId) || userUnitId <= 0) {
+                throw createServiceError('Ungültige Einheit in Spionageliste', 400, 'INVALID_UNIT_ID');
+            }
+            if (!Number.isInteger(quantity) || quantity <= 0) {
+                throw createServiceError('Ungültige Einheitenmenge', 400, 'INVALID_UNIT_QUANTITY');
+            }
+
+            requestedByUnitId.set(userUnitId, (requestedByUnitId.get(userUnitId) ?? 0) + quantity);
+            totalSpies += quantity;
+        }
+
+        const unitIds = [...requestedByUnitId.keys()];
+        const movableUnits = await unitsRepo.findMovableUnitsByIds(spyPlayerId, unitIds, client, {
+            forUpdate: true,
+        });
+        const movableById = new Map(movableUnits.map((unit) => [Number(unit.id), unit]));
+
+        const unitDetails = [];
+        for (const userUnitId of unitIds) {
+            const unit = movableById.get(userUnitId);
+            const requestedQuantity = requestedByUnitId.get(userUnitId);
+
+            if (!unit) {
+                throw createServiceError(`Einheit ${userUnitId} nicht gefunden`, 404, 'UNIT_NOT_FOUND');
             }
             if (unit.category !== 'intel') {
                 throw createServiceError(
-                    `Nur Geheimdiensteinheiten können Spionage-Missionen durchführen`,
+                    'Nur Geheimdiensteinheiten können Spionage-Missionen durchführen',
                     400,
                     'INVALID_UNIT_CATEGORY'
                 );
@@ -200,15 +224,15 @@ export async function launchSpyMission(spyPlayerId, targetPlayerId, units) {
             if (unit.is_moving) {
                 throw createServiceError(`Einheit ${unit.name} ist bereits im Einsatz`, 409, 'UNIT_BUSY');
             }
-            if (unit.quantity < u.quantity) {
+            if (Number(unit.quantity) < requestedQuantity) {
                 throw createServiceError(
                     `Nicht genug ${unit.name} vorhanden (${unit.quantity} verfügbar)`,
                     400,
                     'INSUFFICIENT_UNITS'
                 );
             }
-            unitDetails.push({ ...unit, quantitySending: u.quantity });
-            totalSpies += u.quantity;
+
+            unitDetails.push({ ...unit, quantitySending: requestedQuantity });
         }
 
         // Langsamste Einheit bestimmt die Reisezeit
@@ -248,7 +272,18 @@ export async function launchSpyMission(spyPlayerId, targetPlayerId, units) {
 
         // Einheiten reservieren (Menge reduzieren)
         for (const u of unitDetails) {
-            await unitsRepo.decrementUserUnitQuantity(u.id, u.quantitySending, client);
+            try {
+                await unitsRepo.decrementUserUnitQuantity(u.id, u.quantitySending, client);
+            } catch (error) {
+                if (error?.code === 'INSUFFICIENT_UNITS') {
+                    throw createServiceError(
+                        `Nicht genug ${u.name} vorhanden (${u.quantity} verfügbar)`,
+                        400,
+                        'INSUFFICIENT_UNITS'
+                    );
+                }
+                throw error;
+            }
             await spyRepo.addMissionUnit(mission.id, u.id, u.quantitySending, client);
             // Markiere als bewegend (Menge wurde bereits reduziert)
         }

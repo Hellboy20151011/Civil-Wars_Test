@@ -128,9 +128,10 @@ router.post(
     apiLimiter,
     validateBody(attackSchema),
     asyncWrapper(async (req, res) => {
+        const userId = req.user.id;
         const { attacking_unit_id, target_unit_id } = req.body;
 
-        const result = await unitsService.attackUnits(attacking_unit_id, target_unit_id);
+        const result = await unitsService.attackUnits(userId, attacking_unit_id, target_unit_id);
         res.json({
             success: true,
             message: `Angriff erfolgreich! ${result.actualDamage.toFixed(2)} Schaden verursacht`,

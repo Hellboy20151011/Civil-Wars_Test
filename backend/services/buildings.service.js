@@ -8,6 +8,7 @@ import * as resourcesRepo from '../repositories/resources.repository.js';
 import { withTransaction } from '../repositories/transaction.repository.js';
 import * as economyService from './economy.service.js';
 import { createServiceError } from './service-error.js';
+import { config } from '../config.js';
 
 const LEVEL_NAME_REGEX = /^(.*) Level (\d+)$/;
 const MONEY_PRODUCTION_BUILDINGS = ['Wohnhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Hochhaus'];
@@ -49,6 +50,10 @@ export async function getBuildingByName(name) {
 // BUILD: Gebäude bauen
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * NPC-spezifischer Legacy-Baupfad mit expliziter Raster-Position.
+ * Spieler-seitige Bauaufträge laufen über `buildBuilding(...)`.
+ */
 export async function startBuildingConstruction(userId, buildingTypeId, locationX, locationY) {
     return withTransaction(async (client) => {
         const building = await buildingRepo.findTypeById(buildingTypeId, client);
@@ -98,43 +103,6 @@ export async function startBuildingConstruction(userId, buildingTypeId, location
             success: true,
             building: createdBuilding,
             estimatedTime: building.build_time_ticks,
-        };
-    });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// UPGRADE: Gebäude upgraden
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function startUpgrade(userId, userBuildingId) {
-    return withTransaction(async (client) => {
-        const userBuilding = await buildingRepo.findUserBuildingWithType(userBuildingId, userId, client);
-        if (!userBuilding) throw createServiceError('Gebäude nicht gefunden', 404, 'BUILDING_NOT_FOUND');
-
-        const maxLevel = 4;
-        if (userBuilding.level >= maxLevel) throw createServiceError('Maximales Level erreicht', 400, 'BUILDING_MAX_LEVEL');
-
-        const nextLevelCosts = {
-            money: Math.floor(userBuilding.money_cost * 1.5),
-            stone: Math.floor(userBuilding.stone_cost * 1.5),
-            steel: Math.floor(userBuilding.steel_cost * 1.5),
-            fuel: Math.floor(userBuilding.fuel_cost * 1.5),
-        };
-
-        const hasResources = await hasEnoughResources(userId, nextLevelCosts, client);
-        if (!hasResources) throw createServiceError('Nicht genug Ressourcen für Upgrade', 400, 'INSUFFICIENT_RESOURCES');
-
-        await deductResources(userId, nextLevelCosts, client);
-
-        const now = new Date();
-        const upgradeEndTime = new Date(now.getTime() + userBuilding.build_time_ticks * 1500);
-
-        await buildingRepo.markUpgradeStarted(userBuildingId, now, upgradeEndTime, client);
-
-        return {
-            success: true,
-            newLevel: userBuilding.level + 1,
-            estimatedTime: userBuilding.build_time_ticks * 1.5,
         };
     });
 }
@@ -193,33 +161,6 @@ export async function addResources(userId, resources, client) {
         null,
         client
     );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TICK: Ressourcenproduktion pro Tick
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function tickProduction(userId) {
-    return withTransaction(async (client) => {
-        const buildings = await buildingRepo.findBuildingsByUser(userId, client);
-        const production = {
-            money: 0,
-            stone: 0,
-            steel: 0,
-            fuel: 0,
-        };
-
-        for (const building of buildings) {
-            const count = Number(building.anzahl || 0);
-            production.money += Number(building.money_production || 0) * count;
-            production.stone += Number(building.stone_production || 0) * count;
-            production.steel += Number(building.steel_production || 0) * count;
-            production.fuel += Number(building.fuel_production || 0) * count;
-        }
-
-        await addResources(userId, production, client);
-        return production;
-    });
 }
 
 function getLevelMeta(buildingName) {
@@ -359,10 +300,11 @@ export async function buildBuilding(userId, buildingTypeId, anzahl) {
                 );
             }
         }
-
-
+        const powerConsumption = Number(bt.power_consumption ?? 0);
+        if (powerConsumption > 0) {
             const strom = await economyService.getStromStatus(userId, client);
-            const neuerVerbrauch = strom.verbrauch + Number(bt.power_consumption) * quantity;
+            const queuedConsumption = await buildingRepo.findQueuedPowerConsumption(userId, client);
+            const neuerVerbrauch = strom.verbrauch + queuedConsumption + powerConsumption * quantity;
             if (neuerVerbrauch > strom.produktion) {
                 throw createServiceError(
                     'Nicht genug freier Strom für dieses Gebäude.',
@@ -370,7 +312,8 @@ export async function buildBuilding(userId, buildingTypeId, anzahl) {
                     'BUILDING_NOT_ENOUGH_POWER'
                 );
             }
-        
+        }
+
 
         const resources = await resourcesRepo.findByUserIdLocked(userId, client);
         if (!resources) {
@@ -454,6 +397,22 @@ export async function buildBuilding(userId, buildingTypeId, anzahl) {
                 hour: '2-digit',
                 minute: '2-digit',
             });
+
+            if (quantity > 1) {
+                const buildMsPerEntry = Number(bt.build_time_ticks) * config.gameloop.tickIntervalMs;
+                const firstFinishAt = new Date(
+                    new Date(auftrag.fertig_am).getTime() - (quantity - 1) * buildMsPerEntry
+                );
+                const firstFertigStr = firstFinishAt.toLocaleTimeString('de-DE', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                });
+
+                return {
+                    message: `${label} wird nacheinander gebaut (1. Fertigstellung um ${firstFertigStr}, letzte um ${fertigStr}).`,
+                    auftrag,
+                };
+            }
 
             return {
                 message: `${label} wird gebaut (fertig um ${fertigStr}).`,

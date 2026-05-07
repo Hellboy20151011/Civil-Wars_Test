@@ -90,15 +90,12 @@ export async function resetFailedLogin(id, client = pool) {
 }
 
 /**
- * Liefert alle aktiven Spieler mit ihren Kartenkoordinaten fuer das Karten-Rendering.
- *
-/**
  * Gibt alle aktiven Spieler mit Kartenkoordinaten zurück.
  * @param {import('pg').PoolClient|import('pg').Pool} [client=pool]
  * @param {{ xMin: number, yMin: number, xMax: number, yMax: number } | null} [bbox=null]
  * @returns {Promise<Array<{ id: number, username: string, koordinate_x: number, koordinate_y: number }>>}
  */
-export async function findAllForMap(client = pool, bbox = null) {
+export async function findAllForMap(bbox = null, client = pool) {
     if (bbox) {
         const result = await client.query(
             `SELECT id, username, koordinate_x, koordinate_y
@@ -114,6 +111,39 @@ export async function findAllForMap(client = pool, bbox = null) {
     }
     const result = await client.query(
         'SELECT id, username, koordinate_x, koordinate_y FROM users WHERE is_active = TRUE AND koordinate_x IS NOT NULL AND koordinate_y IS NOT NULL ORDER BY id'
+    );
+    return result.rows;
+}
+
+/**
+ * Gibt nur aktive menschliche Spieler (is_npc = FALSE) mit Kartenkoordinaten zurück,
+ * optional unter Ausschluss eines bestimmten Users (z. B. angreifender NPC selbst).
+ * @param {number|null} [excludeUserId=null]
+ * @param {import('pg').PoolClient|import('pg').Pool} [client=pool]
+ * @returns {Promise<Array<{ id: number, username: string, koordinate_x: number, koordinate_y: number }>>}
+ */
+export async function findActiveHumanTargetsForMap(excludeUserId = null, client = pool) {
+    if (excludeUserId == null) {
+        const result = await client.query(
+            `SELECT id, username, koordinate_x, koordinate_y
+             FROM users
+             WHERE is_active = TRUE
+               AND is_npc = FALSE
+               AND koordinate_x IS NOT NULL AND koordinate_y IS NOT NULL
+             ORDER BY id`
+        );
+        return result.rows;
+    }
+
+    const result = await client.query(
+        `SELECT id, username, koordinate_x, koordinate_y
+         FROM users
+         WHERE is_active = TRUE
+           AND is_npc = FALSE
+           AND id <> $1
+           AND koordinate_x IS NOT NULL AND koordinate_y IS NOT NULL
+         ORDER BY id`,
+        [excludeUserId]
     );
     return result.rows;
 }
