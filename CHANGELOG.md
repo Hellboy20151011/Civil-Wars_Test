@@ -111,6 +111,15 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/services/combat.service.js` – Schadensverteilung auf mengengewichtete Zuteilung (`quantity × matchup` als Gewicht statt gleichmäßiger Aufteilung); `defense_points` in `toEffectiveHitpoints` integriert (`HP × (1 + defense_points / 100)`), wodurch defensive Einheiten robuster werden.
 - `backend/tests/services/combat.service.test.js` – Erwartete `attackPower`-Werte an gewichtete Verteilung angepasst (3 Tests).
 - `docs/next-steps.md` und `docs/Verbesserungs.md` – Kampfsystem-Fortschritt und Testumfang aktualisiert.
+- `backend/services/npc.service.js` – In schlanken Orchestrator umgebaut; gesamte Spiellogik in fünf neue Sub-Module aufgeteilt: `npc.config.js` (Konstanten), `npc.buildings.js` (Baupriorität + tryBuild), `npc.units.js` (Infanterie-Training), `npc.combat.js` (Angriff + Cooldown), `npc.status.js` (Status-Loader). Öffentliche API (`tickAllNpcs`, `getNpcDebugSummary`, `_resetAttackCooldownsForTests`) bleibt rückwärtskompatibel.
+
+### Added
+
+- `backend/services/npc/npc.config.js` – Zentrale Konstanten für alle NPC-Sub-Module (Angriffs-/Armée-Limits, Cooldown, Produktionsziele, Gebäude-Produktionssätze).
+- `backend/services/npc/npc.buildings.js` – Baupriorität (`DEFENSIVE_BUILD_PRIORITY`, `AGGRESSIVE_BUILD_PRIORITY`), `tryBuild()` und `nextBuildLocation()`.
+- `backend/services/npc/npc.units.js` – Infanterie-Trainingslogik `tryTrainInfantry()`.
+- `backend/services/npc/npc.combat.js` – Angriffssystem `tryAttack()`, Produktionsprüfung `hasMinProductionReady()`, In-Memory-Cooldown und `resetAttackCooldownsForTests()`.
+- `backend/services/npc/npc.status.js` – Status-Loader `getNpcStatus()` (Ressourcen, Gebäude, Strom, Produktionsraten Stein/Stahl/Treibstoff).
 
 ### Added
 
@@ -131,6 +140,12 @@ Versioning: [Semantic Versioning](https://semver.org/lang/de/)
 - `backend/tests/services/npc.service.test.js` – Regressionstest ergänzt: Bei `stromFrei = 0` muss die KI ein Kraftwerk priorisieren; verhindert erneute NPC-Inaktivität im Startzustand.
 - `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – NPC-KI startet Kraftwerksbau jetzt bereits bei `stromFrei < 5` (statt nur bei `<= 0`), damit bei kleinem Reststrom (1-4) kein Build-Deadlock entsteht; zusätzlicher Regressionstest für `stromFrei = 4` ergänzt.
 - `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – Aggressive NPCs bauen vor Kaserne jetzt zwingend zuerst `Ölpumpe` und `Öl-Raffinerie`; defensiven NPCs wurde `Landverteidigung Level 1` als zusätzliche Bauoption ergänzt.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – Bug: aggressive NPC nutzte `'Kaserne'` statt `'Kaserne Level 1'` als Gebäudenamen; `findTypeByName` gab daher immer `null` zurück, der Bau schlug lautlos fehl und der NPC baute endlos Reihenhäuser statt einer Kaserne.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – Aggressive NPCs greifen jetzt höchstens alle 12 Stunden an (In-Memory-Cooldown per NPC-ID); verhindert Dauerangriffe in jedem Tick.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – NPC-Training auf max. 50 stehende Einheiten begrenzt (`MAX_STANDING_ARMY`); Angriffsgröße beträgt jetzt 50 % der verfügbaren Einheiten pro Typ (min. 5), statt immer fix 10.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – Aggressive NPCs greifen jetzt alle erreichbaren menschlichen Spieler gleichzeitig an (nächste zuerst); Einheiten werden der Reihe nach auf Ziele verteilt bis keine ausreichenden Mengen mehr übrig sind.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – Angriffe sind erst möglich wenn alle Grundproduktionsgebäude vorhanden sind und ≥ 50 % der Ressourcenziele (Stein, Stahl, Treibstoff) erreicht wurden; danach wird parallel weitergebaut.
+- `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – Phase-2-Baubedingungen von Vorrats-basiert auf **Produktionsraten-basiert** umgestellt: NPC baut Ressourcengebäude aus bis er 500t Stein/Tick (50 Steinbrüche), 350t Stahl/Tick (50 Stahlwerke) und 500L Treibstoff/Tick (50 Öl-Raffinerien + 10 Ölpumpen) erreicht; Öl-Raffinerie wird vor Ölpumpe gebaut (vorhandene Kapazität zuerst füllen, dann erweitern); Angriffssperre prüft ebenfalls Produktionsraten (≥ 50 % der Targets) statt Vorratswerte.
 - `backend/services/npc.service.js` und `backend/tests/services/npc.service.test.js` – NPC-Baulogik in zwei Phasen aufgeteilt: Phase 1 sichert je ein Exemplar jedes Ressourcengebäudes (`Wohnhaus`, `Steinbruch`, `Stahlwerk`, `Ölpumpe`, `Öl-Raffinerie`), bevor Phase 2 weitere Gebäude zum Erreichen von Einkommenszielen baut; gilt für beide NPC-Typen.
 - `backend/services/npc.service.js` – Phase-2-Einkommensziele für Stein (`< 10 000`), Stahl (`< 5 000`) und Treibstoff (`< 3 000`) ergänzt; NPC baut je weitere Steinbrüche, Stahlwerke und Ölpumpen bis die Ziele erreicht sind; Öl-Raffinerien werden dabei im Verhältnis 5:1 pro Ölpumpe nachgezogen.
 - `frontend/scripts/dashboard.js` – Dashboard-SSE verarbeitet Queue-Updates jetzt aus `status.queue` statt fälschlich aus der Root-Payload, sodass Bauabschluss-/Abbruch-Refreshs wieder zuverlässig auslösen.
